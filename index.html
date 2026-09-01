@@ -3,115 +3,228 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CSE Portal | Slides & Live Hub</title>
+  <title>CSE Portal | Drive & Live Hub</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: '#4f46e5',
+          }
+        }
+      }
+    }
+  </script>
   <link rel="stylesheet" href="css/style.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
+<body class="bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100 min-h-screen flex flex-col">
 
-  <!-- Navbar -->
-  <header class="glass-panel sticky top-0 z-40 px-4 md:px-8 py-3.5 flex justify-between items-center border-b border-slate-800">
-    <div class="flex items-center space-x-6">
-      <a href="index.html" class="flex items-center space-x-2.5">
-        <i class="fa-solid fa-graduation-cap text-indigo-500 text-2xl"></i>
-        <span class="text-lg font-bold bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">CSE Portal</span>
+  <header class="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur border-b border-slate-200 dark:border-slate-800 px-4 md:px-6 py-3 flex justify-between items-center">
+    <div class="flex items-center space-x-3">
+      <button onclick="toggleSidebar(true)" class="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300">
+        <i class="fa-solid fa-bars text-lg"></i>
+      </button>
+
+      <a href="index.html" class="flex items-center space-x-2">
+        <i class="fa-solid fa-graduation-cap text-indigo-600 dark:text-indigo-400 text-2xl"></i>
+        <span class="text-base md:text-lg font-bold bg-gradient-to-r from-indigo-500 to-cyan-400 bg-clip-text text-transparent">CSE Portal</span>
       </a>
-      <nav class="hidden md:flex space-x-4 text-xs font-medium text-slate-400">
-        <a href="index.html" class="text-white hover:text-indigo-400 transition"><i class="fa-solid fa-folder-open mr-1.5"></i>Drive & Slides</a>
-        <a href="tools/cgpa.html" class="hover:text-indigo-400 transition"><i class="fa-solid fa-calculator mr-1.5"></i>GPA Suite</a>
-      </nav>
     </div>
-    <div id="authHeaderAction" class="flex items-center gap-2"></div>
+
+    <div class="flex items-center gap-2">
+      <button onclick="toggleTheme()" class="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:scale-105">
+        <i id="themeIcon" class="fa-solid fa-sun"></i>
+      </button>
+      
+      <div id="adminActionHeader" class="hidden">
+        <button onclick="openUploadModal()" class="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3 py-2 rounded-xl flex items-center gap-1.5 shadow-md shadow-emerald-600/20">
+          <i class="fa-solid fa-cloud-arrow-up"></i> <span class="hidden sm:inline">Upload Slide</span>
+        </button>
+      </div>
+
+      <div id="authHeaderAction"></div>
+    </div>
   </header>
 
-  <!-- Content Grid -->
+  <div id="sideDrawer" class="fixed inset-0 z-50 hidden">
+    <div onclick="toggleSidebar(false)" class="drawer-backdrop fixed inset-0 bg-black/50 backdrop-blur-xs"></div>
+    <div class="drawer-content fixed top-0 left-0 bottom-0 w-72 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 p-5 flex flex-col justify-between shadow-2xl">
+      <div class="space-y-6">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+          <div class="flex items-center space-x-2">
+            <i class="fa-solid fa-folder-tree text-indigo-500 text-lg"></i>
+            <span class="font-bold text-sm">File Explorer</span>
+          </div>
+          <button onclick="toggleSidebar(false)" class="text-slate-400 hover:text-slate-600 dark:hover:text-white">
+            <i class="fa-solid fa-xmark text-lg"></i>
+          </button>
+        </div>
+
+        <nav class="space-y-1 text-xs">
+          <a href="index.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-semibold">
+            <i class="fa-solid fa-layer-group"></i> All Slides & Live Hub
+          </a>
+          <a href="tools/cgpa.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400">
+            <i class="fa-solid fa-calculator"></i> SGPA / CGPA Calculator
+          </a>
+          <button onclick="openProfileModal(); toggleSidebar(false);" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 text-left">
+            <i class="fa-solid fa-id-badge"></i> My Student Profile
+          </button>
+        </nav>
+
+        <div class="pt-2">
+          <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Semesters</span>
+          <div class="space-y-1 text-xs text-slate-500 dark:text-slate-400">
+            <div class="flex items-center justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer">
+              <span><i class="fa-regular fa-folder text-amber-500 mr-2"></i>1st Year 1st Sem</span>
+              <span class="text-[10px] bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 rounded">Core</span>
+            </div>
+            <div class="flex items-center justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer">
+              <span><i class="fa-regular fa-folder text-amber-500 mr-2"></i>1st Year 2nd Sem</span>
+              <span class="text-[10px] bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 rounded">Core</span>
+            </div>
+            <div class="flex items-center justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer">
+              <span><i class="fa-regular fa-folder text-amber-500 mr-2"></i>2nd Year & Lab</span>
+              <span class="text-[10px] bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 rounded">Lab</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="text-[11px] text-slate-400 border-t border-slate-200 dark:border-slate-800 pt-3 flex items-center justify-between">
+        <span>FastAPI & Supabase</span>
+        <span class="font-mono text-emerald-500">v2.0 Live</span>
+      </div>
+    </div>
+  </div>
+
   <main class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
     
-    <!-- Slides & Drive Section -->
     <div class="lg:col-span-2 space-y-4">
-      <div class="glass-panel rounded-2xl p-4 md:p-5 custom-shadow">
-        <div class="flex flex-wrap gap-2 justify-between items-center pb-4 border-b border-slate-800/80">
+      <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 md:p-5 shadow-sm dark:shadow-xl">
+        <div class="flex flex-wrap gap-2 justify-between items-center pb-4 border-b border-slate-100 dark:border-slate-800/80">
           <div>
-            <h2 class="text-base font-semibold text-cyan-400 flex items-center gap-2">
-              <i class="fa-solid fa-cloud-arrow-down"></i> Course Materials
+            <h2 class="text-base font-semibold text-indigo-600 dark:text-cyan-400 flex items-center gap-2">
+              <i class="fa-solid fa-cloud-arrow-down"></i> Academic Drive Materials
             </h2>
-            <p class="text-xs text-slate-400 mt-0.5">Select slides to preview or bulk download as ZIP</p>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Preview slides instantly or download multi-select ZIP</p>
           </div>
-          <button onclick="downloadSelectedZip()" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-lg shadow-indigo-600/20">
+          <button onclick="downloadSelectedZip()" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-md shadow-indigo-600/20">
             <i class="fa-solid fa-file-zipper"></i> Download ZIP
           </button>
         </div>
 
         <div id="fileContainer" class="mt-4 space-y-2">
-          <div class="text-center py-12 text-slate-500 text-xs">
-            <i class="fa-solid fa-lock text-2xl mb-2 text-slate-600 block"></i>
-            Please login with your Student ID to access the course drive.
+          <div class="text-center py-12 text-slate-400 dark:text-slate-500 text-xs">
+            <i class="fa-solid fa-lock text-2xl mb-2 text-slate-300 dark:text-slate-600 block"></i>
+            Please login with your Student ID to access the slide storage.
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Real-time Live Chat Panel -->
-    <div class="glass-panel rounded-2xl flex flex-col chat-box-height custom-shadow overflow-hidden">
-      <div class="p-3.5 border-b border-slate-800 flex items-center justify-between bg-slate-900/40">
-        <span class="font-semibold text-emerald-400 text-xs flex items-center gap-2">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col chat-container-height shadow-sm dark:shadow-xl overflow-hidden">
+      <div class="p-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-900/40">
+        <span class="font-semibold text-emerald-600 dark:text-emerald-400 text-xs flex items-center gap-2">
           <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
           Live Class Hub
         </span>
-        <span class="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-mono">Real-time</span>
+        <span class="text-[10px] bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded font-mono">No Refresh</span>
       </div>
 
       <div id="chatMessages" class="flex-1 p-4 overflow-y-auto space-y-3 text-xs">
-        <p class="text-slate-500 text-center py-4">Join by logging into your account.</p>
+        <p class="text-slate-400 dark:text-slate-500 text-center py-4">Login to participate in the live class discussion.</p>
       </div>
 
-      <form id="chatForm" onsubmit="sendLiveMessage(event)" class="p-3 border-t border-slate-800 bg-slate-950 flex gap-2">
-        <input id="chatInput" type="text" placeholder="Type a message..." disabled class="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 disabled:opacity-50 text-slate-200">
-        <button type="submit" id="chatSendBtn" disabled class="bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 rounded-xl text-xs disabled:opacity-50"><i class="fa-solid fa-paper-plane"></i></button>
+      <form id="chatForm" onsubmit="sendLiveMessage(event)" class="p-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex gap-2">
+        <input id="chatInput" type="text" placeholder="Type a message..." disabled class="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 disabled:opacity-50 text-slate-800 dark:text-slate-200">
+        <button type="submit" id="chatSendBtn" disabled class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 rounded-xl text-xs disabled:opacity-50"><i class="fa-solid fa-paper-plane"></i></button>
       </form>
     </div>
   </main>
 
-  <!-- Login/Register Modal -->
-  <div id="authModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
-    <div class="glass-panel bg-slate-900 border border-slate-800 w-full max-w-md p-6 rounded-2xl shadow-2xl relative">
-      <button onclick="toggleAuthModal(false)" class="absolute top-4 right-4 text-slate-500 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+  <div id="authModal" class="fixed inset-0 bg-black/70 backdrop-blur-xs hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-md p-6 rounded-2xl shadow-2xl relative">
+      <button onclick="toggleAuthModal(false)" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-white"><i class="fa-solid fa-xmark"></i></button>
       
       <div id="loginFormSection">
-        <h3 class="text-base font-bold mb-1 text-indigo-400">Student Portal Login</h3>
-        <p class="text-xs text-slate-400 mb-4">Enter your CSE Student ID and password</p>
+        <h3 class="text-base font-bold mb-1 text-indigo-600 dark:text-indigo-400">Student Portal Login</h3>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">Enter your Student ID and password to proceed</p>
         <div class="space-y-3">
-          <input id="loginId" type="text" placeholder="Student ID (e.g. 2510376101)" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 focus:outline-indigo-500">
-          <input id="loginPass" type="password" placeholder="Password" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 focus:outline-indigo-500">
-          <button onclick="handleLogin()" class="w-full bg-indigo-600 hover:bg-indigo-500 py-2.5 rounded-xl text-xs font-semibold shadow-lg shadow-indigo-600/20">Login</button>
-          <p class="text-xs text-center text-slate-400 pt-2">Don't have an account? <a href="#" onclick="showRegisterForm(true)" class="text-cyan-400 underline font-medium">Register</a></p>
+          <input id="loginId" type="text" placeholder="Student ID (e.g. 2510376101)" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-indigo-500">
+          <input id="loginPass" type="password" placeholder="Password" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-indigo-500">
+          <button id="loginSubmitBtn" onclick="handleLogin()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2.5 rounded-xl text-xs font-semibold shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2">
+            <span id="loginBtnText">Login</span>
+            <span id="loginSpinner" class="spinner hidden"></span>
+          </button>
+          <p class="text-xs text-center text-slate-500 dark:text-slate-400 pt-2">Don't have an account? <a href="#" onclick="showRegisterForm(true)" class="text-cyan-500 underline font-medium">Register</a></p>
         </div>
       </div>
 
       <div id="registerFormSection" class="hidden">
-        <h3 class="text-base font-bold mb-1 text-cyan-400">Student Registration</h3>
-        <p class="text-xs text-slate-400 mb-4">Setup your credentials and recovery questions</p>
+        <h3 class="text-base font-bold mb-1 text-cyan-600 dark:text-cyan-400">Student Registration</h3>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">Setup your credentials and recovery question</p>
         <div class="space-y-3 max-h-[65vh] overflow-y-auto pr-1">
-          <input id="regName" type="text" placeholder="Full Name" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200">
-          <input id="regId" type="text" placeholder="Student ID (e.g. 2510376101)" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200">
-          <input id="regPass" type="password" placeholder="Password" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200">
+          <input id="regName" type="text" placeholder="Full Name" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs text-slate-800 dark:text-slate-200">
+          <input id="regId" type="text" placeholder="Student ID (e.g. 2510376101)" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs text-slate-800 dark:text-slate-200">
+          <input id="regPass" type="password" placeholder="Password" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs text-slate-800 dark:text-slate-200">
           
-          <div class="border-t border-slate-800 pt-2">
-            <span class="text-[11px] font-semibold text-slate-400">Security Question for Recovery:</span>
-            <input id="secQ1" type="text" placeholder="e.g. Favorite Teacher / High School" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-xs mb-1.5 mt-1 text-slate-200">
-            <input id="secA1" type="text" placeholder="Secret Answer" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-xs text-slate-200">
+          <div class="border-t border-slate-200 dark:border-slate-800 pt-2">
+            <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Security Question for Reset:</span>
+            <input id="secQ1" type="text" placeholder="e.g. What is your high school name?" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2 text-xs mb-1.5 mt-1 text-slate-800 dark:text-slate-200">
+            <input id="secA1" type="text" placeholder="Secret Answer" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2 text-xs text-slate-800 dark:text-slate-200">
           </div>
 
-          <button onclick="handleRegister()" class="w-full bg-cyan-600 hover:bg-cyan-500 py-2.5 rounded-xl text-xs font-semibold shadow-lg shadow-cyan-600/20 mt-2">Submit & Register</button>
-          <p class="text-xs text-center text-slate-400"><a href="#" onclick="showRegisterForm(false)" class="text-indigo-400 underline">Back to Login</a></p>
+          <button id="regSubmitBtn" onclick="handleRegister()" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white py-2.5 rounded-xl text-xs font-semibold shadow-lg shadow-cyan-600/20 mt-2 flex items-center justify-center gap-2">
+            <span id="regBtnText">Submit & Register</span>
+            <span id="regSpinner" class="spinner hidden"></span>
+          </button>
+          <p class="text-xs text-center text-slate-500 dark:text-slate-400"><a href="#" onclick="showRegisterForm(false)" class="text-indigo-500 underline">Back to Login</a></p>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Drive-Style Fullscreen Modal -->
+  <div id="profileModal" class="fixed inset-0 bg-black/70 backdrop-blur-xs hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-sm p-6 rounded-2xl shadow-2xl relative">
+      <button onclick="closeProfileModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      <div class="text-center space-y-2">
+        <div class="w-16 h-16 bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 rounded-full flex items-center justify-center mx-auto text-2xl font-bold">
+          <i class="fa-solid fa-user-graduate"></i>
+        </div>
+        <h3 id="profName" class="text-base font-bold text-slate-800 dark:text-white"></h3>
+        <p id="profId" class="text-xs text-slate-500 dark:text-slate-400 font-mono"></p>
+        <span id="profRole" class="inline-block text-[11px] px-2.5 py-0.5 rounded-full font-semibold"></span>
+      </div>
+      <div class="mt-6 border-t border-slate-100 dark:border-slate-800 pt-4 flex gap-2">
+        <button onclick="handleLogout()" class="w-full bg-rose-600/10 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-600/20 py-2 rounded-xl text-xs font-semibold transition">Logout</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="uploadModal" class="fixed inset-0 bg-black/70 backdrop-blur-xs hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-md p-6 rounded-2xl shadow-2xl relative">
+      <button onclick="closeUploadModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      <h3 class="text-base font-bold mb-1 text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
+        <i class="fa-solid fa-cloud-arrow-up"></i> Upload Slide to Storage
+      </h3>
+      <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">File will be hosted on Telegram channel cloud storage</p>
+      
+      <div class="space-y-3">
+        <input id="slideFileInput" type="file" accept=".pdf,.doc,.docx,.ppt,.pptx" class="w-full text-xs text-slate-500 dark:text-slate-400 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-emerald-600 file:text-white hover:file:bg-emerald-500">
+        <input id="folderPathInput" type="text" placeholder="Folder Path (e.g. /1st-Year/Math)" value="/" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs text-slate-800 dark:text-slate-200">
+        <button id="uploadSubmitBtn" onclick="handleFileUpload()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 rounded-xl text-xs font-semibold shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2">
+          <span id="uploadBtnText">Upload File</span>
+          <span id="uploadSpinner" class="spinner hidden"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <div id="pdfModal" class="fixed inset-0 bg-black/95 backdrop-blur-sm hidden z-50 flex flex-col">
     <div class="p-3 bg-slate-900 border-b border-slate-800 flex justify-between items-center px-6">
       <span id="previewFileName" class="text-xs font-semibold truncate text-slate-200"></span>
@@ -121,22 +234,45 @@
   </div>
 
   <script>
-    const API_BASE = "https://varsity-portal-api.onrender.com"; // Render API URL
+    const API_BASE = "https://varsity-portal-api.onrender.com"; // Render backend URL
     let ws = null;
     let currentUser = JSON.parse(localStorage.getItem("user") || "null");
 
+    // Dark/Light Theme Handler
+    function initTheme() {
+      const isDark = localStorage.getItem("theme") !== "light";
+      document.documentElement.classList.toggle("dark", isDark);
+      document.getElementById("themeIcon").className = isDark ? "fa-solid fa-sun" : "fa-solid fa-moon";
+    }
+
+    function toggleTheme() {
+      const isDark = document.documentElement.classList.toggle("dark");
+      localStorage.setItem("theme", isDark ? "dark" : "light");
+      document.getElementById("themeIcon").className = isDark ? "fa-solid fa-sun" : "fa-solid fa-moon";
+    }
+
+    function toggleSidebar(show) {
+      document.getElementById("sideDrawer").classList.toggle("hidden", !show);
+    }
+
     function renderHeader() {
       const el = document.getElementById("authHeaderAction");
+      const adminHeader = document.getElementById("adminActionHeader");
+      
       if(currentUser) {
+        if(currentUser.role === 'super_admin' || currentUser.student_id === '2510376101') {
+          adminHeader.classList.remove("hidden");
+        }
         el.innerHTML = `
-          <div class="flex items-center gap-2">
-            <span class="text-[11px] bg-indigo-950 border border-indigo-800/80 text-indigo-300 px-2.5 py-1 rounded-lg font-mono">${currentUser.name}</span>
-            <button onclick="handleLogout()" class="text-xs bg-slate-800 hover:bg-slate-700 px-3 py-1 rounded-lg transition"><i class="fa-solid fa-arrow-right-from-bracket"></i></button>
-          </div>
+          <button onclick="openProfileModal()" class="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 px-3 py-1.5 rounded-xl transition">
+            <i class="fa-solid fa-circle-user text-indigo-500"></i>
+            <span class="text-xs font-medium">${currentUser.name.split(' ')[0]}</span>
+          </button>
         `;
       } else {
+        adminHeader.classList.add("hidden");
         el.innerHTML = `
-          <button onclick="toggleAuthModal(true)" class="text-xs bg-indigo-600 hover:bg-indigo-500 px-3.5 py-1.5 rounded-xl font-medium shadow-md shadow-indigo-600/20 transition">Login / Register</button>
+          <button onclick="toggleAuthModal(true)" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-1.5 rounded-xl font-medium shadow-md shadow-indigo-600/20 transition">Login / Register</button>
         `;
       }
     }
@@ -149,9 +285,20 @@
       document.getElementById("registerFormSection").classList.toggle("hidden", !show);
     }
 
+    // Login with Spinner
     async function handleLogin() {
-      const student_id = document.getElementById("loginId").value;
-      const password = document.getElementById("loginPass").value;
+      const student_id = document.getElementById("loginId").value.trim();
+      const password = document.getElementById("loginPass").value.trim();
+      if(!student_id || !password) return alert("Please fill all fields");
+
+      const btn = document.getElementById("loginSubmitBtn");
+      const text = document.getElementById("loginBtnText");
+      const spinner = document.getElementById("loginSpinner");
+
+      btn.disabled = true;
+      text.classList.add("hidden");
+      spinner.classList.remove("hidden");
+
       try {
         const res = await fetch(`${API_BASE}/auth/login`, {
           method: "POST",
@@ -159,18 +306,35 @@
           body: JSON.stringify({student_id, password})
         });
         const data = await res.json();
-        if(!res.ok) throw new Error(data.detail);
+        if(!res.ok) throw new Error(data.detail || "Login failed");
         localStorage.setItem("user", JSON.stringify(data));
         location.reload();
-      } catch(err) { alert(err.message); }
+      } catch(err) {
+        alert(err.message);
+      } finally {
+        btn.disabled = false;
+        text.classList.remove("hidden");
+        spinner.classList.add("hidden");
+      }
     }
 
+    // Register with Spinner
     async function handleRegister() {
-      const name = document.getElementById("regName").value;
-      const student_id = document.getElementById("regId").value;
-      const password = document.getElementById("regPass").value;
-      const q1 = document.getElementById("secQ1").value;
-      const a1 = document.getElementById("secA1").value;
+      const name = document.getElementById("regName").value.trim();
+      const student_id = document.getElementById("regId").value.trim();
+      const password = document.getElementById("regPass").value.trim();
+      const q1 = document.getElementById("secQ1").value.trim();
+      const a1 = document.getElementById("secA1").value.trim();
+
+      if(!name || !student_id || !password || !q1 || !a1) return alert("Please complete all inputs");
+
+      const btn = document.getElementById("regSubmitBtn");
+      const text = document.getElementById("regBtnText");
+      const spinner = document.getElementById("regSpinner");
+
+      btn.disabled = true;
+      text.classList.add("hidden");
+      spinner.classList.remove("hidden");
 
       try {
         const res = await fetch(`${API_BASE}/auth/register`, {
@@ -179,10 +343,37 @@
           body: JSON.stringify({ name, student_id, password, security_questions: [{question: q1, answer: a1}] })
         });
         const data = await res.json();
-        if(!res.ok) throw new Error(data.detail);
+        if(!res.ok) throw new Error(data.detail || "Registration failed");
         alert("Registration Successful! Please login.");
         showRegisterForm(false);
-      } catch(err) { alert(err.message); }
+      } catch(err) {
+        alert(err.message);
+      } finally {
+        btn.disabled = false;
+        text.classList.remove("hidden");
+        spinner.classList.add("hidden");
+      }
+    }
+
+    // Profile Details
+    function openProfileModal() {
+      if(!currentUser) return toggleAuthModal(true);
+      document.getElementById("profName").innerText = currentUser.name;
+      document.getElementById("profId").innerText = `ID: ${currentUser.student_id}`;
+      
+      const roleBadge = document.getElementById("profRole");
+      if(currentUser.role === 'super_admin') {
+        roleBadge.innerText = "Super Admin";
+        roleBadge.className = "inline-block text-[11px] px-2.5 py-0.5 rounded-full font-semibold bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400";
+      } else {
+        roleBadge.innerText = "Verified Student";
+        roleBadge.className = "inline-block text-[11px] px-2.5 py-0.5 rounded-full font-semibold bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400";
+      }
+      document.getElementById("profileModal").classList.remove("hidden");
+    }
+
+    function closeProfileModal() {
+      document.getElementById("profileModal").classList.add("hidden");
     }
 
     function handleLogout() {
@@ -190,6 +381,51 @@
       location.reload();
     }
 
+    // Admin Upload Modals
+    function openUploadModal() {
+      document.getElementById("uploadModal").classList.remove("hidden");
+    }
+    function closeUploadModal() {
+      document.getElementById("uploadModal").classList.add("hidden");
+    }
+
+    async function handleFileUpload() {
+      const fileInput = document.getElementById("slideFileInput");
+      const folderInput = document.getElementById("folderPathInput").value;
+      if(!fileInput.files[0]) return alert("Please select a file to upload");
+
+      const formData = new FormData();
+      formData.append("file", fileInput.files[0]);
+      formData.append("folder", folderInput);
+
+      const btn = document.getElementById("uploadSubmitBtn");
+      const text = document.getElementById("uploadBtnText");
+      const spinner = document.getElementById("uploadSpinner");
+
+      btn.disabled = true;
+      text.classList.add("hidden");
+      spinner.classList.remove("hidden");
+
+      try {
+        const res = await fetch(`${API_BASE}/slides/upload`, {
+          method: "POST",
+          body: formData
+        });
+        const data = await res.json();
+        if(!res.ok) throw new Error(data.detail || "Upload failed");
+        alert("Slide uploaded successfully!");
+        closeUploadModal();
+        loadFiles();
+      } catch(err) {
+        alert(err.message);
+      } finally {
+        btn.disabled = false;
+        text.classList.remove("hidden");
+        spinner.classList.add("hidden");
+      }
+    }
+
+    // Load Drive Files
     async function loadFiles() {
       if(!currentUser) return;
       try {
@@ -197,17 +433,17 @@
         const files = await res.json();
         const container = document.getElementById("fileContainer");
         if(files.length === 0) {
-          container.innerHTML = `<p class="text-slate-500 text-xs text-center py-6">No slides uploaded yet.</p>`;
+          container.innerHTML = `<p class="text-slate-400 dark:text-slate-500 text-xs text-center py-6">No slides uploaded yet.</p>`;
           return;
         }
         container.innerHTML = files.map(f => `
-          <div class="flex items-center justify-between p-3 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-slate-700 transition">
+          <div class="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 hover:border-indigo-500 dark:hover:border-slate-700 transition">
             <div class="flex items-center gap-3 overflow-hidden">
-              <input type="checkbox" data-id="${f.telegram_message_id}" data-name="${f.file_name}" class="file-checkbox rounded border-slate-700 bg-slate-950">
+              <input type="checkbox" data-id="${f.telegram_message_id}" data-name="${f.file_name}" class="file-checkbox rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950">
               <i class="fa-solid fa-file-pdf text-rose-500 text-lg"></i>
-              <span class="text-xs truncate font-medium text-slate-200 cursor-pointer hover:underline" onclick="openViewer(${f.telegram_message_id}, '${f.file_name}')">${f.file_name}</span>
+              <span class="text-xs truncate font-medium text-slate-700 dark:text-slate-200 cursor-pointer hover:underline" onclick="openViewer(${f.telegram_message_id}, '${f.file_name}')">${f.file_name}</span>
             </div>
-            <button onclick="openViewer(${f.telegram_message_id}, '${f.file_name}')" class="text-xs text-indigo-400 hover:text-indigo-300 px-2 py-1">
+            <button onclick="openViewer(${f.telegram_message_id}, '${f.file_name}')" class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline px-2 py-1">
               <i class="fa-solid fa-eye mr-1"></i> Preview
             </button>
           </div>
@@ -225,6 +461,7 @@
       document.getElementById("pdfFrame").src = "";
     }
 
+    // Live WebSockets Chat
     function initWebSocket() {
       if(!currentUser) return;
       document.getElementById("chatInput").disabled = false;
@@ -248,8 +485,8 @@
       const el = document.createElement("div");
       el.className = `flex flex-col ${isMe ? 'items-end' : 'items-start'}`;
       el.innerHTML = `
-        <span class="text-[9px] text-slate-500 mb-0.5">${msg.sender_name} (${msg.student_id})</span>
-        <div class="px-3 py-1.5 rounded-2xl max-w-[85%] text-xs ${isMe ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-slate-800 text-slate-200 rounded-bl-none'}">
+        <span class="text-[9px] text-slate-400 mb-0.5">${msg.sender_name} (${msg.student_id})</span>
+        <div class="px-3 py-1.5 rounded-2xl max-w-[85%] text-xs ${isMe ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-none'}">
           ${msg.message}
         </div>
       `;
@@ -267,7 +504,7 @@
 
     async function downloadSelectedZip() {
       const checked = document.querySelectorAll(".file-checkbox:checked");
-      if(checked.length === 0) return alert("Select at least one file to download ZIP.");
+      if(checked.length === 0) return alert("Please check at least one slide to download ZIP.");
       
       const zip = new JSZip();
       for(let box of checked) {
@@ -284,6 +521,8 @@
       link.click();
     }
 
+    // App Init
+    initTheme();
     renderHeader();
     if(currentUser) {
       loadFiles();
