@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CSE Portal | Slides & Live Hub</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
+
+  <!-- Navbar -->
+  <header class="glass-panel sticky top-0 z-40 px-4 md:px-8 py-3.5 flex justify-between items-center border-b border-slate-800">
+    <div class="flex items-center space-x-6">
+      <a href="index.html" class="flex items-center space-x-2.5">
+        <i class="fa-solid fa-graduation-cap text-indigo-500 text-2xl"></i>
+        <span class="text-lg font-bold bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">CSE Portal</span>
+      </a>
+      <nav class="hidden md:flex space-x-4 text-xs font-medium text-slate-400">
+        <a href="index.html" class="text-white hover:text-indigo-400 transition"><i class="fa-solid fa-folder-open mr-1.5"></i>Drive & Slides</a>
+        <a href="tools/cgpa.html" class="hover:text-indigo-400 transition"><i class="fa-solid fa-calculator mr-1.5"></i>GPA Suite</a>
+      </nav>
+    </div>
+    <div id="authHeaderAction" class="flex items-center gap-2"></div>
+  </header>
+
+  <!-- Content Grid -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+    
+    <!-- Slides & Drive Section -->
+    <div class="lg:col-span-2 space-y-4">
+      <div class="glass-panel rounded-2xl p-4 md:p-5 custom-shadow">
+        <div class="flex flex-wrap gap-2 justify-between items-center pb-4 border-b border-slate-800/80">
+          <div>
+            <h2 class="text-base font-semibold text-cyan-400 flex items-center gap-2">
+              <i class="fa-solid fa-cloud-arrow-down"></i> Course Materials
+            </h2>
+            <p class="text-xs text-slate-400 mt-0.5">Select slides to preview or bulk download as ZIP</p>
+          </div>
+          <button onclick="downloadSelectedZip()" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-lg shadow-indigo-600/20">
+            <i class="fa-solid fa-file-zipper"></i> Download ZIP
+          </button>
+        </div>
+
+        <div id="fileContainer" class="mt-4 space-y-2">
+          <div class="text-center py-12 text-slate-500 text-xs">
+            <i class="fa-solid fa-lock text-2xl mb-2 text-slate-600 block"></i>
+            Please login with your Student ID to access the course drive.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Real-time Live Chat Panel -->
+    <div class="glass-panel rounded-2xl flex flex-col chat-box-height custom-shadow overflow-hidden">
+      <div class="p-3.5 border-b border-slate-800 flex items-center justify-between bg-slate-900/40">
+        <span class="font-semibold text-emerald-400 text-xs flex items-center gap-2">
+          <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          Live Class Hub
+        </span>
+        <span class="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-mono">Real-time</span>
+      </div>
+
+      <div id="chatMessages" class="flex-1 p-4 overflow-y-auto space-y-3 text-xs">
+        <p class="text-slate-500 text-center py-4">Join by logging into your account.</p>
+      </div>
+
+      <form id="chatForm" onsubmit="sendLiveMessage(event)" class="p-3 border-t border-slate-800 bg-slate-950 flex gap-2">
+        <input id="chatInput" type="text" placeholder="Type a message..." disabled class="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 disabled:opacity-50 text-slate-200">
+        <button type="submit" id="chatSendBtn" disabled class="bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 rounded-xl text-xs disabled:opacity-50"><i class="fa-solid fa-paper-plane"></i></button>
+      </form>
+    </div>
+  </main>
+
+  <!-- Login/Register Modal -->
+  <div id="authModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+    <div class="glass-panel bg-slate-900 border border-slate-800 w-full max-w-md p-6 rounded-2xl shadow-2xl relative">
+      <button onclick="toggleAuthModal(false)" class="absolute top-4 right-4 text-slate-500 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      
+      <div id="loginFormSection">
+        <h3 class="text-base font-bold mb-1 text-indigo-400">Student Portal Login</h3>
+        <p class="text-xs text-slate-400 mb-4">Enter your CSE Student ID and password</p>
+        <div class="space-y-3">
+          <input id="loginId" type="text" placeholder="Student ID (e.g. 2510376101)" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 focus:outline-indigo-500">
+          <input id="loginPass" type="password" placeholder="Password" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 focus:outline-indigo-500">
+          <button onclick="handleLogin()" class="w-full bg-indigo-600 hover:bg-indigo-500 py-2.5 rounded-xl text-xs font-semibold shadow-lg shadow-indigo-600/20">Login</button>
+          <p class="text-xs text-center text-slate-400 pt-2">Don't have an account? <a href="#" onclick="showRegisterForm(true)" class="text-cyan-400 underline font-medium">Register</a></p>
+        </div>
+      </div>
+
+      <div id="registerFormSection" class="hidden">
+        <h3 class="text-base font-bold mb-1 text-cyan-400">Student Registration</h3>
+        <p class="text-xs text-slate-400 mb-4">Setup your credentials and recovery questions</p>
+        <div class="space-y-3 max-h-[65vh] overflow-y-auto pr-1">
+          <input id="regName" type="text" placeholder="Full Name" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200">
+          <input id="regId" type="text" placeholder="Student ID (e.g. 2510376101)" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200">
+          <input id="regPass" type="password" placeholder="Password" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200">
+          
+          <div class="border-t border-slate-800 pt-2">
+            <span class="text-[11px] font-semibold text-slate-400">Security Question for Recovery:</span>
+            <input id="secQ1" type="text" placeholder="e.g. Favorite Teacher / High School" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-xs mb-1.5 mt-1 text-slate-200">
+            <input id="secA1" type="text" placeholder="Secret Answer" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-xs text-slate-200">
+          </div>
+
+          <button onclick="handleRegister()" class="w-full bg-cyan-600 hover:bg-cyan-500 py-2.5 rounded-xl text-xs font-semibold shadow-lg shadow-cyan-600/20 mt-2">Submit & Register</button>
+          <p class="text-xs text-center text-slate-400"><a href="#" onclick="showRegisterForm(false)" class="text-indigo-400 underline">Back to Login</a></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Drive-Style Fullscreen Modal -->
+  <div id="pdfModal" class="fixed inset-0 bg-black/95 backdrop-blur-sm hidden z-50 flex flex-col">
+    <div class="p-3 bg-slate-900 border-b border-slate-800 flex justify-between items-center px-6">
+      <span id="previewFileName" class="text-xs font-semibold truncate text-slate-200"></span>
+      <button onclick="closeViewer()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+    </div>
+    <iframe id="pdfFrame" class="flex-1 w-full h-full border-0"></iframe>
+  </div>
+
+  <script>
+    const API_BASE = "https://cse-portal-api.onrender.com"; // Render API URL
+    let ws = null;
+    let currentUser = JSON.parse(localStorage.getItem("user") || "null");
+
+    function renderHeader() {
+      const el = document.getElementById("authHeaderAction");
+      if(currentUser) {
+        el.innerHTML = `
+          <div class="flex items-center gap-2">
+            <span class="text-[11px] bg-indigo-950 border border-indigo-800/80 text-indigo-300 px-2.5 py-1 rounded-lg font-mono">${currentUser.name}</span>
+            <button onclick="handleLogout()" class="text-xs bg-slate-800 hover:bg-slate-700 px-3 py-1 rounded-lg transition"><i class="fa-solid fa-arrow-right-from-bracket"></i></button>
+          </div>
+        `;
+      } else {
+        el.innerHTML = `
+          <button onclick="toggleAuthModal(true)" class="text-xs bg-indigo-600 hover:bg-indigo-500 px-3.5 py-1.5 rounded-xl font-medium shadow-md shadow-indigo-600/20 transition">Login / Register</button>
+        `;
+      }
+    }
+
+    function toggleAuthModal(show) {
+      document.getElementById("authModal").classList.toggle("hidden", !show);
+    }
+    function showRegisterForm(show) {
+      document.getElementById("loginFormSection").classList.toggle("hidden", show);
+      document.getElementById("registerFormSection").classList.toggle("hidden", !show);
+    }
+
+    async function handleLogin() {
+      const student_id = document.getElementById("loginId").value;
+      const password = document.getElementById("loginPass").value;
+      try {
+        const res = await fetch(`${API_BASE}/auth/login`, {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({student_id, password})
+        });
+        const data = await res.json();
+        if(!res.ok) throw new Error(data.detail);
+        localStorage.setItem("user", JSON.stringify(data));
+        location.reload();
+      } catch(err) { alert(err.message); }
+    }
+
+    async function handleRegister() {
+      const name = document.getElementById("regName").value;
+      const student_id = document.getElementById("regId").value;
+      const password = document.getElementById("regPass").value;
+      const q1 = document.getElementById("secQ1").value;
+      const a1 = document.getElementById("secA1").value;
+
+      try {
+        const res = await fetch(`${API_BASE}/auth/register`, {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({ name, student_id, password, security_questions: [{question: q1, answer: a1}] })
+        });
+        const data = await res.json();
+        if(!res.ok) throw new Error(data.detail);
+        alert("Registration Successful! Please login.");
+        showRegisterForm(false);
+      } catch(err) { alert(err.message); }
+    }
+
+    function handleLogout() {
+      localStorage.removeItem("user");
+      location.reload();
+    }
+
+    async function loadFiles() {
+      if(!currentUser) return;
+      try {
+        const res = await fetch(`${API_BASE}/slides/list`);
+        const files = await res.json();
+        const container = document.getElementById("fileContainer");
+        if(files.length === 0) {
+          container.innerHTML = `<p class="text-slate-500 text-xs text-center py-6">No slides uploaded yet.</p>`;
+          return;
+        }
+        container.innerHTML = files.map(f => `
+          <div class="flex items-center justify-between p-3 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-slate-700 transition">
+            <div class="flex items-center gap-3 overflow-hidden">
+              <input type="checkbox" data-id="${f.telegram_message_id}" data-name="${f.file_name}" class="file-checkbox rounded border-slate-700 bg-slate-950">
+              <i class="fa-solid fa-file-pdf text-rose-500 text-lg"></i>
+              <span class="text-xs truncate font-medium text-slate-200 cursor-pointer hover:underline" onclick="openViewer(${f.telegram_message_id}, '${f.file_name}')">${f.file_name}</span>
+            </div>
+            <button onclick="openViewer(${f.telegram_message_id}, '${f.file_name}')" class="text-xs text-indigo-400 hover:text-indigo-300 px-2 py-1">
+              <i class="fa-solid fa-eye mr-1"></i> Preview
+            </button>
+          </div>
+        `).join('');
+      } catch(e) { console.error(e); }
+    }
+
+    function openViewer(id, name) {
+      document.getElementById("previewFileName").innerText = name;
+      document.getElementById("pdfFrame").src = `${API_BASE}/slides/stream/${id}`;
+      document.getElementById("pdfModal").classList.remove("hidden");
+    }
+    function closeViewer() {
+      document.getElementById("pdfModal").classList.add("hidden");
+      document.getElementById("pdfFrame").src = "";
+    }
+
+    function initWebSocket() {
+      if(!currentUser) return;
+      document.getElementById("chatInput").disabled = false;
+      document.getElementById("chatSendBtn").disabled = false;
+
+      fetch(`${API_BASE}/chat/history`)
+        .then(res => res.json())
+        .then(msgs => {
+          document.getElementById("chatMessages").innerHTML = "";
+          msgs.forEach(appendMessage);
+        });
+
+      const wsUrl = API_BASE.replace("https://", "wss://").replace("http://", "ws://") + "/ws/chat";
+      ws = new WebSocket(wsUrl);
+      ws.onmessage = (e) => appendMessage(JSON.parse(e.data));
+    }
+
+    function appendMessage(msg) {
+      const box = document.getElementById("chatMessages");
+      const isMe = currentUser && currentUser.student_id === msg.student_id;
+      const el = document.createElement("div");
+      el.className = `flex flex-col ${isMe ? 'items-end' : 'items-start'}`;
+      el.innerHTML = `
+        <span class="text-[9px] text-slate-500 mb-0.5">${msg.sender_name} (${msg.student_id})</span>
+        <div class="px-3 py-1.5 rounded-2xl max-w-[85%] text-xs ${isMe ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-slate-800 text-slate-200 rounded-bl-none'}">
+          ${msg.message}
+        </div>
+      `;
+      box.appendChild(el);
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function sendLiveMessage(e) {
+      e.preventDefault();
+      const input = document.getElementById("chatInput");
+      if(!input.value.trim() || !ws) return;
+      ws.send(JSON.stringify({ student_id: currentUser.student_id, sender_name: currentUser.name, message: input.value.trim() }));
+      input.value = "";
+    }
+
+    async function downloadSelectedZip() {
+      const checked = document.querySelectorAll(".file-checkbox:checked");
+      if(checked.length === 0) return alert("Select at least one file to download ZIP.");
+      
+      const zip = new JSZip();
+      for(let box of checked) {
+        const id = box.getAttribute("data-id");
+        const name = box.getAttribute("data-name");
+        const res = await fetch(`${API_BASE}/slides/stream/${id}`);
+        const blob = await res.blob();
+        zip.file(name, blob);
+      }
+      const zipBlob = await zip.generateAsync({type: "blob"});
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(zipBlob);
+      link.download = "Course_Materials.zip";
+      link.click();
+    }
+
+    renderHeader();
+    if(currentUser) {
+      loadFiles();
+      initWebSocket();
+    }
+  </script>
+</body>
+</html>
