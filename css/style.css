@@ -3,43 +3,55 @@
 * {
   box-sizing: border-box;
   font-family: 'Plus Jakarta Sans', sans-serif;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
-/* Custom Scrollbar for Chat & Drive list */
+/* Custom Scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
-  background: #090d16;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1e293b;
+  background: rgba(100, 116, 139, 0.4);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: rgba(100, 116, 139, 0.7);
 }
 
-/* Glassmorphism & Animations */
-.glass-panel {
-  background: rgba(15, 23, 42, 0.75);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+/* Spinner Animation */
+.spinner {
+  border: 2.5px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: #ffffff;
+  width: 18px;
+  height: 18px;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
 }
 
-.custom-shadow {
-  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
-/* Drive & Chat Container Responsive Constraints */
+/* Drawer Slide Transitions */
+.drawer-backdrop {
+  transition: opacity 0.3s ease;
+}
+.drawer-content {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Chat container fixed responsive height */
+.chat-container-height {
+  height: 550px;
+}
 @media (max-width: 1024px) {
-  .chat-box-height {
+  .chat-container-height {
     height: 480px;
-  }
-}
-@media (min-width: 1025px) {
-  .chat-box-height {
-    height: calc(100vh - 120px);
   }
 }
