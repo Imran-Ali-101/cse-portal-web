@@ -1609,7 +1609,7 @@ async function openPreview(name, id) {
   }
   else if (lower.endsWith('.pdf')) {
     // Check if already cached
-    if (pdfCache[id]) {
+   if (pdfCache[id]) {
       container.innerHTML = "";
       for (let wrapper of pdfCache[id]) {
         container.appendChild(wrapper);
@@ -1617,6 +1617,8 @@ async function openPreview(name, id) {
       pageIndicator.innerText = `Page 1 of ${pdfCache[id].length}`;
       pageIndicator.classList.remove("hidden");
       container.scrollTop = 0;
+      // Resume rendering unfinished pages
+      document.getElementById("previewModal").dispatchEvent(new Event("modalResumed"));
       return;
     }
 
@@ -1750,10 +1752,15 @@ async function renderPdfPages(scale, cacheId = null) {
     }
   };
 
-  // Save rendered wrappers to cache
+  // Save to cache immediately so reopen works
   if (cacheId) {
     pdfCache[cacheId] = pageWrappers;
   }
+
+  // When modal reopens, resume rendering unrendered pages
+  document.getElementById("previewModal").addEventListener("modalResumed", () => {
+    container.onscroll();
+  }, { once: true });
 }
 
 function closePreview() {
