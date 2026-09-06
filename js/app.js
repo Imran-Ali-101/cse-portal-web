@@ -24,27 +24,57 @@ function formatBytes(bytes) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
-function renderHeader() {
-  const el = document.getElementById("navAuthSection");
-  const adminSection = document.getElementById("adminSidebarSection");
+// Check Role Permissions
+function isAdmin() {
+  return currentUser && (currentUser.role === 'super_admin' || currentUser.student_id === '2510376101');
+}
+
+// Render Page View Based on Auth State
+function renderPortalView() {
+  const guestView = document.getElementById("guestLandingView");
+  const authView = document.getElementById("authenticatedView");
+  const adminDropzone = document.getElementById("adminDropzoneArea");
+  const adminSidebar = document.getElementById("adminSidebarSection");
+  const adminActionTrash = document.getElementById("adminActionTrashBtn");
+  const adminToolbarTrash = document.getElementById("adminToolbarTrashBtn");
+  const navAuth = document.getElementById("navAuthSection");
+  const sidebarBtn = document.getElementById("sidebarToggleBtn");
 
   if (currentUser) {
-    if (currentUser.role === 'super_admin' || currentUser.student_id === '2510376101') {
-      adminSection.classList.remove("hidden");
-    } else {
-      adminSection.classList.add("hidden");
-    }
+    guestView.classList.add("hidden");
+    authView.classList.remove("hidden");
+    sidebarBtn.classList.remove("hidden");
 
-    el.innerHTML = `
+    navAuth.innerHTML = `
       <span class="text-xs text-slate-500 hidden sm:inline font-mono">${currentUser.name}</span>
       <button onclick="handleLogout()" class="border border-rose-300 text-rose-600 hover:bg-rose-50 text-xs font-medium px-3 py-1.5 rounded-lg flex items-center gap-1.5">
         <i class="fa-solid fa-arrow-right-from-bracket"></i> Logout
       </button>
     `;
+
+    // Only Admin can see Upload & Trash
+    if (isAdmin()) {
+      adminDropzone.classList.remove("hidden");
+      adminSidebar.classList.remove("hidden");
+      adminActionTrash.classList.remove("hidden");
+      adminToolbarTrash.classList.remove("hidden");
+    } else {
+      adminDropzone.classList.add("hidden");
+      adminSidebar.classList.add("hidden");
+      adminActionTrash.classList.add("hidden");
+      adminToolbarTrash.classList.add("hidden");
+    }
+
+    loadFolders();
+    loadFiles();
   } else {
-    adminSection.classList.add("hidden");
-    el.innerHTML = `
-      <button onclick="toggleAuthModal(true)" class="bg-blue-600 text-white text-xs font-medium px-4 py-1.5 rounded-lg">
+    // Guest View (Not Logged In)
+    guestView.classList.remove("hidden");
+    authView.classList.add("hidden");
+    sidebarBtn.classList.add("hidden");
+
+    navAuth.innerHTML = `
+      <button onclick="toggleAuthModal(true); toggleAuthForms(false);" class="bg-blue-600 text-white text-xs font-medium px-4 py-1.5 rounded-lg shadow-sm">
         Login
       </button>
     `;
@@ -57,6 +87,7 @@ function toggleAuthForms(showRegister) {
   document.getElementById("registerSection").classList.toggle("hidden", !showRegister);
 }
 
+// Authentication
 async function handleLogin() {
   const student_id = document.getElementById("loginId").value.trim();
   const password = document.getElementById("loginPass").value.trim();
@@ -105,7 +136,12 @@ async function handleRegister() {
       body: JSON.stringify({ name, student_id, password, security_questions: [{question: q1, answer: a1}] })
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "Registration failed");
+    if (!res.ok) {
+      if (res.status === 400 && data.detail && data.detail.includes("already registered")) {
+        throw new Error("This Student ID is already registered! Please login.");
+      }
+      throw new Error(data.detail || "Registration failed");
+    }
     showToast("Registration Complete! Please Login", "success");
     toggleAuthForms(false);
   } catch(err) {
@@ -120,7 +156,11 @@ function handleLogout() {
   location.reload();
 }
 
-function toggleSidebar(show) { document.getElementById("sideDrawer").classList.toggle("hidden", !show); }
+function toggleSidebar(show) { 
+  if (!currentUser) return;
+  document.getElementById("sideDrawer").classList.toggle("hidden", !show); 
+}
+
 function toggleDropdown(id) {
   const drop = document.getElementById(id);
   drop.classList.toggle("hidden");
@@ -140,6 +180,7 @@ window.addEventListener('click', (e) => {
 
 // Folders Management
 async function loadFolders() {
+  if (!currentUser) return;
   try {
     const res = await fetch(`${API_BASE}/folders/list`);
     allFolders = await res.json();
@@ -161,7 +202,10 @@ function selectFolder(path) {
   renderFilesTable();
 }
 
-function openFolderModal() { document.getElementById("folderModal").classList.remove("hidden"); }
+function openFolderModal() { 
+  if (!isAdmin()) return showToast("Only Admin can create folders", "error");
+  document.getElementById("folderModal").classList.remove("hidden"); 
+}
 function closeFolderModal() { document.getElementById("folderModal").classList.add("hidden"); }
 
 async function handleCreateFolder() {
@@ -182,9 +226,9 @@ async function handleCreateFolder() {
   }
 }
 
-// Upload with Progress Bar Modal
+// Upload with Progress Bar Modal (Admin only)
 function uploadSelectedFile(input) {
-  if (!currentUser) return toggleAuthModal(true);
+  if (!isAdmin()) return showToast("Only Admin can upload files", "error");
   if (!input.files[0]) return;
   
   const file = input.files[0];
@@ -215,7 +259,7 @@ function uploadSelectedFile(input) {
     progressModal.classList.add("hidden");
     input.value = "";
     if (xhr.status >= 200 && xhr.status < 300) {
-      showToast("Uploaded successfully to cloud storage!", "success");
+      showToast("Uploaded successfully!", "success");
       loadFiles();
     } else {
       showToast("Upload failed, please try again.", "error");
@@ -231,6 +275,7 @@ function uploadSelectedFile(input) {
 }
 
 async function loadFiles() {
+  if (!currentUser) return;
   try {
     const res = await fetch(`${API_BASE}/slides/list`);
     allFiles = await res.json();
@@ -238,7 +283,7 @@ async function loadFiles() {
   } catch(e) { console.error(e); }
 }
 
-// Render Folders & Files inside Main View
+// Render Folders & Files
 function renderFilesTable() {
   const container = document.getElementById("fileTableContent");
   const filteredFiles = currentSelectedFolder === '/' ? allFiles.filter(f => f.folder_path === '/' || !f.folder_path) : allFiles.filter(f => f.folder_path === currentSelectedFolder);
@@ -287,6 +332,17 @@ function openItemActionMenu(e, id, messageId, name) {
   e.stopPropagation();
   activeContextItem = { id, messageId, name };
   const menu = document.getElementById("itemActionMenu");
+  const moveBtn = document.getElementById("menuMoveBtn");
+  const trashBtn = document.getElementById("menuTrashBtn");
+
+  // Show Move & Trash only to admin
+  if (isAdmin()) {
+    moveBtn.classList.remove("hidden");
+    trashBtn.classList.remove("hidden");
+  } else {
+    moveBtn.classList.add("hidden");
+    trashBtn.classList.add("hidden");
+  }
   
   const rect = e.target.getBoundingClientRect();
   menu.style.top = `${rect.bottom + window.scrollY + 4}px`;
@@ -340,7 +396,6 @@ async function executeMoveFile() {
   }
 }
 
-// Trash Functions (Soft Delete)
 async function trashCurrentItem() {
   if (!activeContextItem) return;
   document.getElementById("itemActionMenu").classList.add("hidden");
@@ -359,7 +414,7 @@ async function trashCurrentItem() {
 }
 
 async function trashSelected() {
-  if (!currentUser) return toggleAuthModal(true);
+  if (!isAdmin()) return showToast("Only admin can trash files", "error");
   const checked = document.querySelectorAll(".file-item-check:checked");
   if (checked.length === 0) return showToast("No files selected", "error");
 
@@ -378,6 +433,7 @@ async function trashSelected() {
 
 // Admin Trash Bin Modal
 async function openAdminTrashModal() {
+  if (!isAdmin()) return;
   document.getElementById("adminTrashModal").classList.remove("hidden");
   loadTrashFiles();
 }
@@ -491,7 +547,7 @@ function closePreview() {
 
 // Live Chat Handlers
 function openChatWindow() {
-  if (!currentUser) return toggleAuthModal(true);
+  if (!currentUser) return showToast("Please login first", "error");
   document.getElementById("chatModal").classList.remove("hidden");
   initWebSocket();
 }
@@ -536,7 +592,5 @@ function sendLiveMessage(e) {
   input.value = "";
 }
 
-// Start
-renderHeader();
-loadFolders();
-loadFiles();
+// Launch Lifecycle
+renderPortalView();
