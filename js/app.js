@@ -37,7 +37,7 @@ function showToast(message, type = "info", subtitle = "") {
     ${subtitle ? `<span class="text-[10px] text-slate-400 font-normal pl-5">${subtitle}</span>` : ''}
   `;
   container.appendChild(toast);
-  setTimeout(() => toast.remove(), 4000);
+  setTimeout(() => toast.remove(), 4500);
 }
 
 function formatBytes(bytes) {
@@ -59,12 +59,6 @@ function isPrimarySuperAdmin() {
 function isFileBanned() {
   if (!currentUser || !currentUser.file_banned_until) return false;
   return new Date() < new Date(currentUser.file_banned_until);
-}
-
-// Generates secured media stream URL with token parameter
-function getSecuredStreamUrl(messageId, fileName) {
-  const token = currentUser ? currentUser.token : '';
-  return `${API_BASE}/slides/stream/${message_id}?filename=${encodeURIComponent(fileName)}&token=${token}`;
 }
 
 async function syncUserRole() {
@@ -94,6 +88,8 @@ async function renderPortalView() {
   const navAuth = document.getElementById("navAuthSection");
   const sidebarBtn = document.getElementById("sidebarToggleBtn");
   const clearChatBtn = document.getElementById("clearChatBtn");
+  const adminClearNotices = document.getElementById("adminClearNoticesBtn");
+  const adminNoticeComposer = document.getElementById("adminNoticeComposer");
 
   if (currentUser) {
     guestView.classList.add("hidden");
@@ -112,11 +108,15 @@ async function renderPortalView() {
       adminSidebar.classList.remove("hidden");
       adminActionTrash.classList.remove("hidden");
       adminToolbarTrash.classList.remove("hidden");
+      adminClearNotices.classList.remove("hidden");
+      adminNoticeComposer.classList.remove("hidden");
     } else {
       adminDropzone.classList.add("hidden");
       adminSidebar.classList.add("hidden");
       adminActionTrash.classList.add("hidden");
       adminToolbarTrash.classList.add("hidden");
+      adminClearNotices.classList.add("hidden");
+      adminNoticeComposer.classList.add("hidden");
     }
 
     if (isPrimarySuperAdmin()) {
@@ -129,6 +129,7 @@ async function renderPortalView() {
     loadFiles();
     initWebSocket();
     checkUnseenNotices();
+    loadDynamicTools();
   } else {
     guestView.classList.remove("hidden");
     authView.classList.add("hidden");
@@ -254,6 +255,39 @@ window.addEventListener('click', (e) => {
   }
 });
 
+// Dynamic Tools Scraper from tools/ folder in GitHub/Server
+async function loadDynamicTools() {
+  const container = document.getElementById("dynamicToolsContainer");
+  
+  // Default list of tools, automatically expandable
+  const defaultTools = [
+    { file: "cgpa.html", defaultTitle: "CGPA / GPA Calculator" }
+  ];
+
+  container.innerHTML = `<span class="text-[10px] font-bold text-indigo-500 uppercase tracking-wider block mb-1">Academic Tools</span>`;
+
+  for (let tool of defaultTools) {
+    let title = tool.defaultTitle;
+    try {
+      const res = await fetch(`tools/${tool.file}`);
+      if (res.ok) {
+        const text = await res.text();
+        const doc = new DOMParser().parseFromString(text, 'text/html');
+        if (doc.querySelector('title') && doc.querySelector('title').innerText.trim()) {
+          title = doc.querySelector('title').innerText.trim();
+        }
+      }
+    } catch(e) {}
+
+    container.innerHTML += `
+      <a href="tools/${tool.file}" class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300">
+        <i class="fa-solid fa-wrench text-indigo-500"></i>
+        <span>${title}</span>
+      </a>
+    `;
+  }
+}
+
 // Folders Management
 async function loadFolders() {
   if (!currentUser) return;
@@ -324,7 +358,7 @@ async function handleCreateFolder() {
   }
 }
 
-// Robust Multiple Uploads Handler
+// Subfolder Multiple Uploads Handler
 async function uploadSelectedFiles(input) {
   if (!isAdmin()) return showToast("Only Admin can upload files", "error");
   if (!input.files || input.files.length === 0) return;
@@ -382,7 +416,7 @@ async function loadFiles() {
   } catch(e) { console.error(e); }
 }
 
-// Render Files & Folders Table (Full name shown without truncate)
+// Render Files & Folders Table (Full name shown without truncate + Hidden folder filter)
 function renderFilesTable() {
   const container = document.getElementById("fileTableContent");
   
@@ -408,24 +442,33 @@ function renderFilesTable() {
   }
 
   const currentPrefix = currentSelectedFolder === '/' ? '/' : currentSelectedFolder + '/';
+  
+  // Folders filtering: hide locked folders from non-primary admins
   const childFolders = allFolders.filter(f => {
     if (f.folder_name === '/') return false;
     if (!f.folder_name.startsWith(currentPrefix)) return false;
+    
+    // Privacy Lock: Hide if locked unless Super Admin (2510376101)
+    if (f.is_locked && !isPrimarySuperAdmin()) return false;
+
     const remainder = f.folder_name.slice(currentPrefix.length);
     return remainder.length > 0 && !remainder.includes('/');
   });
 
   const foldersMarkup = childFolders.map(f => {
     const displayName = f.folder_name.split('/').filter(Boolean).pop();
+    const isLocked = f.is_locked;
+
     return `
       <div class="grid grid-cols-12 px-4 py-3 items-center hover:bg-slate-50 dark:hover:bg-slate-800/60 transition border-b border-slate-100 dark:border-slate-800">
         <div onclick="selectFolder('${f.folder_name}')" class="col-span-8 md:col-span-9 flex items-center gap-3 cursor-pointer">
-          <i class="fa-solid fa-folder text-amber-500 text-base"></i>
+          <i class="fa-solid ${isLocked ? 'fa-folder-closed text-rose-500' : 'fa-folder text-amber-500'} text-base"></i>
           <span class="font-medium text-slate-800 dark:text-slate-200 hover:text-blue-600 break-all">${displayName}</span>
+          ${isLocked ? '<span class="text-[9px] bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400 px-1.5 py-0.5 rounded font-bold uppercase">Hidden</span>' : ''}
         </div>
         <div class="col-span-4 md:col-span-3 flex items-center justify-end gap-3 text-slate-400 font-mono text-[11px]">
           <span>Folder</span>
-          <button onclick="openItemActionMenu(event, '${f.id}', null, '${f.folder_name}', true)" class="hover:text-slate-600 p-1">
+          <button onclick="openItemActionMenu(event, '${f.id}', null, '${f.folder_name}', true, ${isLocked || false})" class="hover:text-slate-600 p-1">
             <i class="fa-solid fa-ellipsis-vertical"></i>
           </button>
         </div>
@@ -433,7 +476,15 @@ function renderFilesTable() {
     `;
   }).join('');
 
-  const filteredFiles = allFiles.filter(f => f.folder_path === currentSelectedFolder);
+  // Files filtering: hide files in locked folders
+  const filteredFiles = allFiles.filter(f => {
+    if (f.folder_path !== currentSelectedFolder) return false;
+    // If the folder itself is locked, hide files from non-primary admins
+    const currentFolderObj = allFolders.find(x => x.folder_name === currentSelectedFolder);
+    if (currentFolderObj && currentFolderObj.is_locked && !isPrimarySuperAdmin()) return false;
+    return true;
+  });
+
   const filesMarkup = filteredFiles.map(f => `
     <div class="grid grid-cols-12 px-4 py-3 items-center hover:bg-slate-50 dark:hover:bg-slate-800/50">
       <div class="col-span-8 md:col-span-9 flex items-center gap-3">
@@ -458,9 +509,9 @@ function renderFilesTable() {
 }
 
 // 3-Dots Action Menu Handling
-function openItemActionMenu(e, id, messageId, name, isFolder = false) {
+function openItemActionMenu(e, id, messageId, name, isFolder = false, isLocked = false) {
   e.stopPropagation();
-  activeContextItem = { id, messageId, name, isFolder };
+  activeContextItem = { id, messageId, name, isFolder, isLocked };
   const menu = document.getElementById("itemActionMenu");
 
   const downloadBtn = document.getElementById("menuDownloadBtn");
@@ -470,6 +521,9 @@ function openItemActionMenu(e, id, messageId, name, isFolder = false) {
   const trashBtn = document.getElementById("menuTrashBtn");
   const delFolderBtn = document.getElementById("menuDeleteFolderBtn");
   const downloadFolderBtn = document.getElementById("menuDownloadFolderBtn");
+  const toggleLockBtn = document.getElementById("menuToggleLockBtn");
+  const toggleLockIcon = document.getElementById("menuToggleLockIcon");
+  const toggleLockText = document.getElementById("menuToggleLockText");
 
   if (isFolder) {
     downloadBtn.classList.add("hidden");
@@ -478,6 +532,20 @@ function openItemActionMenu(e, id, messageId, name, isFolder = false) {
     trashBtn.classList.add("hidden");
     downloadFolderBtn.classList.remove("hidden");
     
+    // Only Primary Super Admin (2510376101) can access hide/lock permission
+    if (isPrimarySuperAdmin()) {
+      toggleLockBtn.classList.remove("hidden");
+      if (isLocked) {
+        toggleLockIcon.className = "fa-solid fa-eye";
+        toggleLockText.innerText = "Show / Unlock Folder";
+      } else {
+        toggleLockIcon.className = "fa-solid fa-eye-slash";
+        toggleLockText.innerText = "Hide / Lock Folder";
+      }
+    } else {
+      toggleLockBtn.classList.add("hidden");
+    }
+
     if (isAdmin()) {
       delFolderBtn.classList.remove("hidden");
       renameBtn.classList.remove("hidden");
@@ -488,6 +556,7 @@ function openItemActionMenu(e, id, messageId, name, isFolder = false) {
   } else {
     delFolderBtn.classList.add("hidden");
     downloadFolderBtn.classList.add("hidden");
+    toggleLockBtn.classList.add("hidden");
     downloadBtn.classList.remove("hidden");
     shareBtn.classList.remove("hidden");
 
@@ -504,8 +573,8 @@ function openItemActionMenu(e, id, messageId, name, isFolder = false) {
   
   const btn = e.target.closest('button');
   const rect = btn.getBoundingClientRect();
-  const menuWidth = 200;
-  const menuHeight = isFolder ? 110 : 190;
+  const menuWidth = 208;
+  const menuHeight = isFolder ? 140 : 190;
 
   let top = rect.bottom + 4;
   if (top + menuHeight > window.innerHeight) {
@@ -518,6 +587,30 @@ function openItemActionMenu(e, id, messageId, name, isFolder = false) {
   menu.style.top = `${top}px`;
   menu.style.left = `${left}px`;
   menu.classList.remove("hidden");
+}
+
+// Toggle Lock/Hide Folder (Primary Admin Only)
+async function toggleCurrentFolderLock() {
+  if (!activeContextItem || !activeContextItem.isFolder || !isPrimarySuperAdmin()) return;
+  document.getElementById("itemActionMenu").classList.add("hidden");
+
+  const newStatus = !activeContextItem.isLocked;
+  try {
+    const res = await fetch(`${API_BASE}/folders/toggle-lock`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        folder_id: activeContextItem.id,
+        is_locked: newStatus,
+        admin_id: currentUser.student_id
+      })
+    });
+    if (!res.ok) throw new Error("Permission update failed");
+    showToast(newStatus ? "Folder locked & hidden from students!" : "Folder unlocked & visible to all!", "info");
+    loadFolders();
+  } catch(err) {
+    showToast(err.message, "error");
+  }
 }
 
 // Rename Handler (File & Folder)
@@ -574,7 +667,7 @@ async function executeRenameItem() {
   }
 }
 
-// Direct File Download via Blob (With Auth Token Attached)
+// Direct File Download via Blob (Secured Token)
 async function downloadDirectFile(messageId, fileName) {
   showToast(`Downloading ${fileName}...`, "info");
   try {
@@ -592,7 +685,7 @@ async function downloadDirectFile(messageId, fileName) {
     setTimeout(() => URL.revokeObjectURL(url), 2000);
     showToast("Download completed!", "success");
   } catch(err) {
-    showToast("Error downloading file (Login required)", "error");
+    showToast("Error downloading file (Unauthorized)", "error");
   }
 }
 
@@ -646,6 +739,7 @@ async function triggerDownloadTargetFolder() {
   showToast(`Folder ${folderName}.zip download complete!`, "success");
 }
 
+// Fixed folder deletion avoiding any glitch
 async function deleteCurrentFolder() {
   if (!activeContextItem || !activeContextItem.isFolder) return;
   document.getElementById("itemActionMenu").classList.add("hidden");
@@ -655,7 +749,10 @@ async function deleteCurrentFolder() {
     const res = await fetch(`${API_BASE}/folders/delete`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ folder_name: activeContextItem.name })
+      body: JSON.stringify({ 
+        folder_id: activeContextItem.id, 
+        folder_name: activeContextItem.name 
+      })
     });
     if (!res.ok) throw new Error("Could not delete folder");
     showToast("Folder deleted and files moved to Trash", "success");
@@ -737,7 +834,7 @@ async function trashSelected() {
   } catch(err) { showToast(err.message, "error"); }
 }
 
-// Notice Board Operations & Tracking
+// Notice Board Operations
 async function checkUnseenNotices() {
   try {
     const res = await fetch(`${API_BASE}/notices/list`);
@@ -754,7 +851,7 @@ async function checkUnseenNotices() {
       const timeFormatted = new Date(latestNotice.created_at).toLocaleString('en-US', {
         month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric', hour12: true
       });
-      showToast(latestNotice.title, "info", `${latestNotice.file_name} • ${timeFormatted}`);
+      showToast(latestNotice.title, "info", `${latestNotice.file_name || latestNotice.message || ''} • ${timeFormatted}`);
     }
   } catch(e) {}
 }
@@ -791,20 +888,61 @@ async function loadNoticesList() {
 
       return `
         <div onclick="openNoticeDetails('${n.id}')" class="py-3 px-2 hover:bg-slate-50 dark:hover:bg-slate-800/60 rounded-xl cursor-pointer transition flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-950 text-amber-500 flex items-center justify-center">
+          <div class="flex items-center gap-3 overflow-hidden">
+            <div class="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-950 text-amber-500 flex items-center justify-center shrink-0">
               <i class="fa-solid fa-bullhorn text-xs"></i>
             </div>
-            <div>
-              <span class="font-bold text-slate-800 dark:text-slate-100 block">${n.title}</span>
-              <span class="text-[11px] text-slate-500 font-mono">${n.file_name}</span>
+            <div class="truncate">
+              <span class="font-bold text-slate-800 dark:text-slate-100 block truncate">${n.title}</span>
+              <span class="text-[11px] text-slate-500 font-mono truncate">${n.file_name || n.message || ''}</span>
             </div>
           </div>
-          <span class="text-[10px] text-slate-400 font-mono whitespace-nowrap">${timeFormatted}</span>
+          <span class="text-[10px] text-slate-400 font-mono whitespace-nowrap ml-2">${timeFormatted}</span>
         </div>
       `;
     }).join('');
   } catch(e) { console.error(e); }
+}
+
+async function postCustomNotice() {
+  const title = document.getElementById("customNoticeTitle").value.trim();
+  const message = document.getElementById("customNoticeMsg").value.trim();
+  if (!title || !message) return showToast("Title and message are required", "error");
+
+  try {
+    const res = await fetch(`${API_BASE}/notices/create-custom`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title,
+        message,
+        admin_name: currentUser.name
+      })
+    });
+    if (!res.ok) throw new Error("Could not publish notice");
+    showToast("Notice broadcasted successfully!", "success");
+    document.getElementById("customNoticeTitle").value = "";
+    document.getElementById("customNoticeMsg").value = "";
+    loadNoticesList();
+  } catch(err) {
+    showToast(err.message, "error");
+  }
+}
+
+async function confirmClearAllNotices() {
+  if (!confirm("Are you sure you want to clear all notices from the board?")) return;
+  try {
+    const res = await fetch(`${API_BASE}/notices/clear-all`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ admin_id: currentUser.student_id })
+    });
+    if (!res.ok) throw new Error("Failed to clear notices");
+    showToast("All notices cleared", "success");
+    loadNoticesList();
+  } catch(err) {
+    showToast(err.message, "error");
+  }
 }
 
 function openNoticeDetails(noticeId) {
@@ -816,10 +954,26 @@ function openNoticeDetails(noticeId) {
     month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric', hour12: true
   });
 
-  document.getElementById("ndFileName").innerText = n.file_name;
-  document.getElementById("ndFolderPath").innerText = n.folder_path;
-  document.getElementById("ndUploader").innerText = n.uploaded_by || "Administrator";
+  document.getElementById("ndModalHeading").innerText = n.title;
   document.getElementById("ndTime").innerText = timeFormatted;
+  document.getElementById("ndUploader").innerText = n.uploaded_by || "Administrator";
+
+  if (n.file_name) {
+    document.getElementById("ndFileBox").classList.remove("hidden");
+    document.getElementById("ndFolderBox").classList.remove("hidden");
+    document.getElementById("ndCustomMsgBox").classList.add("hidden");
+    document.getElementById("ndGoFolderBtn").classList.remove("hidden");
+    
+    document.getElementById("ndFileName").innerText = n.file_name;
+    document.getElementById("ndFolderPath").innerText = n.folder_path;
+  } else {
+    document.getElementById("ndFileBox").classList.add("hidden");
+    document.getElementById("ndFolderBox").classList.add("hidden");
+    document.getElementById("ndCustomMsgBox").classList.remove("hidden");
+    document.getElementById("ndGoFolderBtn").classList.add("hidden");
+    
+    document.getElementById("ndCustomMsg").innerText = n.message;
+  }
 
   closeNoticeBoardModal();
   showAnimatedModal("noticeDetailsModal");
@@ -828,12 +982,12 @@ function openNoticeDetails(noticeId) {
 function closeNoticeDetailsModal() { hideAnimatedModal("noticeDetailsModal"); }
 
 function goToNoticeFolder() {
-  if (!activeNoticeTarget) return;
+  if (!activeNoticeTarget || !activeNoticeTarget.folder_path) return;
   closeNoticeDetailsModal();
   selectFolder(activeNoticeTarget.folder_path);
 }
 
-// User & Role Management
+// User & Role Management Handlers
 async function openUserManagementModal() {
   if (!isAdmin()) return;
   showAnimatedModal("userManagementModal");
@@ -1009,7 +1163,6 @@ function sortFiles(type) {
   renderFilesTable();
 }
 
-// Download Checked Items ZIP
 async function downloadSelectedZip() {
   const checked = document.querySelectorAll(".file-item-check:checked");
   if (checked.length === 0) return showToast("Select files to download", "error");
@@ -1079,7 +1232,6 @@ async function openPreview(name, id) {
         await page.render({ canvasContext: ctx, viewport: viewport }).promise;
       }
 
-      // Live page scrolling observer
       container.onscroll = () => {
         const containerTop = container.getBoundingClientRect().top;
         for (let canvas of pageCanvases) {
@@ -1132,7 +1284,6 @@ function closeChatFullscreen() {
   document.getElementById("chatModal").classList.add("chat-closed"); 
 }
 
-// Primary Super Admin Clear Chat Handler
 async function confirmClearChat() {
   if (!isPrimarySuperAdmin()) return;
   if (!confirm("Are you sure you want to permanently clear the entire class chat history?")) return;
@@ -1166,10 +1317,9 @@ function initWebSocket() {
     ws.onmessage = (e) => {
       const data = JSON.parse(e.data);
       if (data.type === "notice") {
-        // Handle Live Upload Notice Broadcast
         document.getElementById("headerUnseenNoticeDot").classList.remove("hidden");
         document.getElementById("noticeBadgeCount").classList.remove("hidden");
-        showToast(data.title, "info", `${data.file_name} • ${data.time}`);
+        showToast(data.title, "info", `${data.file_name || data.message || ''} • ${data.time}`);
         loadFiles();
       } else if (data.type === "chat_event" && data.cleared) {
         document.getElementById("chatMessages").innerHTML = "";
