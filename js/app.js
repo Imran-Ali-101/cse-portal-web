@@ -4,10 +4,11 @@ let currentUser = JSON.parse(localStorage.getItem("user") || "null");
 let currentSelectedFolder = "/";
 let allFiles = [];
 let allFolders = [];
+let allNotices = [];
 let activeContextItem = null;
 let activePreviewItem = null;
+let activeNoticeTarget = null;
 
-// Initialize PDF.js worker
 if (window['pdfjs-dist/build/pdf']) {
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 }
@@ -22,14 +23,21 @@ function hideAnimatedModal(id) {
   if (el) el.classList.add("modal-hidden");
 }
 
-function showToast(message, type = "info") {
+function showToast(message, type = "info", subtitle = "") {
   const container = document.getElementById("toastContainer");
   const toast = document.createElement("div");
   let border = type === "success" ? "border-emerald-500 text-emerald-500" : (type === "error" ? "border-rose-500 text-rose-500" : "border-blue-500 text-blue-500");
-  toast.className = `flex items-center gap-2 px-4 py-3 rounded-xl border bg-white dark:bg-slate-900 shadow-xl text-xs font-medium ${border}`;
-  toast.innerHTML = `<i class="fa-solid ${type === 'success' ? 'fa-check' : (type === 'error' ? 'fa-exclamation' : 'fa-info')}"></i> <span>${message}</span>`;
+  
+  toast.className = `flex flex-col gap-0.5 px-4 py-3 rounded-xl border bg-white dark:bg-slate-900 shadow-xl text-xs font-medium ${border}`;
+  toast.innerHTML = `
+    <div class="flex items-center gap-2">
+      <i class="fa-solid ${type === 'success' ? 'fa-check' : (type === 'error' ? 'fa-exclamation' : 'fa-info')}"></i> 
+      <span>${message}</span>
+    </div>
+    ${subtitle ? `<span class="text-[10px] text-slate-400 font-normal pl-5">${subtitle}</span>` : ''}
+  `;
   container.appendChild(toast);
-  setTimeout(() => toast.remove(), 3500);
+  setTimeout(() => toast.remove(), 4000);
 }
 
 function formatBytes(bytes) {
@@ -40,7 +48,6 @@ function formatBytes(bytes) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
-// Check Admin Status
 function isAdmin() {
   return currentUser && (currentUser.role === 'super_admin' || currentUser.student_id === '2510376101');
 }
@@ -54,7 +61,12 @@ function isFileBanned() {
   return new Date() < new Date(currentUser.file_banned_until);
 }
 
-// Synchronize role dynamically so promoted admins don't need to re-login
+// Generates secured media stream URL with token parameter
+function getSecuredStreamUrl(messageId, fileName) {
+  const token = currentUser ? currentUser.token : '';
+  return `${API_BASE}/slides/stream/${message_id}?filename=${encodeURIComponent(fileName)}&token=${token}`;
+}
+
 async function syncUserRole() {
   if (!currentUser) return;
   try {
@@ -115,6 +127,8 @@ async function renderPortalView() {
 
     loadFolders();
     loadFiles();
+    initWebSocket();
+    checkUnseenNotices();
   } else {
     guestView.classList.remove("hidden");
     authView.classList.add("hidden");
@@ -240,7 +254,7 @@ window.addEventListener('click', (e) => {
   }
 });
 
-// Load Folders & Populate Options
+// Folders Management
 async function loadFolders() {
   if (!currentUser) return;
   try {
@@ -264,7 +278,6 @@ async function loadFolders() {
   } catch(e) { console.error(e); }
 }
 
-// Navigation & Parent Folder (..) Handler
 function selectFolder(path) {
   currentSelectedFolder = path.startsWith('/') ? path : '/' + path;
   if (currentSelectedFolder !== '/' && currentSelectedFolder.endsWith('/')) {
@@ -311,51 +324,46 @@ async function handleCreateFolder() {
   }
 }
 
-// Subfolder Upload Handler
-function uploadSelectedFile(input) {
+// Robust Multiple Uploads Handler
+async function uploadSelectedFiles(input) {
   if (!isAdmin()) return showToast("Only Admin can upload files", "error");
-  if (!input.files[0]) return;
+  if (!input.files || input.files.length === 0) return;
   
-  const file = input.files[0];
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("folder", currentSelectedFolder);
+  const filesList = Array.from(input.files);
+  const totalFiles = filesList.length;
 
   const progressBar = document.getElementById("uploadProgressBar");
   const progressText = document.getElementById("uploadProgressText");
 
   showAnimatedModal("uploadProgressModal");
-  progressBar.style.width = "0%";
-  progressText.innerText = `0 KB / ${formatBytes(file.size)}`;
 
-  const xhr = new XMLHttpRequest();
-  xhr.open("POST", `${API_BASE}/slides/upload`, true);
+  let uploadedCount = 0;
+  for (let i = 0; i < totalFiles; i++) {
+    const file = filesList[i];
+    progressText.innerText = `Uploading (${i + 1}/${totalFiles}): ${file.name}`;
+    progressBar.style.width = `${Math.round(((i) / totalFiles) * 100)}%`;
 
-  xhr.upload.onprogress = (e) => {
-    if (e.lengthComputable) {
-      const percent = Math.round((e.loaded / e.total) * 100);
-      progressBar.style.width = `${percent}%`;
-      progressText.innerText = `${formatBytes(e.loaded)} / ${formatBytes(e.total)}`;
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("folder", currentSelectedFolder);
+    formData.append("uploader_name", currentUser ? currentUser.name : "Admin");
+
+    try {
+      const res = await fetch(`${API_BASE}/slides/upload`, {
+        method: "POST",
+        body: formData
+      });
+      if (res.ok) uploadedCount++;
+    } catch(err) {
+      console.error(err);
     }
-  };
+  }
 
-  xhr.onload = () => {
-    hideAnimatedModal("uploadProgressModal");
-    input.value = "";
-    if (xhr.status >= 200 && xhr.status < 300) {
-      showToast("Uploaded successfully to " + currentSelectedFolder, "success");
-      loadFiles();
-    } else {
-      showToast("Upload failed, please try again.", "error");
-    }
-  };
-
-  xhr.onerror = () => {
-    hideAnimatedModal("uploadProgressModal");
-    showToast("Network error during upload", "error");
-  };
-
-  xhr.send(formData);
+  progressBar.style.width = "100%";
+  hideAnimatedModal("uploadProgressModal");
+  input.value = "";
+  showToast(`Successfully uploaded ${uploadedCount} of ${totalFiles} files!`, "success");
+  loadFiles();
 }
 
 async function loadFiles() {
@@ -374,7 +382,7 @@ async function loadFiles() {
   } catch(e) { console.error(e); }
 }
 
-// Render Files & Folders Table
+// Render Files & Folders Table (Full name shown without truncate)
 function renderFilesTable() {
   const container = document.getElementById("fileTableContent");
   
@@ -411,9 +419,9 @@ function renderFilesTable() {
     const displayName = f.folder_name.split('/').filter(Boolean).pop();
     return `
       <div class="grid grid-cols-12 px-4 py-3 items-center hover:bg-slate-50 dark:hover:bg-slate-800/60 transition border-b border-slate-100 dark:border-slate-800">
-        <div onclick="selectFolder('${f.folder_name}')" class="col-span-8 md:col-span-9 flex items-center gap-3 overflow-hidden cursor-pointer">
+        <div onclick="selectFolder('${f.folder_name}')" class="col-span-8 md:col-span-9 flex items-center gap-3 cursor-pointer">
           <i class="fa-solid fa-folder text-amber-500 text-base"></i>
-          <span class="font-medium truncate text-slate-800 dark:text-slate-200 hover:text-blue-600">${displayName}</span>
+          <span class="font-medium text-slate-800 dark:text-slate-200 hover:text-blue-600 break-all">${displayName}</span>
         </div>
         <div class="col-span-4 md:col-span-3 flex items-center justify-end gap-3 text-slate-400 font-mono text-[11px]">
           <span>Folder</span>
@@ -428,10 +436,10 @@ function renderFilesTable() {
   const filteredFiles = allFiles.filter(f => f.folder_path === currentSelectedFolder);
   const filesMarkup = filteredFiles.map(f => `
     <div class="grid grid-cols-12 px-4 py-3 items-center hover:bg-slate-50 dark:hover:bg-slate-800/50">
-      <div class="col-span-8 md:col-span-9 flex items-center gap-3 overflow-hidden">
+      <div class="col-span-8 md:col-span-9 flex items-center gap-3">
         <input type="checkbox" value="${f.id}" data-id="${f.telegram_message_id}" data-name="${f.file_name}" class="file-item-check rounded border-slate-300">
         <i class="fa-solid fa-file-lines text-slate-400 text-sm"></i>
-        <span onclick="openPreview('${f.file_name}', ${f.telegram_message_id})" class="truncate cursor-pointer hover:text-blue-600 font-medium text-slate-700 dark:text-slate-200">${f.file_name}</span>
+        <span onclick="openPreview('${f.file_name}', ${f.telegram_message_id})" class="cursor-pointer hover:text-blue-600 font-medium text-slate-700 dark:text-slate-200 break-all">${f.file_name}</span>
       </div>
       <div class="col-span-4 md:col-span-3 flex items-center justify-end gap-3 text-slate-400 font-mono">
         <span>${formatBytes(f.file_size)}</span>
@@ -449,7 +457,7 @@ function renderFilesTable() {
   }
 }
 
-// 3-Dots Action Menu Handling (Files & Folders)
+// 3-Dots Action Menu Handling
 function openItemActionMenu(e, id, messageId, name, isFolder = false) {
   e.stopPropagation();
   activeContextItem = { id, messageId, name, isFolder };
@@ -457,43 +465,47 @@ function openItemActionMenu(e, id, messageId, name, isFolder = false) {
 
   const downloadBtn = document.getElementById("menuDownloadBtn");
   const shareBtn = document.getElementById("menuShareBtn");
+  const renameBtn = document.getElementById("menuRenameBtn");
   const moveBtn = document.getElementById("menuMoveBtn");
   const trashBtn = document.getElementById("menuTrashBtn");
   const delFolderBtn = document.getElementById("menuDeleteFolderBtn");
   const downloadFolderBtn = document.getElementById("menuDownloadFolderBtn");
 
   if (isFolder) {
-    // Hide file options
     downloadBtn.classList.add("hidden");
     shareBtn.classList.add("hidden");
     moveBtn.classList.add("hidden");
     trashBtn.classList.add("hidden");
-    
-    // Show folder options
     downloadFolderBtn.classList.remove("hidden");
-    if (isAdmin()) delFolderBtn.classList.remove("hidden");
-    else delFolderBtn.classList.add("hidden");
+    
+    if (isAdmin()) {
+      delFolderBtn.classList.remove("hidden");
+      renameBtn.classList.remove("hidden");
+    } else {
+      delFolderBtn.classList.add("hidden");
+      renameBtn.classList.add("hidden");
+    }
   } else {
-    // Hide folder options
     delFolderBtn.classList.add("hidden");
     downloadFolderBtn.classList.add("hidden");
-
-    // Show file options
     downloadBtn.classList.remove("hidden");
     shareBtn.classList.remove("hidden");
+
     if (isAdmin()) {
       moveBtn.classList.remove("hidden");
       trashBtn.classList.remove("hidden");
+      renameBtn.classList.remove("hidden");
     } else {
       moveBtn.classList.add("hidden");
       trashBtn.classList.add("hidden");
+      renameBtn.classList.add("hidden");
     }
   }
   
   const btn = e.target.closest('button');
   const rect = btn.getBoundingClientRect();
-  const menuWidth = 192;
-  const menuHeight = isFolder ? 80 : 160;
+  const menuWidth = 200;
+  const menuHeight = isFolder ? 110 : 190;
 
   let top = rect.bottom + 4;
   if (top + menuHeight > window.innerHeight) {
@@ -508,12 +520,67 @@ function openItemActionMenu(e, id, messageId, name, isFolder = false) {
   menu.classList.remove("hidden");
 }
 
-// Direct File Download via Blob to prevent white screen
+// Rename Handler (File & Folder)
+function openRenameModalForCurrentItem() {
+  if (!activeContextItem) return;
+  document.getElementById("renameItemId").value = activeContextItem.id;
+  document.getElementById("renameItemIsFolder").value = activeContextItem.isFolder;
+  document.getElementById("renameItemOldName").value = activeContextItem.name;
+
+  const currentDisplay = activeContextItem.isFolder 
+    ? activeContextItem.name.split('/').filter(Boolean).pop() 
+    : activeContextItem.name;
+
+  document.getElementById("renameNewNameInput").value = currentDisplay;
+  document.getElementById("itemActionMenu").classList.add("hidden");
+  showAnimatedModal("renameModal");
+}
+
+function closeRenameModal() { hideAnimatedModal("renameModal"); }
+
+async function executeRenameItem() {
+  const itemId = document.getElementById("renameItemId").value;
+  const isFolder = document.getElementById("renameItemIsFolder").value === "true";
+  const oldName = document.getElementById("renameItemOldName").value;
+  const newNameRaw = document.getElementById("renameNewNameInput").value.trim();
+
+  if (!newNameRaw) return showToast("Name cannot be empty", "error");
+
+  let finalNewName = newNameRaw;
+  if (isFolder) {
+    const parts = oldName.split('/').filter(Boolean);
+    parts.pop();
+    finalNewName = parts.length === 0 ? `/${newNameRaw}` : `/${parts.join('/')}/${newNameRaw}`;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/items/rename`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        item_id: itemId,
+        is_folder: isFolder,
+        old_name: oldName,
+        new_name: finalNewName
+      })
+    });
+    if (!res.ok) throw new Error("Failed to rename");
+    showToast("Renamed successfully!", "success");
+    closeRenameModal();
+    loadFolders();
+    loadFiles();
+  } catch(err) {
+    showToast(err.message, "error");
+  }
+}
+
+// Direct File Download via Blob (With Auth Token Attached)
 async function downloadDirectFile(messageId, fileName) {
   showToast(`Downloading ${fileName}...`, "info");
   try {
-    const res = await fetch(`${API_BASE}/slides/stream/${messageId}?filename=${encodeURIComponent(fileName)}`);
-    if (!res.ok) throw new Error("Download failed");
+    const token = currentUser ? currentUser.token : '';
+    const res = await fetch(`${API_BASE}/slides/stream/${messageId}?filename=${encodeURIComponent(fileName)}&token=${token}`);
+    if (!res.ok) throw new Error("Download failed or unauthorized");
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -523,9 +590,9 @@ async function downloadDirectFile(messageId, fileName) {
     a.click();
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 2000);
-    showToast("Download finished!", "success");
+    showToast("Download completed!", "success");
   } catch(err) {
-    showToast("Error downloading file", "error");
+    showToast("Error downloading file (Login required)", "error");
   }
 }
 
@@ -552,10 +619,11 @@ async function triggerDownloadTargetFolder() {
 
   showToast(`Packing full folder into ZIP...`, "info");
   const zip = new JSZip();
+  const token = currentUser ? currentUser.token : '';
 
   for (let f of filesToPack) {
     try {
-      const res = await fetch(`${API_BASE}/slides/stream/${f.telegram_message_id}?filename=${encodeURIComponent(f.file_name)}`);
+      const res = await fetch(`${API_BASE}/slides/stream/${f.telegram_message_id}?filename=${encodeURIComponent(f.file_name)}&token=${token}`);
       const blob = await res.blob();
       
       let relative = f.folder_path.replace(targetPath, '').replace(/^\/+/, '');
@@ -600,7 +668,8 @@ async function deleteCurrentFolder() {
 
 function copyCurrentShareLink() {
   if (!activeContextItem) return;
-  const link = `${API_BASE}/slides/stream/${activeContextItem.messageId}?filename=${encodeURIComponent(activeContextItem.name)}`;
+  const token = currentUser ? currentUser.token : '';
+  const link = `${API_BASE}/slides/stream/${activeContextItem.messageId}?filename=${encodeURIComponent(activeContextItem.name)}&token=${token}`;
   navigator.clipboard.writeText(link);
   showToast("Direct link copied to clipboard!", "success");
   document.getElementById("itemActionMenu").classList.add("hidden");
@@ -668,7 +737,103 @@ async function trashSelected() {
   } catch(err) { showToast(err.message, "error"); }
 }
 
-// User & Role Management Handlers
+// Notice Board Operations & Tracking
+async function checkUnseenNotices() {
+  try {
+    const res = await fetch(`${API_BASE}/notices/list`);
+    allNotices = await res.json();
+    if (allNotices.length === 0) return;
+
+    const lastSeenId = localStorage.getItem("last_seen_notice_id");
+    const latestNotice = allNotices[0];
+
+    if (latestNotice.id !== lastSeenId) {
+      document.getElementById("headerUnseenNoticeDot").classList.remove("hidden");
+      document.getElementById("noticeBadgeCount").classList.remove("hidden");
+      
+      const timeFormatted = new Date(latestNotice.created_at).toLocaleString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric', hour12: true
+      });
+      showToast(latestNotice.title, "info", `${latestNotice.file_name} • ${timeFormatted}`);
+    }
+  } catch(e) {}
+}
+
+async function openNoticeBoardModal() {
+  showAnimatedModal("noticeBoardModal");
+  document.getElementById("headerUnseenNoticeDot").classList.add("hidden");
+  document.getElementById("noticeBadgeCount").classList.add("hidden");
+
+  if (allNotices.length > 0) {
+    localStorage.setItem("last_seen_notice_id", allNotices[0].id);
+  }
+
+  loadNoticesList();
+}
+
+function closeNoticeBoardModal() { hideAnimatedModal("noticeBoardModal"); }
+
+async function loadNoticesList() {
+  const container = document.getElementById("noticesListContainer");
+  try {
+    const res = await fetch(`${API_BASE}/notices/list`);
+    allNotices = await res.json();
+
+    if (allNotices.length === 0) {
+      container.innerHTML = `<p class="text-center py-10 text-slate-400">No notices published yet.</p>`;
+      return;
+    }
+
+    container.innerHTML = allNotices.map(n => {
+      const timeFormatted = new Date(n.created_at).toLocaleString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric', hour12: true
+      });
+
+      return `
+        <div onclick="openNoticeDetails('${n.id}')" class="py-3 px-2 hover:bg-slate-50 dark:hover:bg-slate-800/60 rounded-xl cursor-pointer transition flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-950 text-amber-500 flex items-center justify-center">
+              <i class="fa-solid fa-bullhorn text-xs"></i>
+            </div>
+            <div>
+              <span class="font-bold text-slate-800 dark:text-slate-100 block">${n.title}</span>
+              <span class="text-[11px] text-slate-500 font-mono">${n.file_name}</span>
+            </div>
+          </div>
+          <span class="text-[10px] text-slate-400 font-mono whitespace-nowrap">${timeFormatted}</span>
+        </div>
+      `;
+    }).join('');
+  } catch(e) { console.error(e); }
+}
+
+function openNoticeDetails(noticeId) {
+  const n = allNotices.find(x => x.id === noticeId);
+  if (!n) return;
+
+  activeNoticeTarget = n;
+  const timeFormatted = new Date(n.created_at).toLocaleString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric', hour12: true
+  });
+
+  document.getElementById("ndFileName").innerText = n.file_name;
+  document.getElementById("ndFolderPath").innerText = n.folder_path;
+  document.getElementById("ndUploader").innerText = n.uploaded_by || "Administrator";
+  document.getElementById("ndTime").innerText = timeFormatted;
+
+  closeNoticeBoardModal();
+  showAnimatedModal("noticeDetailsModal");
+}
+
+function closeNoticeDetailsModal() { hideAnimatedModal("noticeDetailsModal"); }
+
+function goToNoticeFolder() {
+  if (!activeNoticeTarget) return;
+  closeNoticeDetailsModal();
+  selectFolder(activeNoticeTarget.folder_path);
+}
+
+// User & Role Management
 async function openUserManagementModal() {
   if (!isAdmin()) return;
   showAnimatedModal("userManagementModal");
@@ -851,10 +1016,12 @@ async function downloadSelectedZip() {
 
   showToast("Packing selected files into ZIP...", "info");
   const zip = new JSZip();
+  const token = currentUser ? currentUser.token : '';
+
   for (let box of checked) {
     const id = box.getAttribute("data-id");
     const name = box.getAttribute("data-name");
-    const res = await fetch(`${API_BASE}/slides/stream/${id}?filename=${encodeURIComponent(name)}`);
+    const res = await fetch(`${API_BASE}/slides/stream/${id}?filename=${encodeURIComponent(name)}&token=${token}`);
     const blob = await res.blob();
     zip.file(name, blob);
   }
@@ -866,13 +1033,17 @@ async function downloadSelectedZip() {
   showToast("ZIP download started!", "success");
 }
 
-// Universal In-Browser Preview using Mozilla PDF.js & Image Renderer
+// Universal In-Browser Preview using Mozilla PDF.js & Live Page Tracking
 async function openPreview(name, id) {
   document.getElementById("previewTitle").innerText = name;
   activePreviewItem = { name, id };
-  const streamUrl = `${API_BASE}/slides/stream/${id}?filename=${encodeURIComponent(name)}`;
+  const token = currentUser ? currentUser.token : '';
+  const streamUrl = `${API_BASE}/slides/stream/${id}?filename=${encodeURIComponent(name)}&token=${token}`;
 
   const container = document.getElementById("previewContainer");
+  const pageIndicator = document.getElementById("pdfPageIndicator");
+  pageIndicator.classList.add("hidden");
+
   container.innerHTML = `<div class="text-center text-slate-400 py-20 flex flex-col items-center gap-2"><span class="spinner"></span><span>Loading document...</span></div>`;
   showAnimatedModal("previewModal");
 
@@ -886,19 +1057,41 @@ async function openPreview(name, id) {
       const pdf = await loadingTask.promise;
       container.innerHTML = "";
 
+      pageIndicator.innerText = `Page 1 of ${pdf.numPages}`;
+      pageIndicator.classList.remove("hidden");
+
+      const pageCanvases = [];
+
       for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
         const page = await pdf.getPage(pageNum);
         const viewport = page.getViewport({ scale: 1.35 });
 
         const canvas = document.createElement("canvas");
         canvas.className = "pdf-page-canvas";
+        canvas.setAttribute("data-page-number", pageNum);
         const ctx = canvas.getContext("2d");
         canvas.height = viewport.height;
         canvas.width = viewport.width;
 
         container.appendChild(canvas);
+        pageCanvases.push(canvas);
+
         await page.render({ canvasContext: ctx, viewport: viewport }).promise;
       }
+
+      // Live page scrolling observer
+      container.onscroll = () => {
+        const containerTop = container.getBoundingClientRect().top;
+        for (let canvas of pageCanvases) {
+          const rect = canvas.getBoundingClientRect();
+          if (rect.top - containerTop <= 150 && rect.bottom - containerTop > 50) {
+            const currentNum = canvas.getAttribute("data-page-number");
+            pageIndicator.innerText = `Page ${currentNum} of ${pdf.numPages}`;
+            break;
+          }
+        }
+      };
+
     } catch(err) {
       container.innerHTML = `
         <div class="text-center p-8 bg-slate-900 rounded-2xl border border-slate-800">
@@ -913,7 +1106,7 @@ async function openPreview(name, id) {
     container.innerHTML = `
       <div class="text-center p-8 bg-slate-900 rounded-2xl border border-slate-800">
         <i class="fa-solid fa-file-lines text-4xl text-slate-500 mb-3 block"></i>
-        <p class="text-sm font-medium text-slate-300 mb-4">No direct browser preview available for this file type.</p>
+        <p class="text-sm font-medium text-slate-300 mb-4">No direct preview available for this file type.</p>
         <button onclick="downloadActivePreviewFile()" class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl text-xs font-semibold inline-flex items-center gap-2">
           <i class="fa-solid fa-download"></i> Download File
         </button>
@@ -925,6 +1118,7 @@ async function openPreview(name, id) {
 function closePreview() {
   hideAnimatedModal("previewModal");
   document.getElementById("previewContainer").innerHTML = "";
+  document.getElementById("pdfPageIndicator").classList.add("hidden");
   activePreviewItem = null;
 }
 
@@ -932,7 +1126,6 @@ function closePreview() {
 function openChatFullscreen() {
   if (!currentUser) return showToast("Please login first", "error");
   document.getElementById("chatModal").classList.remove("chat-closed");
-  initWebSocket();
 }
 
 function closeChatFullscreen() { 
@@ -972,7 +1165,13 @@ function initWebSocket() {
     ws = new WebSocket(wsUrl);
     ws.onmessage = (e) => {
       const data = JSON.parse(e.data);
-      if (data.cleared) {
+      if (data.type === "notice") {
+        // Handle Live Upload Notice Broadcast
+        document.getElementById("headerUnseenNoticeDot").classList.remove("hidden");
+        document.getElementById("noticeBadgeCount").classList.remove("hidden");
+        showToast(data.title, "info", `${data.file_name} • ${data.time}`);
+        loadFiles();
+      } else if (data.type === "chat_event" && data.cleared) {
         document.getElementById("chatMessages").innerHTML = "";
         showToast(data.message, "info");
       } else if (data.system) {
@@ -1007,5 +1206,5 @@ function sendLiveMessage(e) {
   input.value = "";
 }
 
-// Launch
+// App Launch
 renderPortalView();
