@@ -5,6 +5,8 @@ let currentSelectedFolder = "/";
 let allFiles = [];
 let allFolders = [];
 let allNotices = [];
+let allDirectoryUsers = [];
+let currentSortMode = 'name_asc';
 let activeContextItem = null;
 let activePreviewItem = null;
 let activeNoticeTarget = null;
@@ -75,7 +77,6 @@ async function syncUserRole() {
   } catch(e) {}
 }
 
-// Pure SPA View Switcher
 async function renderPortalView() {
   await syncUserRole();
 
@@ -255,13 +256,11 @@ window.addEventListener('click', (e) => {
   }
 });
 
-// Dynamic Tools Scraper from tools/ folder in GitHub/Server
+// Dynamic Tools Scraper from tools/
 async function loadDynamicTools() {
   const container = document.getElementById("dynamicToolsContainer");
-  
-  // Default list of tools, automatically expandable
   const defaultTools = [
-    { file: "cgpa.html", defaultTitle: "CGPA / GPA Calculator" }
+    { file: "cgpa.html", defaultTitle: "CGPA / GPA Suite" }
   ];
 
   container.innerHTML = `<span class="text-[10px] font-bold text-indigo-500 uppercase tracking-wider block mb-1">Academic Tools</span>`;
@@ -308,7 +307,7 @@ async function loadFolders() {
         moveSelect.innerHTML += `<option value="${f.folder_name}">${f.folder_name}</option>`;
       }
     });
-    renderFilesTable();
+    sortFiles(currentSortMode);
   } catch(e) { console.error(e); }
 }
 
@@ -358,7 +357,7 @@ async function handleCreateFolder() {
   }
 }
 
-// Subfolder Multiple Uploads Handler
+// Bulk Upload Handler
 async function uploadSelectedFiles(input) {
   if (!isAdmin()) return showToast("Only Admin can upload files", "error");
   if (!input.files || input.files.length === 0) return;
@@ -412,11 +411,42 @@ async function loadFiles() {
       return { ...f, folder_path: p };
     });
 
-    renderFilesTable();
+    sortFiles(currentSortMode);
   } catch(e) { console.error(e); }
 }
 
-// Render Files & Folders Table (Full name shown without truncate + Hidden folder filter)
+// Sorting: Folders and Files sorted equally, Folders always render FIRST
+function sortFiles(type) {
+  currentSortMode = type;
+  const label = document.getElementById("currentSortLabel");
+
+  const sortFn = (a, b, isFolder = false) => {
+    const nameA = isFolder ? a.folder_name.split('/').filter(Boolean).pop() : a.file_name;
+    const nameB = isFolder ? b.folder_name.split('/').filter(Boolean).pop() : b.file_name;
+
+    if (type === 'name_asc') return nameA.localeCompare(nameB);
+    if (type === 'name_desc') return nameB.localeCompare(nameA);
+    if (type === 'newest') return new Date(b.created_at) - new Date(a.created_at);
+    if (type === 'oldest') return new Date(a.created_at) - new Date(b.created_at);
+    if (type === 'largest') return (b.file_size || 0) - (a.file_size || 0);
+    if (type === 'smallest') return (a.file_size || 0) - (b.file_size || 0);
+    return 0;
+  };
+
+  allFolders.sort((a, b) => sortFn(a, b, true));
+  allFiles.sort((a, b) => sortFn(a, b, false));
+
+  if (type === 'name_asc') label.innerText = "Name A - Z";
+  if (type === 'name_desc') label.innerText = "Name Z - A";
+  if (type === 'newest') label.innerText = "Newest";
+  if (type === 'oldest') label.innerText = "Oldest";
+  if (type === 'largest') label.innerText = "Largest";
+  if (type === 'smallest') label.innerText = "Smallest";
+
+  renderFilesTable();
+}
+
+// Render Table (Full names without truncation, folders on top, selected permissions respected)
 function renderFilesTable() {
   const container = document.getElementById("fileTableContent");
   
@@ -443,13 +473,18 @@ function renderFilesTable() {
 
   const currentPrefix = currentSelectedFolder === '/' ? '/' : currentSelectedFolder + '/';
   
-  // Folders filtering: hide locked folders from non-primary admins
+  // 1. Child Folders Filtered by Access Permissions
   const childFolders = allFolders.filter(f => {
     if (f.folder_name === '/') return false;
     if (!f.folder_name.startsWith(currentPrefix)) return false;
     
-    // Privacy Lock: Hide if locked unless Super Admin (2510376101)
-    if (f.is_locked && !isPrimarySuperAdmin()) return false;
+    if (f.allowed_students && f.allowed_students.length > 0 && !isPrimarySuperAdmin()) {
+      if (!currentUser || !f.allowed_students.includes(currentUser.student_id)) {
+        return false;
+      }
+    } else if (f.is_locked && !isPrimarySuperAdmin()) {
+      return false;
+    }
 
     const remainder = f.folder_name.slice(currentPrefix.length);
     return remainder.length > 0 && !remainder.includes('/');
@@ -457,18 +492,18 @@ function renderFilesTable() {
 
   const foldersMarkup = childFolders.map(f => {
     const displayName = f.folder_name.split('/').filter(Boolean).pop();
-    const isLocked = f.is_locked;
+    const isRestricted = f.allowed_students && f.allowed_students.length > 0;
 
     return `
       <div class="grid grid-cols-12 px-4 py-3 items-center hover:bg-slate-50 dark:hover:bg-slate-800/60 transition border-b border-slate-100 dark:border-slate-800">
         <div onclick="selectFolder('${f.folder_name}')" class="col-span-8 md:col-span-9 flex items-center gap-3 cursor-pointer">
-          <i class="fa-solid ${isLocked ? 'fa-folder-closed text-rose-500' : 'fa-folder text-amber-500'} text-base"></i>
+          <i class="fa-solid ${isRestricted ? 'fa-folder-lock text-indigo-500' : 'fa-folder text-amber-500'} text-base"></i>
           <span class="font-medium text-slate-800 dark:text-slate-200 hover:text-blue-600 break-all">${displayName}</span>
-          ${isLocked ? '<span class="text-[9px] bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400 px-1.5 py-0.5 rounded font-bold uppercase">Hidden</span>' : ''}
+          ${isRestricted ? '<span class="text-[9px] bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded font-bold uppercase">Restricted</span>' : ''}
         </div>
         <div class="col-span-4 md:col-span-3 flex items-center justify-end gap-3 text-slate-400 font-mono text-[11px]">
           <span>Folder</span>
-          <button onclick="openItemActionMenu(event, '${f.id}', null, '${f.folder_name}', true, ${isLocked || false})" class="hover:text-slate-600 p-1">
+          <button onclick="openItemActionMenu(event, '${f.id}', null, '${f.folder_name}', true)" class="hover:text-slate-600 p-1">
             <i class="fa-solid fa-ellipsis-vertical"></i>
           </button>
         </div>
@@ -476,12 +511,15 @@ function renderFilesTable() {
     `;
   }).join('');
 
-  // Files filtering: hide files in locked folders
+  // 2. Child Files
   const filteredFiles = allFiles.filter(f => {
     if (f.folder_path !== currentSelectedFolder) return false;
-    // If the folder itself is locked, hide files from non-primary admins
     const currentFolderObj = allFolders.find(x => x.folder_name === currentSelectedFolder);
-    if (currentFolderObj && currentFolderObj.is_locked && !isPrimarySuperAdmin()) return false;
+    if (currentFolderObj && currentFolderObj.allowed_students && currentFolderObj.allowed_students.length > 0 && !isPrimarySuperAdmin()) {
+      if (!currentUser || !currentFolderObj.allowed_students.includes(currentUser.student_id)) return false;
+    } else if (currentFolderObj && currentFolderObj.is_locked && !isPrimarySuperAdmin()) {
+      return false;
+    }
     return true;
   });
 
@@ -501,6 +539,7 @@ function renderFilesTable() {
     </div>
   `).join('');
 
+  // Always show parent -> all folders -> all files
   if (!parentRow && foldersMarkup === "" && filesMarkup === "") {
     container.innerHTML = `<div class="text-center py-10 text-slate-400">No files in this folder.</div>`;
   } else {
@@ -509,9 +548,9 @@ function renderFilesTable() {
 }
 
 // 3-Dots Action Menu Handling
-function openItemActionMenu(e, id, messageId, name, isFolder = false, isLocked = false) {
+function openItemActionMenu(e, id, messageId, name, isFolder = false) {
   e.stopPropagation();
-  activeContextItem = { id, messageId, name, isFolder, isLocked };
+  activeContextItem = { id, messageId, name, isFolder };
   const menu = document.getElementById("itemActionMenu");
 
   const downloadBtn = document.getElementById("menuDownloadBtn");
@@ -521,9 +560,7 @@ function openItemActionMenu(e, id, messageId, name, isFolder = false, isLocked =
   const trashBtn = document.getElementById("menuTrashBtn");
   const delFolderBtn = document.getElementById("menuDeleteFolderBtn");
   const downloadFolderBtn = document.getElementById("menuDownloadFolderBtn");
-  const toggleLockBtn = document.getElementById("menuToggleLockBtn");
-  const toggleLockIcon = document.getElementById("menuToggleLockIcon");
-  const toggleLockText = document.getElementById("menuToggleLockText");
+  const folderPermBtn = document.getElementById("menuFolderPermBtn");
 
   if (isFolder) {
     downloadBtn.classList.add("hidden");
@@ -532,18 +569,10 @@ function openItemActionMenu(e, id, messageId, name, isFolder = false, isLocked =
     trashBtn.classList.add("hidden");
     downloadFolderBtn.classList.remove("hidden");
     
-    // Only Primary Super Admin (2510376101) can access hide/lock permission
     if (isPrimarySuperAdmin()) {
-      toggleLockBtn.classList.remove("hidden");
-      if (isLocked) {
-        toggleLockIcon.className = "fa-solid fa-eye";
-        toggleLockText.innerText = "Show / Unlock Folder";
-      } else {
-        toggleLockIcon.className = "fa-solid fa-eye-slash";
-        toggleLockText.innerText = "Hide / Lock Folder";
-      }
+      folderPermBtn.classList.remove("hidden");
     } else {
-      toggleLockBtn.classList.add("hidden");
+      folderPermBtn.classList.add("hidden");
     }
 
     if (isAdmin()) {
@@ -556,7 +585,7 @@ function openItemActionMenu(e, id, messageId, name, isFolder = false, isLocked =
   } else {
     delFolderBtn.classList.add("hidden");
     downloadFolderBtn.classList.add("hidden");
-    toggleLockBtn.classList.add("hidden");
+    folderPermBtn.classList.add("hidden");
     downloadBtn.classList.remove("hidden");
     shareBtn.classList.remove("hidden");
 
@@ -589,31 +618,105 @@ function openItemActionMenu(e, id, messageId, name, isFolder = false, isLocked =
   menu.classList.remove("hidden");
 }
 
-// Toggle Lock/Hide Folder (Primary Admin Only)
-async function toggleCurrentFolderLock() {
+// Folder Permissions Handling
+async function openPermissionsModalForCurrentFolder() {
   if (!activeContextItem || !activeContextItem.isFolder || !isPrimarySuperAdmin()) return;
   document.getElementById("itemActionMenu").classList.add("hidden");
 
-  const newStatus = !activeContextItem.isLocked;
+  const folderObj = allFolders.find(x => x.id === activeContextItem.id);
+  const allowed = (folderObj && folderObj.allowed_students) ? folderObj.allowed_students : [];
+
+  document.getElementById("permModalSubText").innerText = `Folder: ${activeContextItem.name}`;
+  const container = document.getElementById("permUsersListContainer");
+  container.innerHTML = `<p class="text-center py-6 text-slate-400">Loading users...</p>`;
+  showAnimatedModal("permissionsModal");
+
   try {
-    const res = await fetch(`${API_BASE}/folders/toggle-lock`, {
+    const res = await fetch(`${API_BASE}/admin/users/list`);
+    allDirectoryUsers = await res.json();
+
+    const isPublic = allowed.length === 0;
+    document.getElementById("permAllowAllCheck").checked = isPublic;
+
+    renderPermUsersCheckboxes(allowed);
+  } catch(e) {
+    container.innerHTML = `<p class="text-center py-6 text-rose-500">Error loading users</p>`;
+  }
+}
+
+function renderPermUsersCheckboxes(allowedList) {
+  const container = document.getElementById("permUsersListContainer");
+  const isPublic = document.getElementById("permAllowAllCheck").checked;
+
+  container.innerHTML = allDirectoryUsers.map(u => {
+    const isChecked = !isPublic && allowedList.includes(u.student_id);
+    return `
+      <label class="flex items-center justify-between py-2 px-1 hover:bg-slate-50 dark:hover:bg-slate-800 rounded cursor-pointer ${isPublic ? 'opacity-40 pointer-events-none' : ''}">
+        <div class="flex items-center gap-2 truncate">
+          <input type="checkbox" value="${u.student_id}" ${isChecked ? 'checked' : ''} onchange="updatePermSelectedCount()" class="perm-user-check rounded border-slate-300">
+          <span class="font-medium text-slate-800 dark:text-slate-200 truncate">${u.name}</span>
+          <span class="text-[10px] text-slate-400 font-mono">(${u.student_id})</span>
+        </div>
+      </label>
+    `;
+  }).join('');
+
+  updatePermSelectedCount();
+}
+
+function togglePermAll(el) {
+  const isPublic = el.checked;
+  document.querySelectorAll('.perm-user-check').forEach(cb => {
+    if (isPublic) cb.checked = false;
+    cb.closest('label').classList.toggle('opacity-40', isPublic);
+    cb.closest('label').classList.toggle('pointer-events-none', isPublic);
+  });
+  updatePermSelectedCount();
+}
+
+function updatePermSelectedCount() {
+  const isPublic = document.getElementById("permAllowAllCheck").checked;
+  if (isPublic) {
+    document.getElementById("selectedPermCount").innerText = "Public";
+  } else {
+    const checked = document.querySelectorAll(".perm-user-check:checked").length;
+    document.getElementById("selectedPermCount").innerText = `${checked} Selected`;
+  }
+}
+
+async function saveFolderPermissions() {
+  const folderId = activeContextItem.id;
+  const isPublic = document.getElementById("permAllowAllCheck").checked;
+  let allowed = [];
+
+  if (!isPublic) {
+    allowed = Array.from(document.querySelectorAll(".perm-user-check:checked")).map(cb => cb.value);
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/folders/update-permissions`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        folder_id: activeContextItem.id,
-        is_locked: newStatus,
+        folder_id: folderId,
+        allowed_students: allowed,
         admin_id: currentUser.student_id
       })
     });
-    if (!res.ok) throw new Error("Permission update failed");
-    showToast(newStatus ? "Folder locked & hidden from students!" : "Folder unlocked & visible to all!", "info");
+    if (!res.ok) throw new Error("Could not update permissions");
+    showToast(isPublic ? "Folder is now public to all" : `Restricted to ${allowed.length} students`, "success");
+    closePermissionsModal();
     loadFolders();
   } catch(err) {
     showToast(err.message, "error");
   }
 }
 
-// Rename Handler (File & Folder)
+function closePermissionsModal() {
+  hideAnimatedModal("permissionsModal");
+}
+
+// Rename Handler
 function openRenameModalForCurrentItem() {
   if (!activeContextItem) return;
   document.getElementById("renameItemId").value = activeContextItem.id;
@@ -667,7 +770,7 @@ async function executeRenameItem() {
   }
 }
 
-// Direct File Download via Blob (Secured Token)
+// Direct File Download via Blob with Token
 async function downloadDirectFile(messageId, fileName) {
   showToast(`Downloading ${fileName}...`, "info");
   try {
@@ -739,7 +842,6 @@ async function triggerDownloadTargetFolder() {
   showToast(`Folder ${folderName}.zip download complete!`, "success");
 }
 
-// Fixed folder deletion avoiding any glitch
 async function deleteCurrentFolder() {
   if (!activeContextItem || !activeContextItem.isFolder) return;
   document.getElementById("itemActionMenu").classList.add("hidden");
@@ -987,7 +1089,7 @@ function goToNoticeFolder() {
   selectFolder(activeNoticeTarget.folder_path);
 }
 
-// User & Role Management Handlers
+// User Management Handlers
 async function openUserManagementModal() {
   if (!isAdmin()) return;
   showAnimatedModal("userManagementModal");
@@ -1152,17 +1254,6 @@ function toggleSelectAll(el) {
   document.querySelectorAll(".file-item-check").forEach(cb => cb.checked = el.checked);
 }
 
-function sortFiles(type) {
-  const label = document.getElementById("currentSortLabel");
-  if (type === 'name_asc') { allFiles.sort((a,b) => a.file_name.localeCompare(b.file_name)); label.innerText = "Name A - Z"; }
-  if (type === 'name_desc') { allFiles.sort((a,b) => b.file_name.localeCompare(a.file_name)); label.innerText = "Name Z - A"; }
-  if (type === 'newest') { allFiles.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)); label.innerText = "Newest"; }
-  if (type === 'oldest') { allFiles.sort((a,b) => new Date(a.created_at) - new Date(b.created_at)); label.innerText = "Oldest"; }
-  if (type === 'largest') { allFiles.sort((a,b) => (b.file_size || 0) - (a.file_size || 0)); label.innerText = "Largest"; }
-  if (type === 'smallest') { allFiles.sort((a,b) => (a.file_size || 0) - (b.file_size || 0)); label.innerText = "Smallest"; }
-  renderFilesTable();
-}
-
 async function downloadSelectedZip() {
   const checked = document.querySelectorAll(".file-item-check:checked");
   if (checked.length === 0) return showToast("Select files to download", "error");
@@ -1186,7 +1277,7 @@ async function downloadSelectedZip() {
   showToast("ZIP download started!", "success");
 }
 
-// Universal In-Browser Preview using Mozilla PDF.js & Live Page Tracking
+// Universal PDF Preview with Live Page Number
 async function openPreview(name, id) {
   document.getElementById("previewTitle").innerText = name;
   activePreviewItem = { name, id };
@@ -1274,7 +1365,7 @@ function closePreview() {
   activePreviewItem = null;
 }
 
-// Fullscreen Live Chat View Handlers
+// Fullscreen Chat
 function openChatFullscreen() {
   if (!currentUser) return showToast("Please login first", "error");
   document.getElementById("chatModal").classList.remove("chat-closed");
@@ -1356,5 +1447,5 @@ function sendLiveMessage(e) {
   input.value = "";
 }
 
-// App Launch
+// Start Lifecycle
 renderPortalView();
