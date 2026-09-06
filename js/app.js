@@ -155,6 +155,7 @@ async function renderPortalView() {
 
     await loadFolders();
     await loadFiles();
+    sortFiles(currentSortMode);
     initWebSocket();
     checkUnseenNotices();
     loadDynamicTools();
@@ -475,7 +476,6 @@ async function loadFolders() {
         moveSelect.innerHTML += `<option value="${f.folder_name}">${f.folder_name}</option>`;
       }
     });
-    sortFiles(currentSortMode);
   } catch(e) { console.error(e); }
 }
 
@@ -523,12 +523,12 @@ async function handleCreateFolder() {
     closeFolderModal();
     await loadFolders();
     await loadFiles();
+    sortFiles(currentSortMode);
   } catch(err) {
     showToast(err.message, "error");
   }
 }
 
-// 100% Real-time Instant Local Rendering on Upload Finish
 async function uploadSelectedFiles(input) {
   if (!isAdmin()) return showToast("Only Admin can upload files", "error");
   if (!input.files || input.files.length === 0) return;
@@ -560,7 +560,6 @@ async function uploadSelectedFiles(input) {
       if (res.ok) {
         const jsonRes = await res.json();
         if (jsonRes.file) {
-          // Immediately inject file into current local state
           const newF = jsonRes.file;
           newF.folder_path = (newF.folder_path && newF.folder_path.startsWith('/')) ? newF.folder_path : '/' + (newF.folder_path || '');
           allFiles.unshift(newF);
@@ -578,8 +577,8 @@ async function uploadSelectedFiles(input) {
   input.value = "";
   showToast(`Successfully uploaded ${uploadedCount} of ${totalFiles} files!`, "success");
   
-  // Instant server sync with timestamp cache buster
   await loadFiles();
+  sortFiles(currentSortMode);
 }
 
 async function loadFiles() {
@@ -593,8 +592,6 @@ async function loadFiles() {
       if (!p.startsWith('/')) p = '/' + p;
       return { ...f, folder_path: p };
     });
-
-    sortFiles(currentSortMode);
   } catch(e) { console.error(e); }
 }
 
@@ -887,6 +884,7 @@ async function saveFolderPermissions() {
     closePermissionsModal();
     await loadFolders();
     await loadFiles();
+    sortFiles(currentSortMode);
   } catch(err) {
     showToast(err.message, "error");
   }
@@ -944,6 +942,7 @@ async function executeRenameItem() {
     closeRenameModal();
     await loadFolders();
     await loadFiles();
+    sortFiles(currentSortMode);
   } catch(err) {
     showToast(err.message, "error");
   }
@@ -1037,6 +1036,7 @@ async function deleteCurrentFolder() {
     showToast("Folder deleted and files moved to Trash", "success");
     await loadFolders();
     await loadFiles();
+    sortFiles(currentSortMode);
   } catch(err) {
     showToast(err.message, "error");
   }
@@ -1073,6 +1073,7 @@ async function executeMoveFile() {
     showToast(`Moved to ${target}`, "success");
     closeMoveModal();
     await loadFiles();
+    sortFiles(currentSortMode);
   } catch(err) {
     showToast(err.message, "error");
   }
@@ -1090,6 +1091,7 @@ async function trashCurrentItem() {
     if (!res.ok) throw new Error("Trash failed");
     showToast("Moved to Trash", "success");
     await loadFiles();
+    sortFiles(currentSortMode);
   } catch(err) {
     showToast(err.message, "error");
   }
@@ -1110,10 +1112,10 @@ async function trashSelected() {
     if(!res.ok) throw new Error("Trash failed");
     showToast("Moved selected files to Trash", "success");
     await loadFiles();
+    sortFiles(currentSortMode);
   } catch(err) { showToast(err.message, "error"); }
 }
 
-// Notice Board Operations
 async function checkUnseenNotices() {
   try {
     const res = await fetch(`${API_BASE}/notices/list?t=${Date.now()}`);
@@ -1280,7 +1282,6 @@ function goToNoticeFolder() {
   selectFolder(activeNoticeTarget.folder_path);
 }
 
-// User Management Handlers
 async function openUserManagementModal() {
   if (!isAdmin()) return;
   showAnimatedModal("userManagementModal");
@@ -1450,7 +1451,6 @@ async function applyUserBan(student_id, banCode) {
   } catch(err) { showToast(err.message, "error"); }
 }
 
-// Admin Trash Bin Modal
 async function openAdminTrashModal() {
   if (!isAdmin()) return;
   showAnimatedModal("adminTrashModal");
@@ -1496,6 +1496,7 @@ async function restoreTrashFile(id) {
     showToast("Restored file", "success");
     loadTrashFiles();
     await loadFiles();
+    sortFiles(currentSortMode);
   } catch(e) { showToast("Error restoring", "error"); }
 }
 
@@ -1539,7 +1540,6 @@ async function downloadSelectedZip() {
   showToast("ZIP download started!", "success");
 }
 
-// In-Browser Universal Preview
 async function openPreview(name, id) {
   document.getElementById("previewTitle").innerText = name;
   activePreviewItem = { name, id };
@@ -1551,7 +1551,7 @@ async function openPreview(name, id) {
   const pdfZoomToolbar = document.getElementById("pdfZoomToolbar");
   
   pageIndicator.classList.add("hidden");
-  pdfZoomToolbar.classList.add("hidden");
+  pdfZoomToolbar.style.display = "none";
 
   container.scrollTop = 0;
   container.style.justifyContent = "flex-start";
@@ -1560,7 +1560,6 @@ async function openPreview(name, id) {
 
   const lower = name.toLowerCase();
 
-  // 1. Video Formats
   if (lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.endsWith('.ogg') || lower.endsWith('.mkv') || lower.endsWith('.mov')) {
     container.style.justifyContent = "center";
     container.innerHTML = `
@@ -1572,7 +1571,6 @@ async function openPreview(name, id) {
       </div>
     `;
   }
-  // 2. Audio Formats
   else if (lower.endsWith('.mp3') || lower.endsWith('.wav') || lower.endsWith('.m4a') || lower.endsWith('.aac')) {
     container.style.justifyContent = "center";
     container.innerHTML = `
@@ -1588,7 +1586,6 @@ async function openPreview(name, id) {
       </div>
     `;
   }
-  // 3. Text & Code Formats
   else if (lower.endsWith('.txt') || lower.endsWith('.json') || lower.endsWith('.csv') || lower.endsWith('.log') || lower.endsWith('.py') || lower.endsWith('.js') || lower.endsWith('.html')) {
     try {
       const res = await fetch(streamUrl);
@@ -1603,27 +1600,23 @@ async function openPreview(name, id) {
       container.innerHTML = `<p class="m-auto text-xs text-rose-400">Failed to render text content.</p>`;
     }
   }
-  // 4. Image Formats
   else if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.webp') || lower.endsWith('.gif') || lower.endsWith('.svg')) {
     container.style.justifyContent = "center";
     container.innerHTML = `<img src="${streamUrl}" alt="${name}" class="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl">`;
   }
-  // 5. PDF Documents (Pure Device Width "Fit to Screen" + Zoom Engine)
   else if (lower.endsWith('.pdf')) {
     try {
       const loadingTask = pdfjsLib.getDocument(streamUrl);
       currentPdfDoc = await loadingTask.promise;
       
-      // Calculate true Full Device Width Scale
       const firstPage = await currentPdfDoc.getPage(1);
       const unscaledViewport = firstPage.getViewport({ scale: 1.0 });
       
-      // Use exact container clientWidth to eliminate borders
       const availableWidth = container.clientWidth > 40 ? (container.clientWidth - 32) : window.innerWidth;
       defaultFitScale = parseFloat((availableWidth / unscaledViewport.width).toFixed(2));
       currentPdfScale = defaultFitScale;
 
-      pdfZoomToolbar.classList.remove("hidden");
+      pdfZoomToolbar.style.display = "flex";
       await renderPdfPages(currentPdfScale);
 
     } catch(err) {
@@ -1638,7 +1631,6 @@ async function openPreview(name, id) {
       `;
     }
   }
-  // 6. PowerPoint PPTX and Other Downloadable Files
   else {
     const isPptx = lower.endsWith('.pptx') || lower.endsWith('.ppt');
     container.style.justifyContent = "center";
@@ -1655,7 +1647,6 @@ async function openPreview(name, id) {
   }
 }
 
-// 100% Device-Width Responsive PDF Render Engine
 async function renderPdfPages(scale) {
   if (!currentPdfDoc) return;
   const container = document.getElementById("previewContainer");
@@ -1688,7 +1679,6 @@ async function renderPdfPages(scale) {
 
   container.scrollTop = 0;
 
-  // Real-time Page Indicator Observer on scroll
   container.onscroll = () => {
     const containerTop = container.getBoundingClientRect().top;
     for (let canvas of pageCanvases) {
@@ -1710,7 +1700,6 @@ function zoomPdf(delta) {
   renderPdfPages(currentPdfScale);
 }
 
-// Re-computes dynamic device width on Fit
 async function resetPdfFitToScreen() {
   if (!currentPdfDoc) return;
   const container = document.getElementById("previewContainer");
@@ -1726,7 +1715,7 @@ function closePreview() {
   hideAnimatedModal("previewModal");
   document.getElementById("previewContainer").innerHTML = "";
   document.getElementById("pdfPageIndicator").classList.add("hidden");
-  document.getElementById("pdfZoomToolbar").classList.add("hidden");
+  document.getElementById("pdfZoomToolbar").style.display = "none";
   currentPdfDoc = null;
   activePreviewItem = null;
 }
@@ -1777,8 +1766,8 @@ function initWebSocket() {
           document.getElementById("headerUnseenNoticeDot").classList.remove("hidden");
           document.getElementById("noticeBadgeCount").classList.remove("hidden");
           showToast(data.title, "info", `${data.file_name || data.message || ''} • ${data.time}`);
-          // Instantly refresh list when new files arrive
           await loadFiles();
+          sortFiles(currentSortMode);
         }
       } else if (data.type === "chat_event" && data.cleared) {
         document.getElementById("chatMessages").innerHTML = "";
@@ -1817,5 +1806,4 @@ function sendLiveMessage(e) {
   input.value = "";
 }
 
-// Launch
 renderPortalView();
