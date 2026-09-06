@@ -1,224 +1,299 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CSE Portal | Drive & Live Hub</title>
+  <title>Private Cloud | Academic Storage</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
       darkMode: 'class',
-      theme: { extend: { colors: { brand: '#4f46e5' } } }
+      theme: { extend: { colors: { primary: '#2563eb' } } }
     }
   </script>
   <link rel="stylesheet" href="css/style.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <style>
+    .progress-bar-striped {
+      background-image: linear-gradient(45deg, rgba(255, 255, 255, 0.25) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.25) 50%, rgba(255, 255, 255, 0.25) 75%, transparent 75%, transparent);
+      background-size: 1rem 1rem;
+      animation: progress-bar-stripes 1s linear infinite;
+    }
+    @keyframes progress-bar-stripes {
+      from { background-position: 1rem 0; }
+      to { background-position: 0 0; }
+    }
+  </style>
 </head>
-<body class="bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100 min-h-screen flex flex-col">
+<body class="bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100 min-h-screen flex flex-col antialiased">
 
   <!-- Toast Notification Container -->
   <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
-  <!-- Navbar -->
-  <header class="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur border-b border-slate-200 dark:border-slate-800 px-4 md:px-6 py-3 flex justify-between items-center">
-    <div class="flex items-center space-x-3">
-      <button onclick="toggleSidebar(true)" class="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300">
+  <!-- Header -->
+  <header class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 md:px-8 py-3 flex justify-between items-center sticky top-0 z-30 shadow-xs">
+    <div class="flex items-center space-x-4">
+      <button onclick="toggleSidebar(true)" class="p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
         <i class="fa-solid fa-bars text-lg"></i>
       </button>
-      <a href="index.html" class="flex items-center space-x-2">
-        <i class="fa-solid fa-graduation-cap text-indigo-600 dark:text-indigo-400 text-2xl"></i>
-        <span class="text-base md:text-lg font-bold bg-gradient-to-r from-indigo-500 to-cyan-400 bg-clip-text text-transparent">CSE Portal</span>
-      </a>
+      <div class="flex items-center space-x-2">
+        <i class="fa-solid fa-cloud text-blue-600 text-xl"></i>
+        <span class="font-bold text-base text-slate-800 dark:text-white tracking-tight">Private Cloud</span>
+      </div>
+    </div>
+    <div id="navAuthSection" class="flex items-center gap-2"></div>
+  </header>
+
+  <!-- Breadcrumb Path -->
+  <div class="max-w-6xl w-full mx-auto px-4 pt-4 flex items-center justify-between text-xs text-slate-500">
+    <div class="flex items-center gap-1.5 font-medium">
+      <a href="#" onclick="selectFolder('/')" class="text-blue-600 hover:underline">Home</a>
+      <span id="breadcrumbPath"></span>
+    </div>
+  </div>
+
+  <!-- Main File Manager UI -->
+  <main class="flex-1 max-w-6xl w-full mx-auto p-4 space-y-4">
+    
+    <!-- Upload Dropzone Container -->
+    <div id="dropzoneArea" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 text-center shadow-xs">
+      <div class="dashed-border rounded-xl p-8 flex flex-col items-center justify-center gap-3">
+        <div class="w-12 h-12 bg-blue-50 dark:bg-slate-800 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center text-xl">
+          <i class="fa-solid fa-cloud-arrow-up"></i>
+        </div>
+        <p class="text-xs md:text-sm text-slate-500 dark:text-slate-400">Drag & drop files or folders here, or click to select</p>
+        
+        <div class="flex flex-wrap items-center justify-center gap-2 mt-2">
+          <input type="file" id="directFileInput" onchange="uploadSelectedFile(this)" class="hidden">
+          <button onclick="document.getElementById('directFileInput').click()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm">
+            <i class="fa-solid fa-file-circle-plus"></i> Files
+          </button>
+          <button onclick="openFolderModal()" class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5">
+            <i class="fa-regular fa-folder"></i> New Folder
+          </button>
+        </div>
+      </div>
     </div>
 
-    <div class="flex items-center gap-2">
-      <button onclick="toggleTheme()" class="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:scale-105">
-        <i id="themeIcon" class="fa-solid fa-sun"></i>
-      </button>
-      
-      <div id="adminActionHeader" class="hidden flex items-center gap-2">
-        <button onclick="openFolderModal()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium px-3 py-2 rounded-xl border border-slate-700">
-          <i class="fa-solid fa-folder-plus mr-1"></i> New Folder
-        </button>
-        <button onclick="openUploadModal()" class="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3 py-2 rounded-xl shadow-md shadow-emerald-600/20">
-          <i class="fa-solid fa-cloud-arrow-up mr-1"></i> Upload Slide
+    <!-- Actions & Toolbar Bar -->
+    <div class="flex flex-wrap items-center justify-between gap-3 pt-2 text-xs">
+      <div class="flex items-center gap-2">
+        <label class="flex items-center gap-2 cursor-pointer select-none text-slate-600 dark:text-slate-400">
+          <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)" class="rounded border-slate-300">
+          Select All
+        </label>
+
+        <!-- Actions Dropdown -->
+        <div class="relative">
+          <button onclick="toggleDropdown('actionsDropdownMenu')" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+            Actions <i class="fa-solid fa-chevron-down text-[10px]"></i>
+          </button>
+          <div id="actionsDropdownMenu" class="hidden absolute left-0 mt-1 w-44 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl py-1 z-20">
+            <button onclick="downloadSelectedZip()" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2">
+              <i class="fa-solid fa-download text-slate-400"></i> Download Selected
+            </button>
+            <button onclick="deleteSelected()" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-rose-600 flex items-center gap-2">
+              <i class="fa-regular fa-trash-can"></i> Move to Trash
+            </button>
+          </div>
+        </div>
+
+        <button onclick="deleteSelected()" class="bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 hover:text-rose-600 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
+          <i class="fa-regular fa-trash-can"></i> Trash
         </button>
       </div>
 
-      <div id="authHeaderAction"></div>
+      <!-- Sort Dropdown -->
+      <div class="relative">
+        <button onclick="toggleDropdown('sortDropdownMenu')" class="bg-slate-800 text-white px-3 py-1.5 rounded-lg flex items-center gap-1.5 font-medium">
+          <i class="fa-solid fa-arrow-down-a-z"></i> <span id="currentSortLabel">Name A - Z</span> <i class="fa-solid fa-chevron-down text-[10px]"></i>
+        </button>
+        <div id="sortDropdownMenu" class="hidden absolute right-0 mt-1 w-36 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl py-1 z-20">
+          <button onclick="sortFiles('name_asc')" class="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800">Name A - Z</button>
+          <button onclick="sortFiles('name_desc')" class="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800">Name Z - A</button>
+          <button onclick="sortFiles('newest')" class="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800">Newest</button>
+          <button onclick="sortFiles('oldest')" class="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800">Oldest</button>
+          <button onclick="sortFiles('largest')" class="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800">Largest</button>
+          <button onclick="sortFiles('smallest')" class="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800">Smallest</button>
+        </div>
+      </div>
     </div>
-  </header>
 
-  <!-- Sidebar Drawer -->
+    <!-- File Explorer List Table -->
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-xs">
+      <div class="grid grid-cols-12 px-4 py-3 border-b border-slate-200 dark:border-slate-800 font-semibold text-xs text-slate-500 uppercase tracking-wider bg-slate-50 dark:bg-slate-900/50">
+        <div class="col-span-8 md:col-span-9 flex items-center gap-3">Name</div>
+        <div class="col-span-4 md:col-span-3 text-right">Size</div>
+      </div>
+      
+      <div id="fileTableContent" class="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+        <div class="text-center py-12 text-slate-400">Loading files...</div>
+      </div>
+    </div>
+
+    <footer class="text-center text-[11px] text-slate-400 py-6">
+      Copyright © Md. Imran Ali
+    </footer>
+  </main>
+
+  <!-- Uploading Confirmation Dialog (Exact Replica of your screenshot) -->
+  <div id="uploadProgressModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-sm p-6 rounded-2xl shadow-2xl flex flex-col items-center gap-4 text-center">
+      <h3 class="font-bold text-sm text-slate-800 dark:text-white">Uploading...</h3>
+      <div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-3.5 overflow-hidden p-0.5">
+        <div id="uploadProgressBar" class="bg-blue-600 h-full rounded-full progress-bar-striped transition-all duration-150" style="width: 0%"></div>
+      </div>
+      <span id="uploadProgressText" class="text-xs text-slate-500 font-mono">0 KB / 0 KB</span>
+    </div>
+  </div>
+
+  <!-- Move File Modal -->
+  <div id="moveModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-sm p-5 rounded-2xl shadow-2xl relative">
+      <button onclick="closeMoveModal()" class="absolute top-4 right-4 text-slate-400"><i class="fa-solid fa-xmark"></i></button>
+      <h3 class="text-sm font-bold mb-3"><i class="fa-solid fa-arrows-up-down-left-right mr-1 text-blue-600"></i> Move File</h3>
+      <input type="hidden" id="moveTargetFileId">
+      <p class="text-xs text-slate-500 mb-2">Select destination folder:</p>
+      <select id="moveFolderSelect" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs mb-4"></select>
+      <button onclick="executeMoveFile()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-xl text-xs font-semibold">Move Here</button>
+    </div>
+  </div>
+
+  <!-- Action Menu Dropdown (Populated per item) -->
+  <div id="itemActionMenu" class="hidden fixed bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl py-1 z-50 w-44 text-xs">
+    <button onclick="triggerDownloadCurrentItem()" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 text-slate-700 dark:text-slate-200">
+      <i class="fa-solid fa-download text-slate-400"></i> Download
+    </button>
+    <button onclick="copyCurrentShareLink()" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 text-slate-700 dark:text-slate-200">
+      <i class="fa-solid fa-link text-slate-400"></i> Copy Share Link
+    </button>
+    <button onclick="openMoveModalForCurrentItem()" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 text-slate-700 dark:text-slate-200">
+      <i class="fa-solid fa-folder-tree text-slate-400"></i> Move File
+    </button>
+    <button onclick="deleteCurrentItem()" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-rose-600 flex items-center gap-2 border-t border-slate-100 dark:border-slate-800">
+      <i class="fa-regular fa-trash-can"></i> Delete
+    </button>
+  </div>
+
+  <!-- Sidebar Drawer (Triple Bar) -->
   <div id="sideDrawer" class="fixed inset-0 z-50 hidden">
-    <div onclick="toggleSidebar(false)" class="drawer-backdrop fixed inset-0 bg-black/50 backdrop-blur-xs"></div>
-    <div class="drawer-content fixed top-0 left-0 bottom-0 w-72 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 p-5 flex flex-col justify-between shadow-2xl">
-      <div class="space-y-6">
+    <div onclick="toggleSidebar(false)" class="fixed inset-0 bg-black/40 backdrop-blur-xs"></div>
+    <div class="fixed top-0 left-0 bottom-0 w-72 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 p-5 flex flex-col justify-between shadow-2xl z-10">
+      <div class="space-y-5">
         <div class="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
           <div class="flex items-center space-x-2">
-            <i class="fa-solid fa-folder-tree text-indigo-500 text-lg"></i>
-            <span class="font-bold text-sm">File Explorer</span>
+            <i class="fa-solid fa-folder-tree text-blue-600 text-lg"></i>
+            <span class="font-bold text-sm">Navigation</span>
           </div>
-          <button onclick="toggleSidebar(false)" class="text-slate-400 hover:text-slate-600 dark:hover:text-white">
-            <i class="fa-solid fa-xmark text-lg"></i>
-          </button>
+          <button onclick="toggleSidebar(false)" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
         </div>
 
         <nav class="space-y-1 text-xs">
-          <a href="index.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-semibold">
-            <i class="fa-solid fa-layer-group"></i> All Slides & Live Hub
+          <a href="#" onclick="selectFolder('/'); toggleSidebar(false);" class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 font-semibold">
+            <i class="fa-solid fa-hard-drive"></i> Storage Drive
           </a>
-          <a href="tools/cgpa.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400">
-            <i class="fa-solid fa-calculator"></i> SGPA / CGPA Calculator
+          <button onclick="openChatWindow(); toggleSidebar(false);" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300">
+            <span class="flex items-center gap-3"><i class="fa-solid fa-comments text-emerald-500"></i> Live Class Chat</span>
+            <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          </button>
+          <a href="tools/cgpa.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300">
+            <i class="fa-solid fa-calculator text-indigo-500"></i> CGPA / GPA Suite
           </a>
         </nav>
 
         <div class="pt-2">
-          <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Folder Categories</span>
-          <div id="sidebarFolderList" class="space-y-1 text-xs text-slate-500 dark:text-slate-400"></div>
+          <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Folders</span>
+          <div id="drawerFolderList" class="space-y-1 text-xs text-slate-600 dark:text-slate-400"></div>
         </div>
       </div>
-      <div class="text-[11px] text-slate-400 border-t border-slate-200 dark:border-slate-800 pt-3">
-        <span class="font-mono text-emerald-500">CSE Academic System</span>
+
+      <div class="border-t border-slate-200 dark:border-slate-800 pt-3 flex items-center justify-between text-[11px] text-slate-400">
+        <span>Telegram API Storage</span>
+        <span class="font-mono text-emerald-500">Online</span>
       </div>
     </div>
   </div>
 
-  <!-- Main Grid Layout -->
-  <main class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <div class="lg:col-span-2 space-y-4">
-      <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 md:p-5 shadow-sm dark:shadow-xl">
-        <div class="flex flex-wrap gap-2 justify-between items-center pb-4 border-b border-slate-100 dark:border-slate-800/80">
-          <div>
-            <h2 id="currentFolderTitle" class="text-base font-semibold text-indigo-600 dark:text-cyan-400 flex items-center gap-2">
-              <i class="fa-solid fa-cloud-arrow-down"></i> All Materials
-            </h2>
-            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Preview slides instantly or download multi-select ZIP</p>
-          </div>
-          <button onclick="downloadSelectedZip()" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-md shadow-indigo-600/20">
-            <i class="fa-solid fa-file-zipper"></i> Download ZIP
-          </button>
+  <!-- Live Chat Modal Window -->
+  <div id="chatModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs hidden z-50 flex items-center justify-center p-3 md:p-6">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-xl h-[580px] rounded-2xl shadow-2xl flex flex-col overflow-hidden relative">
+      <div class="p-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950">
+        <div class="flex items-center gap-2">
+          <span class="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span class="font-bold text-xs">Live Class Discussion</span>
         </div>
-        <div id="fileContainer" class="mt-4 space-y-2">
-          <div class="text-center py-12 text-slate-400 dark:text-slate-500 text-xs">
-            <i class="fa-solid fa-lock text-2xl mb-2 text-slate-300 dark:text-slate-600 block"></i>
-            Please login with your Student ID to access the slide storage.
-          </div>
-        </div>
+        <button onclick="closeChatWindow()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
       </div>
-    </div>
-
-    <!-- Live Chat Panel -->
-    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col chat-container-height shadow-sm dark:shadow-xl overflow-hidden">
-      <div class="p-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-900/40">
-        <span class="font-semibold text-emerald-600 dark:text-emerald-400 text-xs flex items-center gap-2">
-          <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          Live Class Hub
-        </span>
-        <span class="text-[10px] bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded font-mono">No Refresh</span>
-      </div>
-      <div id="chatMessages" class="flex-1 p-4 overflow-y-auto space-y-3 text-xs">
-        <p class="text-slate-400 dark:text-slate-500 text-center py-4">Login to participate in the live class discussion.</p>
-      </div>
+      <div id="chatMessages" class="flex-1 p-4 overflow-y-auto space-y-3 text-xs"></div>
       <form id="chatForm" onsubmit="sendLiveMessage(event)" class="p-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex gap-2">
-        <input id="chatInput" type="text" placeholder="Type a message..." disabled class="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 disabled:opacity-50 text-slate-800 dark:text-slate-200">
-        <button type="submit" id="chatSendBtn" disabled class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 rounded-xl text-xs disabled:opacity-50"><i class="fa-solid fa-paper-plane"></i></button>
+        <input id="chatInput" type="text" placeholder="Type a message..." class="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-200">
+        <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white px-4 rounded-xl text-xs"><i class="fa-solid fa-paper-plane"></i></button>
       </form>
     </div>
-  </main>
+  </div>
 
-  <!-- Modals -->
+  <!-- New Folder Modal -->
+  <div id="folderModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-sm p-6 rounded-2xl shadow-2xl relative">
+      <button onclick="closeFolderModal()" class="absolute top-4 right-4 text-slate-400"><i class="fa-solid fa-xmark"></i></button>
+      <h3 class="text-sm font-bold mb-3"><i class="fa-regular fa-folder mr-1 text-blue-600"></i> Create Folder</h3>
+      <input id="newFolderName" type="text" placeholder="Folder Name (e.g. Discrete Math)" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs mb-3">
+      <button onclick="handleCreateFolder()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-xl text-xs font-semibold">Create</button>
+    </div>
+  </div>
+
+  <!-- Preview File Modal -->
+  <div id="previewModal" class="fixed inset-0 bg-black/90 backdrop-blur-xs hidden z-50 flex flex-col">
+    <div class="p-3 bg-slate-900 border-b border-slate-800 flex justify-between items-center px-6">
+      <span id="previewTitle" class="text-xs font-semibold text-slate-200 truncate"></span>
+      <div class="flex items-center gap-3">
+        <a id="previewDownloadDirect" href="#" target="_blank" class="text-slate-400 hover:text-white text-sm"><i class="fa-solid fa-download"></i></a>
+        <button onclick="closePreview()" class="text-slate-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+    </div>
+    <iframe id="previewFrame" class="flex-1 w-full h-full border-0"></iframe>
+  </div>
+
   <!-- Auth Modal -->
-  <div id="authModal" class="fixed inset-0 bg-black/70 backdrop-blur-xs hidden z-50 flex items-center justify-center p-4">
+  <div id="authModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs hidden z-50 flex items-center justify-center p-4">
     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-md p-6 rounded-2xl shadow-2xl relative">
-      <button onclick="toggleAuthModal(false)" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-white"><i class="fa-solid fa-xmark"></i></button>
-      <div id="loginFormSection">
-        <h3 class="text-base font-bold mb-1 text-indigo-600 dark:text-indigo-400">Student Portal Login</h3>
-        <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">Enter your Student ID and password</p>
+      <button onclick="toggleAuthModal(false)" class="absolute top-4 right-4 text-slate-400"><i class="fa-solid fa-xmark"></i></button>
+      <div id="loginSection">
+        <h3 class="text-base font-bold mb-1 text-blue-600">Account Login</h3>
+        <p class="text-xs text-slate-400 mb-4">Enter Student ID and password</p>
         <div class="space-y-3">
-          <input id="loginId" type="text" placeholder="Student ID (e.g. 2510376101)" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs text-slate-800 dark:text-slate-200">
-          <input id="loginPass" type="password" placeholder="Password" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs text-slate-800 dark:text-slate-200">
-          <button id="loginSubmitBtn" onclick="handleLogin()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-2">
-            <span id="loginBtnText">Login</span>
-            <span id="loginSpinner" class="spinner hidden"></span>
+          <input id="loginId" type="text" placeholder="Student ID (e.g. 2510376101)" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs">
+          <input id="loginPass" type="password" placeholder="Password" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs">
+          <button id="loginSubmitBtn" onclick="handleLogin()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-2">
+            <span id="loginText">Login</span>
+            <span id="loginSpin" class="spinner hidden"></span>
           </button>
-          <p class="text-xs text-center text-slate-500 dark:text-slate-400 pt-2">Don't have an account? <a href="#" onclick="showRegisterForm(true)" class="text-cyan-500 underline">Register</a></p>
+          <p class="text-xs text-center text-slate-500">Don't have an account? <a href="#" onclick="toggleAuthForms(true)" class="text-blue-600 underline">Register</a></p>
         </div>
       </div>
-      <div id="registerFormSection" class="hidden">
-        <h3 class="text-base font-bold mb-1 text-cyan-600 dark:text-cyan-400">Student Registration</h3>
-        <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">Setup your credentials</p>
+      <div id="registerSection" class="hidden">
+        <h3 class="text-base font-bold mb-1 text-blue-600">Register</h3>
+        <p class="text-xs text-slate-400 mb-4">Setup credentials & security recovery</p>
         <div class="space-y-3 max-h-[65vh] overflow-y-auto pr-1">
           <input id="regName" type="text" placeholder="Full Name" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs">
           <input id="regId" type="text" placeholder="Student ID (e.g. 2510376101)" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs">
           <input id="regPass" type="password" placeholder="Password" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs">
           <div class="border-t border-slate-200 dark:border-slate-800 pt-2">
-            <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Security Question:</span>
+            <span class="text-[11px] text-slate-400 font-semibold">Security Question:</span>
             <input id="secQ1" type="text" placeholder="e.g. Favorite Teacher" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2 text-xs mb-1.5 mt-1">
-            <input id="secA1" type="text" placeholder="Secret Answer" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2 text-xs">
+            <input id="secA1" type="text" placeholder="Answer" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2 text-xs">
           </div>
-          <button id="regSubmitBtn" onclick="handleRegister()" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-2">
-            <span id="regBtnText">Submit & Register</span>
-            <span id="regSpinner" class="spinner hidden"></span>
+          <button id="regSubmitBtn" onclick="handleRegister()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-2">
+            <span id="regText">Register</span>
+            <span id="regSpin" class="spinner hidden"></span>
           </button>
-          <p class="text-xs text-center text-slate-500 dark:text-slate-400"><a href="#" onclick="showRegisterForm(false)" class="text-indigo-500 underline">Back to Login</a></p>
+          <p class="text-xs text-center text-slate-500"><a href="#" onclick="toggleAuthForms(false)" class="text-blue-600 underline">Back to Login</a></p>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Profile Modal -->
-  <div id="profileModal" class="fixed inset-0 bg-black/70 backdrop-blur-xs hidden z-50 flex items-center justify-center p-4">
-    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-sm p-6 rounded-2xl shadow-2xl relative text-center">
-      <button onclick="closeProfileModal()" class="absolute top-4 right-4 text-slate-400"><i class="fa-solid fa-xmark"></i></button>
-      <div class="w-16 h-16 bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 rounded-full flex items-center justify-center mx-auto text-2xl font-bold mb-3">
-        <i class="fa-solid fa-user-graduate"></i>
-      </div>
-      <h3 id="profName" class="text-base font-bold text-slate-800 dark:text-white"></h3>
-      <p id="profId" class="text-xs text-slate-500 dark:text-slate-400 font-mono mb-2"></p>
-      <span id="profRole" class="inline-block text-[11px] px-2.5 py-0.5 rounded-full font-semibold"></span>
-      <button onclick="handleLogout()" class="mt-6 w-full bg-rose-600/10 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-600/20 py-2 rounded-xl text-xs font-semibold transition">Logout</button>
-    </div>
-  </div>
-
-  <!-- Create Folder Modal -->
-  <div id="folderModal" class="fixed inset-0 bg-black/70 backdrop-blur-xs hidden z-50 flex items-center justify-center p-4">
-    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-sm p-6 rounded-2xl shadow-2xl relative">
-      <button onclick="closeFolderModal()" class="absolute top-4 right-4 text-slate-400"><i class="fa-solid fa-xmark"></i></button>
-      <h3 class="text-base font-bold mb-3 text-indigo-500"><i class="fa-solid fa-folder-plus mr-1"></i> Create New Folder</h3>
-      <input id="newFolderNameInput" type="text" placeholder="Folder Name (e.g. Discrete Math)" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs text-slate-800 dark:text-slate-200 mb-3">
-      <button onclick="handleCreateFolder()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-xl text-xs font-semibold">Create Folder</button>
-    </div>
-  </div>
-
-  <!-- Upload Slide Modal -->
-  <div id="uploadModal" class="fixed inset-0 bg-black/70 backdrop-blur-xs hidden z-50 flex items-center justify-center p-4">
-    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-md p-6 rounded-2xl shadow-2xl relative">
-      <button onclick="closeUploadModal()" class="absolute top-4 right-4 text-slate-400"><i class="fa-solid fa-xmark"></i></button>
-      <h3 class="text-base font-bold mb-1 text-emerald-600 dark:text-emerald-400"><i class="fa-solid fa-cloud-arrow-up mr-1"></i> Upload Slide</h3>
-      <p class="text-xs text-slate-400 mb-4">Choose target folder and select file</p>
-      <div class="space-y-3">
-        <select id="uploadFolderSelect" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs"></select>
-        <input id="slideFileInput" type="file" accept=".pdf,.doc,.docx,.ppt,.pptx" class="w-full text-xs file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-emerald-600 file:text-white">
-        <button id="uploadSubmitBtn" onclick="handleFileUpload()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-2">
-          <span id="uploadBtnText">Upload File</span>
-          <span id="uploadSpinner" class="spinner hidden"></span>
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Fullscreen PDF Viewer Modal -->
-  <div id="pdfModal" class="fixed inset-0 bg-black/95 backdrop-blur-sm hidden z-50 flex flex-col">
-    <div class="p-3 bg-slate-900 border-b border-slate-800 flex justify-between items-center px-6">
-      <span id="previewFileName" class="text-xs font-semibold truncate text-slate-200"></span>
-      <button onclick="closeViewer()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
-    </div>
-    <iframe id="pdfFrame" class="flex-1 w-full h-full border-0"></iframe>
-  </div>
-
-  <!-- Separate JS File Linked -->
   <script src="js/app.js"></script>
 </body>
 </html>
