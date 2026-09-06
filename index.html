@@ -195,6 +195,11 @@
             <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
           </button>
 
+          <!-- Settings Option for All Users -->
+          <button onclick="openSettingsModal(); toggleSidebar(false);" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300">
+            <i class="fa-solid fa-gear text-slate-500"></i> Settings & Security
+          </button>
+
           <!-- Dynamic Tools Container -->
           <div id="dynamicToolsContainer" class="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1">
             <span class="text-[10px] font-bold text-indigo-500 uppercase tracking-wider block mb-1">Academic Tools</span>
@@ -215,6 +220,51 @@
       <div class="border-t border-slate-200 dark:border-slate-800 pt-3 flex items-center justify-between text-[11px] text-slate-400">
         <span>Telegram API Storage</span>
         <span class="font-mono text-emerald-500">Online</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings & Security Modal (For All Users) -->
+  <div id="settingsModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs modal-hidden modal-backdrop z-50 flex items-center justify-center p-4">
+    <div class="modal-box bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-md p-6 rounded-2xl shadow-2xl relative">
+      <button onclick="closeSettingsModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+      <h3 class="text-sm font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+        <i class="fa-solid fa-shield-halved text-blue-600"></i> Account Settings
+      </h3>
+
+      <div class="flex gap-2 border-b border-slate-200 dark:border-slate-800 mb-4 pb-2 text-xs">
+        <button id="setTabPassBtn" onclick="switchSettingsTab('pass')" class="px-3 py-1 font-semibold text-blue-600 border-b-2 border-blue-600">Change Password</button>
+        <button id="setTabSecBtn" onclick="switchSettingsTab('sec')" class="px-3 py-1 text-slate-400 hover:text-slate-600">Security Question</button>
+      </div>
+
+      <!-- Tab 1: Change Password -->
+      <div id="setTabPass" class="space-y-3 text-xs">
+        <div>
+          <label class="text-slate-400 block mb-1">Current Password (or Reg No):</label>
+          <input id="setCurPass" type="password" placeholder="Enter Current Password" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5">
+        </div>
+        <div>
+          <label class="text-slate-400 block mb-1">New Password:</label>
+          <input id="setNewPass" type="password" placeholder="Enter New Password" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5">
+        </div>
+        <button onclick="saveNewPassword()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-xl font-semibold">Update Password</button>
+      </div>
+
+      <!-- Tab 2: Change Security Question -->
+      <div id="setTabSec" class="hidden space-y-3 text-xs">
+        <div>
+          <label class="text-slate-400 block mb-1">Current Password:</label>
+          <input id="setSecCurPass" type="password" placeholder="Enter Password" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5">
+        </div>
+        <div>
+          <label class="text-slate-400 block mb-1">New Question:</label>
+          <input id="setNewQ" type="text" placeholder="e.g. Childhood Best Friend" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5">
+        </div>
+        <div>
+          <label class="text-slate-400 block mb-1">New Answer:</label>
+          <input id="setNewA" type="text" placeholder="Enter Answer" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5">
+        </div>
+        <button onclick="saveNewSecurityQuestion()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-xl font-semibold">Update Security Recovery</button>
       </div>
     </div>
   </div>
@@ -316,19 +366,21 @@
     </div>
   </div>
 
-  <!-- Classmates Verification Text Modal -->
-  <div id="classmatesListModal" class="fixed inset-0 bg-black/70 backdrop-blur-xs modal-hidden modal-backdrop z-50 flex items-center justify-center p-4">
-    <div class="modal-box bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-lg p-6 rounded-2xl shadow-2xl relative flex flex-col max-h-[85vh]">
-      <button onclick="closeClassmatesListModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
-      <div class="flex items-center justify-between mb-3">
+  <!-- Classmates Verification Text Modal (High Z-Index & Clean Height) -->
+  <div id="classmatesListModal" class="fixed inset-0 bg-black/80 backdrop-blur-xs modal-hidden modal-backdrop z-[70] flex items-center justify-center p-3 md:p-6">
+    <div class="modal-box bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-xl h-[75vh] p-5 rounded-2xl shadow-2xl relative flex flex-col">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
         <h3 class="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
           <i class="fa-solid fa-address-book text-blue-600"></i> Registered Classmates Directory
         </h3>
-        <button onclick="copyClassmatesListText()" class="text-xs bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-3 py-1 rounded-lg flex items-center gap-1.5">
-          <i class="fa-regular fa-copy"></i> Copy
-        </button>
+        <div class="flex items-center gap-2">
+          <button onclick="copyClassmatesListText()" class="text-xs bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-3 py-1 rounded-lg flex items-center gap-1.5">
+            <i class="fa-regular fa-copy"></i> Copy List
+          </button>
+          <button onclick="closeClassmatesListModal()" class="text-slate-400 hover:text-slate-600 p-1"><i class="fa-solid fa-xmark text-lg"></i></button>
+        </div>
       </div>
-      <textarea id="classmatesTextarea" readonly class="flex-1 w-full font-mono text-xs bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800 resize-none text-slate-700 dark:text-slate-300 leading-relaxed outline-none"></textarea>
+      <textarea id="classmatesTextarea" readonly class="flex-1 w-full font-mono text-xs bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800 resize-none text-slate-700 dark:text-slate-300 leading-relaxed outline-none my-3"></textarea>
     </div>
   </div>
 
