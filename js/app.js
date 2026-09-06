@@ -155,6 +155,7 @@ async function renderPortalView() {
 
     await loadFolders();
     await loadFiles();
+    restoreFolderFromUrl();
     sortFiles(currentSortMode);
     initWebSocket();
     checkUnseenNotices();
@@ -169,21 +170,6 @@ async function renderPortalView() {
         Login
       </button>
     `;
-  }
-  // Back/Forward button handle করবে
-  window.addEventListener('popstate', (e) => {
-    if (!currentUser) return;
-    const folder = e.state?.folder || '/';
-    currentSelectedFolder = folder;
-    document.getElementById("activeFolderPathText").innerText = `Folder: ${currentSelectedFolder}`;
-    renderFilesTable();
-  });
-  // Page load বা refresh এ URL থেকে folder পড়বে
-  function restoreFolderFromUrl() {
-    const params = new URLSearchParams(window.location.search);
-    const folder = params.get('folder') || '/';
-    currentSelectedFolder = folder;
-    history.replaceState({ folder }, '', folder === '/' ? '/' : '/?folder=' + encodeURIComponent(folder));
   }
 }
 
@@ -1803,5 +1789,20 @@ function sendLiveMessage(e) {
   ws.send(JSON.stringify({ student_id: currentUser.student_id, sender_name: currentUser.name, message: input.value.trim() }));
   input.value = "";
 }
+
+function restoreFolderFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const folder = params.get('folder') || '/';
+  currentSelectedFolder = folder;
+  history.replaceState({ folder }, '', folder === '/' ? '/' : '/?folder=' + encodeURIComponent(folder));
+}
+
+window.addEventListener('popstate', (e) => {
+  if (!currentUser) return;
+  const folder = e.state?.folder || '/';
+  currentSelectedFolder = folder;
+  document.getElementById("activeFolderPathText").innerText = `Folder: ${currentSelectedFolder}`;
+  renderFilesTable();
+});
 
 renderPortalView();
