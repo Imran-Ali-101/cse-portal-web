@@ -1324,8 +1324,6 @@ async function loadUsersList() {
               <span class="px-2 py-0.5 rounded text-[10px] font-semibold ${isUserAdmin ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-400' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}">${u.role}</span>
             </div>
             <div class="flex flex-wrap gap-2 text-[10px] text-slate-400 mt-1 font-mono">
-              <span>Reg No: <b class="text-slate-600 dark:text-slate-300">${u.reg_no || 'N/A'}</b></span>
-              <span>•</span>
               <span>Chat: ${chatBanned ? '<b class="text-rose-500">Banned</b>' : 'Allowed'}</span>
               <span>•</span>
               <span>Files: ${fileBanned ? '<b class="text-rose-500">Banned</b>' : 'Allowed'}</span>
