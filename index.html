@@ -13,7 +13,6 @@
   </script>
   <link rel="stylesheet" href="css/style.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  <!-- Mozilla PDF.js Engine -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
   <style>
@@ -37,7 +36,6 @@
 </head>
 <body class="bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100 min-h-screen flex flex-col antialiased">
 
-  <!-- Toast Container -->
   <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
   <!-- Header -->
@@ -61,7 +59,7 @@
       <i class="fa-solid fa-shield-halved"></i>
     </div>
     <h1 class="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white">CSE Academic Portal</h1>
-    <p class="text-sm text-slate-500 dark:text-slate-400 mt-2 max-w-sm">Access private course slides, academic resources, and class discussions.</p>
+    <p class="text-sm text-slate-500 dark:text-slate-400 mt-2 max-w-sm">Private slide repository, study resources, and batch discussions.</p>
     <div class="mt-6 flex gap-3">
       <button onclick="toggleAuthModal(true, false)" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-6 py-2.5 rounded-xl shadow-md transition">
         Login Now
@@ -86,7 +84,7 @@
     <!-- Main File Manager UI -->
     <main class="flex-1 max-w-6xl w-full mx-auto p-4 space-y-4">
       
-      <!-- Upload Dropzone Container (Multi-Upload Support) -->
+      <!-- Upload Dropzone Container -->
       <div id="adminDropzoneArea" class="hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 text-center shadow-xs">
         <div class="dashed-border rounded-xl p-8 flex flex-col items-center justify-center gap-3">
           <div class="w-12 h-12 bg-blue-50 dark:bg-slate-800 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center text-xl">
@@ -215,8 +213,8 @@
       </div>
 
       <div class="border-t border-slate-200 dark:border-slate-800 pt-3 flex items-center justify-between text-[11px] text-slate-400">
-        <span>Created with Telegram API Storage</span>
-        <span class="font-mono text-emerald-500">FutureBro</span>
+        <span>Telegram API Storage</span>
+        <span class="font-mono text-emerald-500">Online</span>
       </div>
     </div>
   </div>
@@ -318,6 +316,22 @@
     </div>
   </div>
 
+  <!-- Classmates Verification Text Modal -->
+  <div id="classmatesListModal" class="fixed inset-0 bg-black/70 backdrop-blur-xs modal-hidden modal-backdrop z-50 flex items-center justify-center p-4">
+    <div class="modal-box bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-lg p-6 rounded-2xl shadow-2xl relative flex flex-col max-h-[85vh]">
+      <button onclick="closeClassmatesListModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
+          <i class="fa-solid fa-address-book text-blue-600"></i> Registered Classmates Directory
+        </h3>
+        <button onclick="copyClassmatesListText()" class="text-xs bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-3 py-1 rounded-lg flex items-center gap-1.5">
+          <i class="fa-regular fa-copy"></i> Copy
+        </button>
+      </div>
+      <textarea id="classmatesTextarea" readonly class="flex-1 w-full font-mono text-xs bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800 resize-none text-slate-700 dark:text-slate-300 leading-relaxed outline-none"></textarea>
+    </div>
+  </div>
+
   <!-- Rename Modal -->
   <div id="renameModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs modal-hidden modal-backdrop z-50 flex items-center justify-center p-4">
     <div class="modal-box bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-sm p-5 rounded-2xl shadow-2xl relative">
@@ -390,7 +404,12 @@
           <i class="fa-solid fa-users-gear text-indigo-500"></i>
           <span class="font-bold text-sm">User & Role Management</span>
         </div>
-        <button onclick="closeUserManagementModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+        <div class="flex items-center gap-2">
+          <button onclick="openClassmatesListModal()" class="text-xs bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 border border-indigo-200 dark:border-indigo-900">
+            <i class="fa-solid fa-list-check"></i> Verify Classmates List
+          </button>
+          <button onclick="closeUserManagementModal()" class="text-slate-400 hover:text-slate-600 p-1"><i class="fa-solid fa-xmark text-lg"></i></button>
+        </div>
       </div>
       <div id="usersListContainer" class="flex-1 p-4 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 text-xs"></div>
     </div>
@@ -435,7 +454,6 @@
 
   <!-- 3-Dots Action Menu -->
   <div id="itemActionMenu" class="hidden fixed bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl py-1 z-50 w-52 text-xs">
-    <!-- File Specific Items -->
     <button id="menuDownloadBtn" onclick="triggerDownloadCurrentItem()" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 text-slate-700 dark:text-slate-200">
       <i class="fa-solid fa-download text-slate-400"></i> Download
     </button>
@@ -452,7 +470,6 @@
       <i class="fa-regular fa-trash-can"></i> Move to Trash
     </button>
     
-    <!-- Folder Specific Items -->
     <button id="menuDownloadFolderBtn" onclick="triggerDownloadTargetFolder()" class="hidden w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 text-blue-600 font-medium">
       <i class="fa-solid fa-file-zipper text-blue-500"></i> Download Full Folder
     </button>
@@ -475,32 +492,42 @@
     </div>
   </div>
 
-  <!-- Auth Modal -->
+  <!-- Auth Modal (With Reg No & Forgot Password) -->
   <div id="authModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs modal-hidden modal-backdrop z-50 flex items-center justify-center p-4">
     <div class="modal-box bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-md p-6 rounded-2xl shadow-2xl relative">
       <button onclick="toggleAuthModal(false)" class="absolute top-4 right-4 text-slate-400"><i class="fa-solid fa-xmark"></i></button>
+      
+      <!-- Login Section -->
       <div id="loginSection">
         <h3 class="text-base font-bold mb-1 text-blue-600">Account Login</h3>
-        <p class="text-xs text-slate-400 mb-4">Enter Student ID and password</p>
+        <p class="text-xs text-slate-400 mb-4">Password is your <b>Registration Number</b></p>
         <div class="space-y-3">
           <input id="loginId" type="text" placeholder="Student ID (e.g. 2510376101)" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs">
-          <input id="loginPass" type="password" placeholder="Password" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs">
+          <input id="loginPass" type="password" placeholder="Password (Registration No)" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs">
+          
+          <div class="flex justify-end">
+            <a href="#" onclick="showForgotPasswordForm()" class="text-[11px] text-blue-600 hover:underline">Forgot Password?</a>
+          </div>
+
           <button id="loginSubmitBtn" onclick="handleLogin()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-2">
             <span id="loginText">Login</span>
             <span id="loginSpin" class="spinner hidden"></span>
           </button>
-          <p class="text-xs text-center text-slate-500">Don't have an account? <a href="#" onclick="toggleAuthForms(true)" class="text-blue-600 underline">Register</a></p>
+          <p class="text-xs text-center text-slate-500">Don't have an account? <a href="#" onclick="toggleAuthForms('register')" class="text-blue-600 underline">Register</a></p>
         </div>
       </div>
+
+      <!-- Register Section -->
       <div id="registerSection" class="hidden">
-        <h3 class="text-base font-bold mb-1 text-blue-600">Register</h3>
-        <p class="text-xs text-slate-400 mb-4">Setup credentials & security recovery</p>
+        <h3 class="text-base font-bold mb-1 text-blue-600">Create Account</h3>
+        <p class="text-xs text-slate-400 mb-4">Registration No will be used as default password</p>
         <div class="space-y-3 max-h-[65vh] overflow-y-auto pr-1">
           <input id="regName" type="text" placeholder="Full Name" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs">
           <input id="regId" type="text" placeholder="Student ID (e.g. 2510376101)" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs">
-          <input id="regPass" type="password" placeholder="Password" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs">
+          <input id="regNo" type="text" placeholder="Registration No (e.g. 1918842234)" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs">
+          
           <div class="border-t border-slate-200 dark:border-slate-800 pt-2">
-            <span class="text-[11px] text-slate-400 font-semibold">Security Question:</span>
+            <span class="text-[11px] text-slate-400 font-semibold">Security Recovery Question:</span>
             <input id="secQ1" type="text" placeholder="e.g. Favorite Teacher" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2 text-xs mb-1.5 mt-1">
             <input id="secA1" type="text" placeholder="Answer" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2 text-xs">
           </div>
@@ -508,9 +535,29 @@
             <span id="regText">Register</span>
             <span id="regSpin" class="spinner hidden"></span>
           </button>
-          <p class="text-xs text-center text-slate-500"><a href="#" onclick="toggleAuthForms(false)" class="text-blue-600 underline">Back to Login</a></p>
+          <p class="text-xs text-center text-slate-500"><a href="#" onclick="toggleAuthForms('login')" class="text-blue-600 underline">Back to Login</a></p>
         </div>
       </div>
+
+      <!-- Forgot Password Section -->
+      <div id="forgotSection" class="hidden">
+        <h3 class="text-base font-bold mb-1 text-blue-600">Reset Password</h3>
+        <p class="text-xs text-slate-400 mb-4">Answer security question to reset</p>
+        <div class="space-y-3">
+          <div id="fpStep1">
+            <input id="fpStudentId" type="text" placeholder="Enter Student ID" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs mb-2">
+            <button onclick="fetchRecoveryQuestion()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-xl text-xs font-semibold">Next</button>
+          </div>
+          <div id="fpStep2" class="hidden space-y-3">
+            <p id="fpQuestionLabel" class="text-xs font-semibold text-slate-700 dark:text-slate-200"></p>
+            <input id="fpAnswer" type="text" placeholder="Your Answer" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs">
+            <input id="fpNewPass" type="password" placeholder="New Password / Reg No" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs">
+            <button onclick="executePasswordReset()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-2 rounded-xl text-xs font-semibold">Reset Password</button>
+          </div>
+          <p class="text-xs text-center text-slate-500 pt-2"><a href="#" onclick="toggleAuthForms('login')" class="text-blue-600 underline">Back to Login</a></p>
+        </div>
+      </div>
+
     </div>
   </div>
 
