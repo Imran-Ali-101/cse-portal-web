@@ -231,7 +231,7 @@ async function executePasswordReset() {
   }
 }
 
-// Settings & Self-Service Handlers
+// Settings & Security Handlers
 function openSettingsModal() {
   if (!currentUser) return showToast("Please login first", "error");
   switchSettingsTab('pass');
@@ -1094,7 +1094,6 @@ async function trashSelected() {
   } catch(err) { showToast(err.message, "error"); }
 }
 
-// Notice Board Operations
 async function checkUnseenNotices() {
   try {
     const res = await fetch(`${API_BASE}/notices/list`);
@@ -1261,7 +1260,7 @@ function goToNoticeFolder() {
   selectFolder(activeNoticeTarget.folder_path);
 }
 
-// User Management Handlers (With Remove Account Option)
+// User Management Handlers
 async function openUserManagementModal() {
   if (!isAdmin()) return;
   showAnimatedModal("userManagementModal");
@@ -1314,7 +1313,6 @@ async function loadUsersList() {
                 <button onclick="toggleUserStatus('${u.student_id}', 'approved')" class="px-2.5 py-1 rounded text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-500">Approve</button>
               `}
 
-              <!-- Remove Account Button -->
               <button onclick="removeUserAccount('${u.student_id}', '${u.name}')" class="px-2.5 py-1 rounded text-xs font-semibold bg-red-600 hover:bg-red-700 text-white flex items-center gap-1" title="Delete Account Permanently">
                 <i class="fa-solid fa-user-xmark"></i> Remove
               </button>
@@ -1381,7 +1379,6 @@ async function toggleUserStatus(student_id, new_status) {
   }
 }
 
-// Classmates Directory Modal with Higher Z-Index
 function openClassmatesListModal() {
   const formattedText = allDirectoryUsers.map((u, i) => {
     return `${i + 1}. Name: ${u.name}\n   Student ID: ${u.student_id}\n   Registration No: ${u.reg_no || 'Not Set'}\n   Status: ${u.status.toUpperCase()}\n----------------------------------------`;
@@ -1522,6 +1519,7 @@ async function downloadSelectedZip() {
   showToast("ZIP download started!", "success");
 }
 
+// In-Browser Universal Preview: Videos, Audios, Text, Images, PDF, and PPTX
 async function openPreview(name, id) {
   document.getElementById("previewTitle").innerText = name;
   activePreviewItem = { name, id };
@@ -1532,14 +1530,57 @@ async function openPreview(name, id) {
   const pageIndicator = document.getElementById("pdfPageIndicator");
   pageIndicator.classList.add("hidden");
 
-  container.innerHTML = `<div class="text-center text-slate-400 py-20 flex flex-col items-center gap-2"><span class="spinner"></span><span>Loading document...</span></div>`;
+  container.innerHTML = `<div class="text-center text-slate-400 py-20 flex flex-col items-center gap-2"><span class="spinner"></span><span>Loading preview...</span></div>`;
   showAnimatedModal("previewModal");
 
   const lower = name.toLowerCase();
 
-  if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.webp')) {
+  // 1. Video Formats
+  if (lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.endsWith('.ogg') || lower.endsWith('.mkv') || lower.endsWith('.mov')) {
+    container.innerHTML = `
+      <div class="w-full max-w-4xl max-h-[85vh] flex items-center justify-center">
+        <video controls autoplay playsinline class="w-full max-h-[80vh] rounded-xl shadow-2xl bg-black">
+          <source src="${streamUrl}" type="video/mp4">
+          Your browser does not support the video tag.
+        </video>
+      </div>
+    `;
+  }
+  // 2. Audio Formats
+  else if (lower.endsWith('.mp3') || lower.endsWith('.wav') || lower.endsWith('.m4a') || lower.endsWith('.aac')) {
+    container.innerHTML = `
+      <div class="p-8 bg-slate-900 border border-slate-800 rounded-2xl flex flex-col items-center gap-4 text-center">
+        <div class="w-16 h-16 rounded-full bg-blue-600/20 text-blue-500 flex items-center justify-center text-2xl">
+          <i class="fa-solid fa-music"></i>
+        </div>
+        <span class="text-sm font-semibold text-slate-200 break-all">${name}</span>
+        <audio controls autoplay class="w-72 md:w-96">
+          <source src="${streamUrl}">
+          Your browser does not support the audio tag.
+        </audio>
+      </div>
+    `;
+  }
+  // 3. Text & Code Formats
+  else if (lower.endsWith('.txt') || lower.endsWith('.json') || lower.endsWith('.csv') || lower.endsWith('.log') || lower.endsWith('.py') || lower.endsWith('.js') || lower.endsWith('.html')) {
+    try {
+      const res = await fetch(streamUrl);
+      const textContent = await res.text();
+      container.innerHTML = `
+        <div class="w-full max-w-4xl max-h-[85vh] bg-slate-900 border border-slate-800 rounded-xl p-4 overflow-auto text-left">
+          <pre class="text-xs text-slate-200 font-mono whitespace-pre-wrap break-all">${textContent.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>
+        </div>
+      `;
+    } catch (e) {
+      container.innerHTML = `<p class="text-xs text-rose-400">Failed to render text content.</p>`;
+    }
+  }
+  // 4. Image Formats
+  else if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.webp') || lower.endsWith('.gif') || lower.endsWith('.svg')) {
     container.innerHTML = `<img src="${streamUrl}" alt="${name}" class="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl">`;
-  } else if (lower.endsWith('.pdf')) {
+  }
+  // 5. PDF Documents (Canvas Rendering with Scroll Page Tracker)
+  else if (lower.endsWith('.pdf')) {
     try {
       const loadingTask = pdfjsLib.getDocument(streamUrl);
       const pdf = await loadingTask.promise;
@@ -1589,11 +1630,46 @@ async function openPreview(name, id) {
         </div>
       `;
     }
-  } else {
+  }
+  // 6. PPTX PowerPoint Slide Formats
+  else if (lower.endsWith('.pptx')) {
+    try {
+      container.innerHTML = `<div id="pptxViewerContainer" class="w-full max-w-4xl min-h-full"></div>`;
+      
+      const response = await fetch(streamUrl);
+      if (!response.ok) throw new Error("Could not fetch presentation");
+      const blob = await response.blob();
+      const file = new File([blob], name);
+
+      $("#pptxViewerContainer").pptxToHtml({
+        pptxFileUrl: file,
+        fileInputId: null,
+        slideMode: false,
+        keyBoard: false,
+        mediaProcess: true,
+        jsZipV2: false
+      });
+
+      pageIndicator.innerText = `PowerPoint Slides`;
+      pageIndicator.classList.remove("hidden");
+
+    } catch(err) {
+      container.innerHTML = `
+        <div class="text-center p-8 bg-slate-900 rounded-2xl border border-slate-800">
+          <p class="text-xs text-rose-400 mb-3">Unable to preview PPTX slides.</p>
+          <button onclick="downloadActivePreviewFile()" class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl text-xs font-semibold inline-flex items-center gap-2">
+            <i class="fa-solid fa-download"></i> Download PPTX
+          </button>
+        </div>
+      `;
+    }
+  }
+  // 7. Unsupported File Formats
+  else {
     container.innerHTML = `
       <div class="text-center p-8 bg-slate-900 rounded-2xl border border-slate-800">
         <i class="fa-solid fa-file-lines text-4xl text-slate-500 mb-3 block"></i>
-        <p class="text-sm font-medium text-slate-300 mb-4">No direct preview available for this file type.</p>
+        <p class="text-sm font-medium text-slate-300 mb-4">No direct browser preview available for this file type.</p>
         <button onclick="downloadActivePreviewFile()" class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl text-xs font-semibold inline-flex items-center gap-2">
           <i class="fa-solid fa-download"></i> Download File
         </button>
