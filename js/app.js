@@ -58,9 +58,30 @@ function isPrimarySuperAdmin() {
   return currentUser && currentUser.student_id === '2510376101';
 }
 
+function isApproved() {
+  return currentUser && (currentUser.status === 'approved' || isPrimarySuperAdmin());
+}
+
 function isFileBanned() {
   if (!currentUser || !currentUser.file_banned_until) return false;
   return new Date() < new Date(currentUser.file_banned_until);
+}
+
+// Check if user has permission for a specific folder path
+function hasFolderPermission(folderPath) {
+  if (isPrimarySuperAdmin()) return true;
+  if (!folderPath || folderPath === '/') return true;
+
+  const targetFolderObj = allFolders.find(f => f.folder_name === folderPath);
+  if (!targetFolderObj) return true;
+
+  if (targetFolderObj.allowed_students && targetFolderObj.allowed_students.length > 0) {
+    return currentUser && targetFolderObj.allowed_students.includes(currentUser.student_id);
+  }
+  if (targetFolderObj.is_locked) {
+    return false;
+  }
+  return true;
 }
 
 async function syncUserRole() {
@@ -70,6 +91,8 @@ async function syncUserRole() {
     if (res.ok) {
       const data = await res.json();
       currentUser.role = data.role;
+      currentUser.status = data.status;
+      currentUser.reg_no = data.reg_no;
       currentUser.chat_banned_until = data.chat_banned_until;
       currentUser.file_banned_until = data.file_banned_until;
       localStorage.setItem("user", JSON.stringify(currentUser));
@@ -146,19 +169,69 @@ async function renderPortalView() {
 
 function toggleAuthModal(show, isRegister = false) { 
   if (show) {
-    toggleAuthForms(isRegister);
+    toggleAuthForms(isRegister ? 'register' : 'login');
     showAnimatedModal("authModal");
   } else {
     hideAnimatedModal("authModal");
   }
 }
 
-function toggleAuthForms(showRegister) {
-  document.getElementById("loginSection").classList.toggle("hidden", showRegister);
-  document.getElementById("registerSection").classList.toggle("hidden", !showRegister);
+function toggleAuthForms(mode) {
+  document.getElementById("loginSection").classList.toggle("hidden", mode !== 'login');
+  document.getElementById("registerSection").classList.toggle("hidden", mode !== 'register');
+  document.getElementById("forgotSection").classList.toggle("hidden", mode !== 'forgot');
 }
 
-// Authentication Handlers
+function showForgotPasswordForm() {
+  toggleAuthForms('forgot');
+  document.getElementById("fpStep1").classList.remove("hidden");
+  document.getElementById("fpStep2").classList.add("hidden");
+}
+
+async function fetchRecoveryQuestion() {
+  const sid = document.getElementById("fpStudentId").value.trim();
+  if (!sid) return showToast("Enter Student ID", "error");
+
+  try {
+    const res = await fetch(`${API_BASE}/auth/forgot-password/get-question`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ student_id: sid })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail);
+
+    document.getElementById("fpQuestionLabel").innerText = `Question: ${data.question}`;
+    document.getElementById("fpStep1").classList.add("hidden");
+    document.getElementById("fpStep2").classList.remove("hidden");
+  } catch(err) {
+    showToast(err.message, "error");
+  }
+}
+
+async function executePasswordReset() {
+  const student_id = document.getElementById("fpStudentId").value.trim();
+  const answer = document.getElementById("fpAnswer").value.trim();
+  const new_password = document.getElementById("fpNewPass").value.trim();
+
+  if (!answer || !new_password) return showToast("Fill all fields", "error");
+
+  try {
+    const res = await fetch(`${API_BASE}/auth/forgot-password/reset`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ student_id, answer, new_password })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail);
+
+    showToast(data.message, "success");
+    toggleAuthForms('login');
+  } catch(err) {
+    showToast(err.message, "error");
+  }
+}
+
 async function handleLogin() {
   const student_id = document.getElementById("loginId").value.trim();
   const password = document.getElementById("loginPass").value.trim();
@@ -193,11 +266,11 @@ async function handleLogin() {
 async function handleRegister() {
   const name = document.getElementById("regName").value.trim();
   const student_id = document.getElementById("regId").value.trim();
-  const password = document.getElementById("regPass").value.trim();
+  const reg_no = document.getElementById("regNo").value.trim();
   const q1 = document.getElementById("secQ1").value.trim();
   const a1 = document.getElementById("secA1").value.trim();
 
-  if (!name || !student_id || !password || !q1 || !a1) return showToast("Fill all fields", "error");
+  if (!name || !student_id || !reg_no || !q1 || !a1) return showToast("Fill all fields", "error");
 
   const btn = document.getElementById("regSubmitBtn");
   const text = document.getElementById("regText");
@@ -208,17 +281,18 @@ async function handleRegister() {
     const res = await fetch(`${API_BASE}/auth/register`, {
       method: "POST",
       headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ name, student_id, password, security_questions: [{question: q1, answer: a1}] })
+      body: JSON.stringify({ 
+        name, 
+        student_id, 
+        reg_no,
+        security_questions: [{ question: q1, answer: a1 }] 
+      })
     });
     const data = await res.json();
-    if (!res.ok) {
-      if (res.status === 400 && data.detail && data.detail.includes("already registered")) {
-        throw new Error("Student ID already registered! Please login.");
-      }
-      throw new Error(data.detail || "Registration failed");
-    }
-    showToast("Registration Complete! Please Login", "success");
-    toggleAuthForms(false);
+    if (!res.ok) throw new Error(data.detail || "Registration failed");
+
+    showToast(data.message, "success");
+    toggleAuthForms('login');
   } catch(err) {
     showToast(err.message, "error");
   } finally {
@@ -256,7 +330,6 @@ window.addEventListener('click', (e) => {
   }
 });
 
-// Dynamic Tools Scraper from tools/
 async function loadDynamicTools() {
   const container = document.getElementById("dynamicToolsContainer");
   const defaultTools = [
@@ -287,7 +360,6 @@ async function loadDynamicTools() {
   }
 }
 
-// Folders Management
 async function loadFolders() {
   if (!currentUser) return;
   try {
@@ -312,10 +384,12 @@ async function loadFolders() {
 }
 
 function selectFolder(path) {
-  currentSelectedFolder = path.startsWith('/') ? path : '/' + path;
-  if (currentSelectedFolder !== '/' && currentSelectedFolder.endsWith('/')) {
-    currentSelectedFolder = currentSelectedFolder.slice(0, -1);
+  const target = path.startsWith('/') ? path : '/' + path;
+  if (!hasFolderPermission(target)) {
+    return showToast("Access Denied: You do not have permission to view this folder.", "error");
   }
+
+  currentSelectedFolder = (target !== '/' && target.endsWith('/')) ? target.slice(0, -1) : target;
   document.getElementById("activeFolderPathText").innerText = `Folder: ${currentSelectedFolder}`;
   renderFilesTable();
 }
@@ -357,7 +431,6 @@ async function handleCreateFolder() {
   }
 }
 
-// Bulk Upload Handler
 async function uploadSelectedFiles(input) {
   if (!isAdmin()) return showToast("Only Admin can upload files", "error");
   if (!input.files || input.files.length === 0) return;
@@ -415,7 +488,6 @@ async function loadFiles() {
   } catch(e) { console.error(e); }
 }
 
-// Sorting: Folders and Files sorted equally, Folders always render FIRST
 function sortFiles(type) {
   currentSortMode = type;
   const label = document.getElementById("currentSortLabel");
@@ -446,10 +518,14 @@ function sortFiles(type) {
   renderFilesTable();
 }
 
-// Render Table (Full names without truncation, folders on top, selected permissions respected)
 function renderFilesTable() {
   const container = document.getElementById("fileTableContent");
   
+  if (!isApproved()) {
+    container.innerHTML = `<div class="text-center py-12 text-amber-500 font-semibold">Your account is currently PENDING approval from administrator.</div>`;
+    return;
+  }
+
   if (isFileBanned()) {
     container.innerHTML = `<div class="text-center py-12 text-rose-500 font-medium">Your account is currently restricted from viewing files.</div>`;
     return;
@@ -473,15 +549,12 @@ function renderFilesTable() {
 
   const currentPrefix = currentSelectedFolder === '/' ? '/' : currentSelectedFolder + '/';
   
-  // 1. Child Folders Filtered by Access Permissions
   const childFolders = allFolders.filter(f => {
     if (f.folder_name === '/') return false;
     if (!f.folder_name.startsWith(currentPrefix)) return false;
     
     if (f.allowed_students && f.allowed_students.length > 0 && !isPrimarySuperAdmin()) {
-      if (!currentUser || !f.allowed_students.includes(currentUser.student_id)) {
-        return false;
-      }
+      if (!currentUser || !f.allowed_students.includes(currentUser.student_id)) return false;
     } else if (f.is_locked && !isPrimarySuperAdmin()) {
       return false;
     }
@@ -497,7 +570,7 @@ function renderFilesTable() {
     return `
       <div class="grid grid-cols-12 px-4 py-3 items-center hover:bg-slate-50 dark:hover:bg-slate-800/60 transition border-b border-slate-100 dark:border-slate-800">
         <div onclick="selectFolder('${f.folder_name}')" class="col-span-8 md:col-span-9 flex items-center gap-3 cursor-pointer">
-          <i class="fa-solid ${isRestricted ? 'fa-folder-lock text-indigo-500' : 'fa-folder text-amber-500'} text-base"></i>
+          <i class="fa-solid ${isRestricted ? 'fa-folder-lock text-indigo-500' : (f.is_locked ? 'fa-folder-closed text-rose-500' : 'fa-folder text-amber-500')} text-base"></i>
           <span class="font-medium text-slate-800 dark:text-slate-200 hover:text-blue-600 break-all">${displayName}</span>
           ${isRestricted ? '<span class="text-[9px] bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded font-bold uppercase">Restricted</span>' : ''}
         </div>
@@ -511,7 +584,6 @@ function renderFilesTable() {
     `;
   }).join('');
 
-  // 2. Child Files
   const filteredFiles = allFiles.filter(f => {
     if (f.folder_path !== currentSelectedFolder) return false;
     const currentFolderObj = allFolders.find(x => x.folder_name === currentSelectedFolder);
@@ -539,7 +611,6 @@ function renderFilesTable() {
     </div>
   `).join('');
 
-  // Always show parent -> all folders -> all files
   if (!parentRow && foldersMarkup === "" && filesMarkup === "") {
     container.innerHTML = `<div class="text-center py-10 text-slate-400">No files in this folder.</div>`;
   } else {
@@ -547,7 +618,6 @@ function renderFilesTable() {
   }
 }
 
-// 3-Dots Action Menu Handling
 function openItemActionMenu(e, id, messageId, name, isFolder = false) {
   e.stopPropagation();
   activeContextItem = { id, messageId, name, isFolder };
@@ -618,7 +688,6 @@ function openItemActionMenu(e, id, messageId, name, isFolder = false) {
   menu.classList.remove("hidden");
 }
 
-// Folder Permissions Handling
 async function openPermissionsModalForCurrentFolder() {
   if (!activeContextItem || !activeContextItem.isFolder || !isPrimarySuperAdmin()) return;
   document.getElementById("itemActionMenu").classList.add("hidden");
@@ -716,7 +785,6 @@ function closePermissionsModal() {
   hideAnimatedModal("permissionsModal");
 }
 
-// Rename Handler
 function openRenameModalForCurrentItem() {
   if (!activeContextItem) return;
   document.getElementById("renameItemId").value = activeContextItem.id;
@@ -770,7 +838,6 @@ async function executeRenameItem() {
   }
 }
 
-// Direct File Download via Blob with Token
 async function downloadDirectFile(messageId, fileName) {
   showToast(`Downloading ${fileName}...`, "info");
   try {
@@ -803,7 +870,6 @@ function downloadActivePreviewFile() {
   downloadDirectFile(activePreviewItem.id, activePreviewItem.name);
 }
 
-// Download Target Folder in Hierarchical ZIP
 async function triggerDownloadTargetFolder() {
   if (!activeContextItem || !activeContextItem.isFolder) return;
   document.getElementById("itemActionMenu").classList.add("hidden");
@@ -936,11 +1002,18 @@ async function trashSelected() {
   } catch(err) { showToast(err.message, "error"); }
 }
 
-// Notice Board Operations
+// Notice Board Operations (With Permission-based Visibility)
 async function checkUnseenNotices() {
   try {
     const res = await fetch(`${API_BASE}/notices/list`);
-    allNotices = await res.json();
+    const notices = await res.json();
+    
+    // Filter out notices for folders that the current user has NO permission to access
+    allNotices = notices.filter(n => {
+      if (!n.folder_path || n.folder_path === '/') return true;
+      return hasFolderPermission(n.folder_path);
+    });
+
     if (allNotices.length === 0) return;
 
     const lastSeenId = localStorage.getItem("last_seen_notice_id");
@@ -976,7 +1049,13 @@ async function loadNoticesList() {
   const container = document.getElementById("noticesListContainer");
   try {
     const res = await fetch(`${API_BASE}/notices/list`);
-    allNotices = await res.json();
+    const rawNotices = await res.json();
+
+    // Enforce permission filter
+    allNotices = rawNotices.filter(n => {
+      if (!n.folder_path || n.folder_path === '/') return true;
+      return hasFolderPermission(n.folder_path);
+    });
 
     if (allNotices.length === 0) {
       container.innerHTML = `<p class="text-center py-10 text-slate-400">No notices published yet.</p>`;
@@ -1085,11 +1164,14 @@ function closeNoticeDetailsModal() { hideAnimatedModal("noticeDetailsModal"); }
 
 function goToNoticeFolder() {
   if (!activeNoticeTarget || !activeNoticeTarget.folder_path) return;
+  if (!hasFolderPermission(activeNoticeTarget.folder_path)) {
+    return showToast("Access Restricted: You are not authorized to access this folder.", "error");
+  }
   closeNoticeDetailsModal();
   selectFolder(activeNoticeTarget.folder_path);
 }
 
-// User Management Handlers
+// User & Role Management Handlers
 async function openUserManagementModal() {
   if (!isAdmin()) return;
   showAnimatedModal("userManagementModal");
@@ -1102,16 +1184,17 @@ async function loadUsersList() {
   const container = document.getElementById("usersListContainer");
   try {
     const res = await fetch(`${API_BASE}/admin/users/list`);
-    const users = await res.json();
+    allDirectoryUsers = await res.json();
 
-    if (users.length === 0) {
+    if (allDirectoryUsers.length === 0) {
       container.innerHTML = `<p class="text-center py-10 text-slate-400">No users found.</p>`;
       return;
     }
 
-    container.innerHTML = users.map(u => {
+    container.innerHTML = allDirectoryUsers.map(u => {
       const isSuper = u.student_id === '2510376101';
       const isUserAdmin = u.role === 'super_admin';
+      const isUserApproved = u.status === 'approved';
       const chatBanned = u.chat_banned_until && new Date() < new Date(u.chat_banned_until);
       const fileBanned = u.file_banned_until && new Date() < new Date(u.file_banned_until);
 
@@ -1121,9 +1204,12 @@ async function loadUsersList() {
             <div class="flex items-center gap-2">
               <span class="font-bold text-slate-800 dark:text-slate-100">${u.name}</span>
               <span class="font-mono text-[10px] text-slate-400">(${u.student_id})</span>
+              <span class="px-2 py-0.5 rounded text-[10px] font-semibold ${isUserApproved ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400'}">${u.status}</span>
               <span class="px-2 py-0.5 rounded text-[10px] font-semibold ${isUserAdmin ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-400' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}">${u.role}</span>
             </div>
-            <div class="flex gap-2 text-[10px] text-slate-400 mt-1 font-mono">
+            <div class="flex flex-wrap gap-2 text-[10px] text-slate-400 mt-1 font-mono">
+              <span>Reg No: <b class="text-slate-600 dark:text-slate-300">${u.reg_no || 'N/A'}</b></span>
+              <span>•</span>
               <span>Chat: ${chatBanned ? '<b class="text-rose-500">Banned</b>' : 'Allowed'}</span>
               <span>•</span>
               <span>Files: ${fileBanned ? '<b class="text-rose-500">Banned</b>' : 'Allowed'}</span>
@@ -1132,8 +1218,14 @@ async function loadUsersList() {
 
           ${isSuper ? '<span class="text-emerald-500 font-bold text-xs">Primary Super Admin</span>' : `
             <div class="flex flex-wrap items-center gap-1.5">
+              ${isUserApproved ? `
+                <button onclick="toggleUserStatus('${u.student_id}', 'rejected')" class="px-2.5 py-1 rounded text-xs font-semibold bg-rose-50 text-rose-600 hover:bg-rose-100">Reject</button>
+              ` : `
+                <button onclick="toggleUserStatus('${u.student_id}', 'approved')" class="px-2.5 py-1 rounded text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-500">Approve</button>
+              `}
+
               <button onclick="toggleUserRole('${u.student_id}', '${isUserAdmin ? 'student' : 'super_admin'}')" class="px-2.5 py-1 rounded text-xs font-semibold ${isUserAdmin ? 'bg-slate-200 text-slate-700 hover:bg-slate-300' : 'bg-indigo-600 text-white hover:bg-indigo-500'}">
-                ${isUserAdmin ? 'Demote to Student' : 'Make Admin'}
+                ${isUserAdmin ? 'Demote' : 'Make Admin'}
               </button>
               
               <select onchange="applyUserBan('${u.student_id}', this.value)" class="bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded px-2 py-1 text-[11px]">
@@ -1155,6 +1247,42 @@ async function loadUsersList() {
       `;
     }).join('');
   } catch(e) { console.error(e); }
+}
+
+async function toggleUserStatus(student_id, new_status) {
+  try {
+    const res = await fetch(`${API_BASE}/admin/users/update-status`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ student_id, status: new_status })
+    });
+    if (!res.ok) throw new Error("Failed to update status");
+    showToast(`User ${new_status}!`, "success");
+    loadUsersList();
+  } catch(err) {
+    showToast(err.message, "error");
+  }
+}
+
+// Classmates Verification Directory Modal
+function openClassmatesListModal() {
+  const formattedText = allDirectoryUsers.map((u, i) => {
+    return `${i + 1}. Name: ${u.name}\n   Student ID: ${u.student_id}\n   Registration No: ${u.reg_no || 'Not Set'}\n   Status: ${u.status.toUpperCase()}\n----------------------------------------`;
+  }).join('\n\n');
+
+  document.getElementById("classmatesTextarea").value = formattedText || "No users found.";
+  showAnimatedModal("classmatesListModal");
+}
+
+function closeClassmatesListModal() {
+  hideAnimatedModal("classmatesListModal");
+}
+
+function copyClassmatesListText() {
+  const ta = document.getElementById("classmatesTextarea");
+  ta.select();
+  navigator.clipboard.writeText(ta.value);
+  showToast("Classmates list copied to clipboard!", "success");
 }
 
 async function toggleUserRole(student_id, new_role) {
@@ -1277,7 +1405,6 @@ async function downloadSelectedZip() {
   showToast("ZIP download started!", "success");
 }
 
-// Universal PDF Preview with Live Page Number
 async function openPreview(name, id) {
   document.getElementById("previewTitle").innerText = name;
   activePreviewItem = { name, id };
@@ -1365,9 +1492,9 @@ function closePreview() {
   activePreviewItem = null;
 }
 
-// Fullscreen Chat
 function openChatFullscreen() {
   if (!currentUser) return showToast("Please login first", "error");
+  if (!isApproved()) return showToast("Account is pending approval. Chat locked.", "error");
   document.getElementById("chatModal").classList.remove("chat-closed");
 }
 
@@ -1408,10 +1535,12 @@ function initWebSocket() {
     ws.onmessage = (e) => {
       const data = JSON.parse(e.data);
       if (data.type === "notice") {
-        document.getElementById("headerUnseenNoticeDot").classList.remove("hidden");
-        document.getElementById("noticeBadgeCount").classList.remove("hidden");
-        showToast(data.title, "info", `${data.file_name || data.message || ''} • ${data.time}`);
-        loadFiles();
+        if (!data.folder_path || hasFolderPermission(data.folder_path)) {
+          document.getElementById("headerUnseenNoticeDot").classList.remove("hidden");
+          document.getElementById("noticeBadgeCount").classList.remove("hidden");
+          showToast(data.title, "info", `${data.file_name || data.message || ''} • ${data.time}`);
+          loadFiles();
+        }
       } else if (data.type === "chat_event" && data.cleared) {
         document.getElementById("chatMessages").innerHTML = "";
         showToast(data.message, "info");
@@ -1441,11 +1570,13 @@ function appendMessage(msg) {
 
 function sendLiveMessage(e) {
   e.preventDefault();
+  if (!isApproved()) return showToast("Account is pending approval. You cannot chat yet.", "error");
+
   const input = document.getElementById("chatInput");
   if (!input.value.trim() || !ws) return;
   ws.send(JSON.stringify({ student_id: currentUser.student_id, sender_name: currentUser.name, message: input.value.trim() }));
   input.value = "";
 }
 
-// Start Lifecycle
+// Launch
 renderPortalView();
