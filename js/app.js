@@ -1548,10 +1548,8 @@ async function openPreview(name, id) {
 
   const container = document.getElementById("previewContainer");
   const pageIndicator = document.getElementById("pdfPageIndicator");
-  const pdfZoomToolbar = document.getElementById("pdfZoomToolbar");
   
   pageIndicator.classList.add("hidden");
-  pdfZoomToolbar.style.display = "none";
 
   container.scrollTop = 0;
   container.style.justifyContent = "flex-start";
@@ -1616,7 +1614,6 @@ async function openPreview(name, id) {
       defaultFitScale = parseFloat((availableWidth / unscaledViewport.width).toFixed(2));
       currentPdfScale = defaultFitScale;
 
-      pdfZoomToolbar.style.display = "flex";
       await renderPdfPages(currentPdfScale);
 
     } catch(err) {
@@ -1651,18 +1648,17 @@ async function renderPdfPages(scale) {
   if (!currentPdfDoc) return;
   const container = document.getElementById("previewContainer");
   const pageIndicator = document.getElementById("pdfPageIndicator");
-  const zoomPercentage = document.getElementById("zoomPercentage");
 
   container.innerHTML = "";
   pageIndicator.innerText = `Page 1 of ${currentPdfDoc.numPages}`;
   pageIndicator.classList.remove("hidden");
-  zoomPercentage.innerText = `${Math.round(scale * 100)}%`;
 
   const pageCanvases = [];
 
   for (let pageNum = 1; pageNum <= currentPdfDoc.numPages; pageNum++) {
     const page = await currentPdfDoc.getPage(pageNum);
-    const viewport = page.getViewport({ scale: scale });
+    const dpr = window.devicePixelRatio || 1;
+ㅤㅤ const viewport = page.getViewport({ scale: scale * dpr });
 
     const canvas = document.createElement("canvas");
     canvas.className = "pdf-page-canvas w-full max-w-full";
@@ -1670,6 +1666,8 @@ async function renderPdfPages(scale) {
     const ctx = canvas.getContext("2d");
     canvas.height = viewport.height;
     canvas.width = viewport.width;
+    canvas.style.width = (viewport.width / dpr) + 'px';
+    canvas.style.height = (viewport.height / dpr) + 'px';
 
     container.appendChild(canvas);
     pageCanvases.push(canvas);
@@ -1692,30 +1690,10 @@ async function renderPdfPages(scale) {
   };
 }
 
-function zoomPdf(delta) {
-  let newScale = parseFloat((currentPdfScale + delta).toFixed(2));
-  if (newScale < 0.3) newScale = 0.3;
-  if (newScale > 3.0) newScale = 3.0;
-  currentPdfScale = newScale;
-  renderPdfPages(currentPdfScale);
-}
-
-async function resetPdfFitToScreen() {
-  if (!currentPdfDoc) return;
-  const container = document.getElementById("previewContainer");
-  const firstPage = await currentPdfDoc.getPage(1);
-  const unscaledViewport = firstPage.getViewport({ scale: 1.0 });
-  const availableWidth = container.clientWidth > 40 ? (container.clientWidth - 32) : window.innerWidth;
-  defaultFitScale = parseFloat((availableWidth / unscaledViewport.width).toFixed(2));
-  currentPdfScale = defaultFitScale;
-  renderPdfPages(currentPdfScale);
-}
-
 function closePreview() {
   hideAnimatedModal("previewModal");
   document.getElementById("previewContainer").innerHTML = "";
   document.getElementById("pdfPageIndicator").classList.add("hidden");
-  document.getElementById("pdfZoomToolbar").style.display = "none";
   currentPdfDoc = null;
   activePreviewItem = null;
 }
