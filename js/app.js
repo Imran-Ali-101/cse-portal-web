@@ -11,7 +11,7 @@ let activeContextItem = null;
 let activePreviewItem = null;
 let activeNoticeTarget = null;
 
-// PDF Rendering Global State for Google Drive Style Zoom
+// PDF Rendering Global State
 let currentPdfDoc = null;
 let currentPdfScale = 1.0;
 let defaultFitScale = 1.0;
@@ -459,7 +459,7 @@ async function loadDynamicTools() {
 async function loadFolders() {
   if (!currentUser) return;
   try {
-    const res = await fetch(`${API_BASE}/folders/list`);
+    const res = await fetch(`${API_BASE}/folders/list?t=${Date.now()}`);
     allFolders = await res.json();
     
     allFolders = allFolders.map(f => {
@@ -528,7 +528,7 @@ async function handleCreateFolder() {
   }
 }
 
-// Fixed Instant Refresh on Upload Finish
+// 100% Real-time Instant Local Rendering on Upload Finish
 async function uploadSelectedFiles(input) {
   if (!isAdmin()) return showToast("Only Admin can upload files", "error");
   if (!input.files || input.files.length === 0) return;
@@ -559,9 +559,12 @@ async function uploadSelectedFiles(input) {
       });
       if (res.ok) {
         const jsonRes = await res.json();
-        // Immediately prepend to local files array so it renders without delay
         if (jsonRes.file) {
-          allFiles.unshift(jsonRes.file);
+          // Immediately inject file into current local state
+          const newF = jsonRes.file;
+          newF.folder_path = (newF.folder_path && newF.folder_path.startsWith('/')) ? newF.folder_path : '/' + (newF.folder_path || '');
+          allFiles.unshift(newF);
+          renderFilesTable();
         }
         uploadedCount++;
       }
@@ -575,14 +578,14 @@ async function uploadSelectedFiles(input) {
   input.value = "";
   showToast(`Successfully uploaded ${uploadedCount} of ${totalFiles} files!`, "success");
   
-  // Instant fetch from server to verify synchronization
+  // Instant server sync with timestamp cache buster
   await loadFiles();
 }
 
 async function loadFiles() {
   if (!currentUser) return;
   try {
-    const res = await fetch(`${API_BASE}/slides/list`);
+    const res = await fetch(`${API_BASE}/slides/list?t=${Date.now()}`);
     const data = await res.json();
     
     allFiles = data.map(f => {
@@ -1113,7 +1116,7 @@ async function trashSelected() {
 // Notice Board Operations
 async function checkUnseenNotices() {
   try {
-    const res = await fetch(`${API_BASE}/notices/list`);
+    const res = await fetch(`${API_BASE}/notices/list?t=${Date.now()}`);
     const notices = await res.json();
     
     allNotices = notices.filter(n => {
@@ -1155,7 +1158,7 @@ function closeNoticeBoardModal() { hideAnimatedModal("noticeBoardModal"); }
 async function loadNoticesList() {
   const container = document.getElementById("noticesListContainer");
   try {
-    const res = await fetch(`${API_BASE}/notices/list`);
+    const res = await fetch(`${API_BASE}/notices/list?t=${Date.now()}`);
     const rawNotices = await res.json();
 
     allNotices = rawNotices.filter(n => {
@@ -1289,7 +1292,7 @@ function closeUserManagementModal() { hideAnimatedModal("userManagementModal"); 
 async function loadUsersList() {
   const container = document.getElementById("usersListContainer");
   try {
-    const res = await fetch(`${API_BASE}/admin/users/list`);
+    const res = await fetch(`${API_BASE}/admin/users/list?t=${Date.now()}`);
     allDirectoryUsers = await res.json();
 
     if (allDirectoryUsers.length === 0) {
@@ -1536,7 +1539,7 @@ async function downloadSelectedZip() {
   showToast("ZIP download started!", "success");
 }
 
-// Universal In-Browser Preview (With Google Drive-Style Fit-To-Screen Zoom)
+// In-Browser Universal Preview
 async function openPreview(name, id) {
   document.getElementById("previewTitle").innerText = name;
   activePreviewItem = { name, id };
@@ -1605,17 +1608,19 @@ async function openPreview(name, id) {
     container.style.justifyContent = "center";
     container.innerHTML = `<img src="${streamUrl}" alt="${name}" class="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl">`;
   }
-  // 5. PDF Documents (Google Drive Style Fit-to-screen & Zoom Controls)
+  // 5. PDF Documents (Pure Device Width "Fit to Screen" + Zoom Engine)
   else if (lower.endsWith('.pdf')) {
     try {
       const loadingTask = pdfjsLib.getDocument(streamUrl);
       currentPdfDoc = await loadingTask.promise;
       
-      // Calculate automatic "Fit to Screen" Scale
+      // Calculate true Full Device Width Scale
       const firstPage = await currentPdfDoc.getPage(1);
       const unscaledViewport = firstPage.getViewport({ scale: 1.0 });
-      const availableWidth = Math.min(container.clientWidth - 40, 900);
-      defaultFitScale = Math.max(0.7, parseFloat((availableWidth / unscaledViewport.width).toFixed(2)));
+      
+      // Use exact container clientWidth to eliminate borders
+      const availableWidth = container.clientWidth > 40 ? (container.clientWidth - 32) : window.innerWidth;
+      defaultFitScale = parseFloat((availableWidth / unscaledViewport.width).toFixed(2));
       currentPdfScale = defaultFitScale;
 
       pdfZoomToolbar.classList.remove("hidden");
@@ -1638,7 +1643,7 @@ async function openPreview(name, id) {
     const isPptx = lower.endsWith('.pptx') || lower.endsWith('.ppt');
     container.style.justifyContent = "center";
     container.innerHTML = `
-      <div class="text-center p-8 bg-slate-900 rounded-2xl border border-slate-800 max-w-sm">
+      <div class="text-center p-8 bg-slate-900 border border-slate-800 rounded-2xl max-w-sm">
         <i class="fa-solid ${isPptx ? 'fa-file-powerpoint text-amber-500' : 'fa-file-lines text-slate-500'} text-4xl mb-3 block"></i>
         <h4 class="text-sm font-semibold text-slate-200 mb-1 break-all">${name}</h4>
         <p class="text-xs text-slate-400 mb-4">${isPptx ? 'PowerPoint Presentation' : 'Document File'}</p>
@@ -1650,7 +1655,7 @@ async function openPreview(name, id) {
   }
 }
 
-// Google Drive Style PDF Render & Zoom Engine
+// 100% Device-Width Responsive PDF Render Engine
 async function renderPdfPages(scale) {
   if (!currentPdfDoc) return;
   const container = document.getElementById("previewContainer");
@@ -1669,7 +1674,7 @@ async function renderPdfPages(scale) {
     const viewport = page.getViewport({ scale: scale });
 
     const canvas = document.createElement("canvas");
-    canvas.className = "pdf-page-canvas";
+    canvas.className = "pdf-page-canvas w-full max-w-full";
     canvas.setAttribute("data-page-number", pageNum);
     const ctx = canvas.getContext("2d");
     canvas.height = viewport.height;
@@ -1681,7 +1686,6 @@ async function renderPdfPages(scale) {
     await page.render({ canvasContext: ctx, viewport: viewport }).promise;
   }
 
-  // Ensure top page 1 view on initial load
   container.scrollTop = 0;
 
   // Real-time Page Indicator Observer on scroll
@@ -1700,13 +1704,20 @@ async function renderPdfPages(scale) {
 
 function zoomPdf(delta) {
   let newScale = parseFloat((currentPdfScale + delta).toFixed(2));
-  if (newScale < 0.4) newScale = 0.4;
+  if (newScale < 0.3) newScale = 0.3;
   if (newScale > 3.0) newScale = 3.0;
   currentPdfScale = newScale;
   renderPdfPages(currentPdfScale);
 }
 
-function resetPdfFitToScreen() {
+// Re-computes dynamic device width on Fit
+async function resetPdfFitToScreen() {
+  if (!currentPdfDoc) return;
+  const container = document.getElementById("previewContainer");
+  const firstPage = await currentPdfDoc.getPage(1);
+  const unscaledViewport = firstPage.getViewport({ scale: 1.0 });
+  const availableWidth = container.clientWidth > 40 ? (container.clientWidth - 32) : window.innerWidth;
+  defaultFitScale = parseFloat((availableWidth / unscaledViewport.width).toFixed(2));
   currentPdfScale = defaultFitScale;
   renderPdfPages(currentPdfScale);
 }
@@ -1806,5 +1817,5 @@ function sendLiveMessage(e) {
   input.value = "";
 }
 
-// Launch Lifecycle
+// Launch
 renderPortalView();
