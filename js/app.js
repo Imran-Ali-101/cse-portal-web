@@ -6,7 +6,11 @@ let allFiles = [];
 let allFolders = [];
 let activeContextItem = null;
 
-// Modal Animation Helpers
+// Configure PDF.js Worker
+if (window['pdfjs-dist/build/pdf']) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
 function showAnimatedModal(id) {
   const el = document.getElementById(id);
   if (el) el.classList.remove("modal-hidden");
@@ -35,18 +39,39 @@ function formatBytes(bytes) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
+// Dynamically Check Admin Role
 function isAdmin() {
   return currentUser && (currentUser.role === 'super_admin' || currentUser.student_id === '2510376101');
 }
 
-// Check if current user is file-restricted
+function isPrimarySuperAdmin() {
+  return currentUser && currentUser.student_id === '2510376101';
+}
+
 function isFileBanned() {
   if (!currentUser || !currentUser.file_banned_until) return false;
   return new Date() < new Date(currentUser.file_banned_until);
 }
 
-// Pure SPA/AJAX View Switcher
-function renderPortalView() {
+// Verify dynamic role with backend to reflect new promotions immediately
+async function syncUserRole() {
+  if (!currentUser) return;
+  try {
+    const res = await fetch(`${API_BASE}/auth/check-role/${currentUser.student_id}`);
+    if (res.ok) {
+      const data = await res.json();
+      currentUser.role = data.role;
+      currentUser.chat_banned_until = data.chat_banned_until;
+      currentUser.file_banned_until = data.file_banned_until;
+      localStorage.setItem("user", JSON.stringify(currentUser));
+    }
+  } catch(e) {}
+}
+
+// Pure SPA View Switcher
+async function renderPortalView() {
+  await syncUserRole();
+
   const guestView = document.getElementById("guestLandingView");
   const authView = document.getElementById("authenticatedView");
   const adminDropzone = document.getElementById("adminDropzoneArea");
@@ -55,6 +80,7 @@ function renderPortalView() {
   const adminToolbarTrash = document.getElementById("adminToolbarTrashBtn");
   const navAuth = document.getElementById("navAuthSection");
   const sidebarBtn = document.getElementById("sidebarToggleBtn");
+  const clearChatBtn = document.getElementById("clearChatBtn");
 
   if (currentUser) {
     guestView.classList.add("hidden");
@@ -62,12 +88,13 @@ function renderPortalView() {
     sidebarBtn.classList.remove("hidden");
 
     navAuth.innerHTML = `
-      <span class="text-xs text-slate-500 hidden sm:inline font-mono">${currentUser.name} (${currentUser.role === 'super_admin' ? 'Admin' : 'Student'})</span>
+      <span class="text-xs text-slate-500 hidden sm:inline font-mono">${currentUser.name} (${isAdmin() ? 'Admin' : 'Student'})</span>
       <button onclick="handleLogout()" class="border border-rose-300 text-rose-600 hover:bg-rose-50 text-xs font-medium px-3 py-1.5 rounded-lg flex items-center gap-1.5">
         <i class="fa-solid fa-arrow-right-from-bracket"></i> Logout
       </button>
     `;
 
+    // Toggle Admin Features
     if (isAdmin()) {
       adminDropzone.classList.remove("hidden");
       adminSidebar.classList.remove("hidden");
@@ -78,6 +105,13 @@ function renderPortalView() {
       adminSidebar.classList.add("hidden");
       adminActionTrash.classList.add("hidden");
       adminToolbarTrash.classList.add("hidden");
+    }
+
+    // Only Primary Super Admin sees clear chat button
+    if (isPrimarySuperAdmin()) {
+      clearChatBtn.classList.remove("hidden");
+    } else {
+      clearChatBtn.classList.add("hidden");
     }
 
     loadFolders();
@@ -132,7 +166,7 @@ async function handleLogin() {
     currentUser = data;
     localStorage.setItem("user", JSON.stringify(data));
     toggleAuthModal(false);
-    showToast(`Welcome, ${data.name}!`, "success");
+    showToast(`Welcome back, ${data.name}!`, "success");
     renderPortalView();
   } catch(err) {
     showToast(err.message, "error");
@@ -207,7 +241,7 @@ window.addEventListener('click', (e) => {
   }
 });
 
-// Load Folders & Populate Options
+// Folders Management
 async function loadFolders() {
   if (!currentUser) return;
   try {
@@ -231,7 +265,6 @@ async function loadFolders() {
   } catch(e) { console.error(e); }
 }
 
-// Navigation & Parent Folder (..) Handler
 function selectFolder(path) {
   currentSelectedFolder = path.startsWith('/') ? path : '/' + path;
   if (currentSelectedFolder !== '/' && currentSelectedFolder.endsWith('/')) {
@@ -278,7 +311,7 @@ async function handleCreateFolder() {
   }
 }
 
-// Subfolder Upload Handler
+// Upload File
 function uploadSelectedFile(input) {
   if (!isAdmin()) return showToast("Only Admin can upload files", "error");
   if (!input.files[0]) return;
@@ -341,12 +374,12 @@ async function loadFiles() {
   } catch(e) { console.error(e); }
 }
 
-// Render Files & Folders Table
+// Table Rendering
 function renderFilesTable() {
   const container = document.getElementById("fileTableContent");
   
   if (isFileBanned()) {
-    container.innerHTML = `<div class="text-center py-12 text-rose-500 font-medium">Your account is currently restricted from viewing and accessing files.</div>`;
+    container.innerHTML = `<div class="text-center py-12 text-rose-500 font-medium">Your account is currently restricted from viewing files.</div>`;
     return;
   }
 
@@ -605,13 +638,12 @@ async function loadUsersList() {
             </div>
           </div>
 
-          ${isSuper ? '<span class="text-emerald-500 font-bold text-xs">Primary Admin</span>' : `
+          ${isSuper ? '<span class="text-emerald-500 font-bold text-xs">Primary Super Admin</span>' : `
             <div class="flex flex-wrap items-center gap-1.5">
               <button onclick="toggleUserRole('${u.student_id}', '${isUserAdmin ? 'student' : 'super_admin'}')" class="px-2.5 py-1 rounded text-xs font-semibold ${isUserAdmin ? 'bg-slate-200 text-slate-700 hover:bg-slate-300' : 'bg-indigo-600 text-white hover:bg-indigo-500'}">
                 ${isUserAdmin ? 'Demote to Student' : 'Make Admin'}
               </button>
               
-              <!-- Ban Controls -->
               <select onchange="applyUserBan('${u.student_id}', this.value)" class="bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded px-2 py-1 text-[11px]">
                 <option value="">Restrictions...</option>
                 <option value="chat:30">Ban Chat 30m</option>
@@ -643,6 +675,9 @@ async function toggleUserRole(student_id, new_role) {
     if (!res.ok) throw new Error("Failed to change role");
     showToast(`Role updated to ${new_role}`, "success");
     loadUsersList();
+    if (currentUser.student_id === student_id) {
+      renderPortalView();
+    }
   } catch(err) { showToast(err.message, "error"); }
 }
 
@@ -732,17 +767,54 @@ function sortFiles(type) {
   if (type === 'name_asc') { allFiles.sort((a,b) => a.file_name.localeCompare(b.file_name)); label.innerText = "Name A - Z"; }
   if (type === 'name_desc') { allFiles.sort((a,b) => b.file_name.localeCompare(a.file_name)); label.innerText = "Name Z - A"; }
   if (type === 'newest') { allFiles.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)); label.innerText = "Newest"; }
-  if (type === 'oldest') { allFiles.sort((a,b) => new Date(a.created_at) - new Date(a.created_at)); label.innerText = "Oldest"; }
+  if (type === 'oldest') { allFiles.sort((a,b) => new Date(a.created_at) - new Date(b.created_at)); label.innerText = "Oldest"; }
   if (type === 'largest') { allFiles.sort((a,b) => (b.file_size || 0) - (a.file_size || 0)); label.innerText = "Largest"; }
   if (type === 'smallest') { allFiles.sort((a,b) => (a.file_size || 0) - (b.file_size || 0)); label.innerText = "Smallest"; }
   renderFilesTable();
 }
 
+// Download Entire Active Folder with Hierarchical ZIP
+async function downloadFolderAsZip() {
+  const filesToPack = currentSelectedFolder === '/' 
+    ? allFiles 
+    : allFiles.filter(f => f.folder_path.startsWith(currentSelectedFolder));
+
+  if (filesToPack.length === 0) return showToast("No files to zip in this folder", "error");
+
+  showToast(`Packaging ${filesToPack.length} files into ZIP...`, "info");
+  const zip = new JSZip();
+
+  for (let f of filesToPack) {
+    try {
+      const res = await fetch(`${API_BASE}/slides/stream/${f.telegram_message_id}?filename=${encodeURIComponent(f.file_name)}`);
+      const blob = await res.blob();
+      
+      let relativePath = f.folder_path.replace(currentSelectedFolder, '').replace(/^\/+/, '');
+      if (relativePath) {
+        zip.folder(relativePath).file(f.file_name, blob);
+      } else {
+        zip.file(f.file_name, blob);
+      }
+    } catch(e) {
+      console.error(e);
+    }
+  }
+
+  const zipBlob = await zip.generateAsync({ type: "blob" });
+  const folderName = currentSelectedFolder === '/' ? 'Root_Drive' : currentSelectedFolder.split('/').filter(Boolean).pop();
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(zipBlob);
+  link.download = `${folderName}_Package.zip`;
+  link.click();
+  showToast("Folder ZIP download complete!", "success");
+}
+
+// Download Checked Items ZIP
 async function downloadSelectedZip() {
   const checked = document.querySelectorAll(".file-item-check:checked");
   if (checked.length === 0) return showToast("Select files to download", "error");
 
-  showToast("Packing ZIP archive...", "info");
+  showToast("Packing selected files into ZIP...", "info");
   const zip = new JSZip();
   for (let box of checked) {
     const id = box.getAttribute("data-id");
@@ -754,24 +826,55 @@ async function downloadSelectedZip() {
   const zipBlob = await zip.generateAsync({ type: "blob" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(zipBlob);
-  link.download = "downloaded_files.zip";
+  link.download = "selected_materials.zip";
   link.click();
   showToast("ZIP download started!", "success");
 }
 
-// In-Browser PDF and Image Preview Fix
-function openPreview(name, id) {
+// Universal In-Browser Preview using Mozilla PDF.js & Image Renderer
+async function openPreview(name, id) {
   document.getElementById("previewTitle").innerText = name;
   const streamUrl = `${API_BASE}/slides/stream/${id}?filename=${encodeURIComponent(name)}`;
   document.getElementById("previewDownloadDirect").href = streamUrl;
 
   const container = document.getElementById("previewContainer");
+  container.innerHTML = `<div class="text-center text-slate-400 py-20 flex flex-col items-center gap-2"><span class="spinner"></span><span>Loading document...</span></div>`;
+  showAnimatedModal("previewModal");
+
   const lower = name.toLowerCase();
 
   if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.webp')) {
-    container.innerHTML = `<img src="${streamUrl}" alt="${name}" class="max-w-full max-h-[85vh] object-contain rounded-lg shadow-xl">`;
+    container.innerHTML = `<img src="${streamUrl}" alt="${name}" class="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl">`;
   } else if (lower.endsWith('.pdf')) {
-    container.innerHTML = `<iframe src="${streamUrl}" class="w-full h-full border-0 rounded-lg"></iframe>`;
+    try {
+      const loadingTask = pdfjsLib.getDocument(streamUrl);
+      const pdf = await loadingTask.promise;
+      container.innerHTML = "";
+
+      // Render each page into canvas seamlessly (Works on Android/iOS/Desktop)
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const viewport = page.getViewport({ scale: 1.35 });
+
+        const canvas = document.createElement("canvas");
+        canvas.className = "pdf-page-canvas";
+        const ctx = canvas.getContext("2d");
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+
+        container.appendChild(canvas);
+        await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+      }
+    } catch(err) {
+      container.innerHTML = `
+        <div class="text-center p-8 bg-slate-900 rounded-2xl border border-slate-800">
+          <p class="text-xs text-rose-400 mb-3">Unable to preview PDF directly.</p>
+          <a href="${streamUrl}" download="${name}" class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl text-xs font-semibold inline-flex items-center gap-2">
+            <i class="fa-solid fa-download"></i> Download PDF
+          </a>
+        </div>
+      `;
+    }
   } else {
     container.innerHTML = `
       <div class="text-center p-8 bg-slate-900 rounded-2xl border border-slate-800">
@@ -783,8 +886,6 @@ function openPreview(name, id) {
       </div>
     `;
   }
-
-  showAnimatedModal("previewModal");
 }
 
 function closePreview() {
@@ -803,6 +904,25 @@ function closeChatFullscreen() {
   document.getElementById("chatModal").classList.add("chat-closed"); 
 }
 
+// Primary Super Admin Clear Chat Handler
+async function confirmClearChat() {
+  if (!isPrimarySuperAdmin()) return;
+  if (!confirm("Are you sure you want to permanently clear the entire class chat history?")) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/chat/clear-all`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ admin_id: currentUser.student_id })
+    });
+    if (!res.ok) throw new Error("Could not clear chat");
+    document.getElementById("chatMessages").innerHTML = "";
+    showToast("Chat history completely cleared!", "success");
+  } catch(err) {
+    showToast(err.message, "error");
+  }
+}
+
 function initWebSocket() {
   fetch(`${API_BASE}/chat/history`)
     .then(res => res.json())
@@ -817,7 +937,10 @@ function initWebSocket() {
     ws = new WebSocket(wsUrl);
     ws.onmessage = (e) => {
       const data = JSON.parse(e.data);
-      if (data.system) {
+      if (data.cleared) {
+        document.getElementById("chatMessages").innerHTML = "";
+        showToast(data.message, "info");
+      } else if (data.system) {
         showToast(data.message, "error");
       } else {
         appendMessage(data);
@@ -849,5 +972,5 @@ function sendLiveMessage(e) {
   input.value = "";
 }
 
-// Initial View Render
+// Launch
 renderPortalView();
