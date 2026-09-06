@@ -39,6 +39,12 @@ function isAdmin() {
   return currentUser && (currentUser.role === 'super_admin' || currentUser.student_id === '2510376101');
 }
 
+// Check if current user is file-restricted
+function isFileBanned() {
+  if (!currentUser || !currentUser.file_banned_until) return false;
+  return new Date() < new Date(currentUser.file_banned_until);
+}
+
 // Pure SPA/AJAX View Switcher
 function renderPortalView() {
   const guestView = document.getElementById("guestLandingView");
@@ -56,7 +62,7 @@ function renderPortalView() {
     sidebarBtn.classList.remove("hidden");
 
     navAuth.innerHTML = `
-      <span class="text-xs text-slate-500 hidden sm:inline font-mono">${currentUser.name}</span>
+      <span class="text-xs text-slate-500 hidden sm:inline font-mono">${currentUser.name} (${currentUser.role === 'super_admin' ? 'Admin' : 'Student'})</span>
       <button onclick="handleLogout()" class="border border-rose-300 text-rose-600 hover:bg-rose-50 text-xs font-medium px-3 py-1.5 rounded-lg flex items-center gap-1.5">
         <i class="fa-solid fa-arrow-right-from-bracket"></i> Logout
       </button>
@@ -103,7 +109,7 @@ function toggleAuthForms(showRegister) {
   document.getElementById("registerSection").classList.toggle("hidden", !showRegister);
 }
 
-// Authentication
+// Authentication Handlers
 async function handleLogin() {
   const student_id = document.getElementById("loginId").value.trim();
   const password = document.getElementById("loginPass").value.trim();
@@ -208,7 +214,6 @@ async function loadFolders() {
     const res = await fetch(`${API_BASE}/folders/list`);
     allFolders = await res.json();
     
-    // Normalize folder names to start with /
     allFolders = allFolders.map(f => {
       let n = f.folder_name;
       if (!n.startsWith('/')) n = '/' + n;
@@ -255,11 +260,7 @@ function closeFolderModal() { hideAnimatedModal("folderModal"); }
 async function handleCreateFolder() {
   let name = document.getElementById("newFolderName").value.trim();
   if (!name) return showToast("Enter folder name", "error");
-  
-  // Clean slash
   name = name.replace(/^\/+|\/+$/g, '');
-  
-  // Compute absolute folder path relative to current folder
   let targetPath = currentSelectedFolder === '/' ? `/${name}` : `${currentSelectedFolder}/${name}`;
 
   const formData = new FormData();
@@ -277,7 +278,7 @@ async function handleCreateFolder() {
   }
 }
 
-// Upload with Progress Bar Modal (Subfolder Aware)
+// Subfolder Upload Handler
 function uploadSelectedFile(input) {
   if (!isAdmin()) return showToast("Only Admin can upload files", "error");
   if (!input.files[0]) return;
@@ -330,7 +331,6 @@ async function loadFiles() {
     const res = await fetch(`${API_BASE}/slides/list`);
     allFiles = await res.json();
     
-    // Normalize file folder paths
     allFiles = allFiles.map(f => {
       let p = f.folder_path || '/';
       if (!p.startsWith('/')) p = '/' + p;
@@ -341,11 +341,15 @@ async function loadFiles() {
   } catch(e) { console.error(e); }
 }
 
-// Render Folders & Files inside Main Table
+// Render Files & Folders Table
 function renderFilesTable() {
   const container = document.getElementById("fileTableContent");
   
-  // 1. Parent Folder ".." navigation row
+  if (isFileBanned()) {
+    container.innerHTML = `<div class="text-center py-12 text-rose-500 font-medium">Your account is currently restricted from viewing and accessing files.</div>`;
+    return;
+  }
+
   let parentRow = "";
   if (currentSelectedFolder !== '/') {
     parentRow = `
@@ -353,7 +357,7 @@ function renderFilesTable() {
         <div class="col-span-8 md:col-span-9 flex items-center gap-3 overflow-hidden">
           <i class="fa-solid fa-arrow-turn-up rotate-90 text-blue-600 font-bold text-sm"></i>
           <span class="font-bold text-sm text-slate-800 dark:text-slate-100">..</span>
-          <span class="text-[11px] text-slate-400 font-normal">(Parent folder)</span>
+          <span class="text-[11px] text-slate-400 font-normal">(Parent directory)</span>
         </div>
         <div class="col-span-4 md:col-span-3 flex items-center justify-end text-slate-400 font-mono text-[11px]">
           <span>Up</span>
@@ -362,12 +366,10 @@ function renderFilesTable() {
     `;
   }
 
-  // 2. Child Folders of currentSelectedFolder
   const currentPrefix = currentSelectedFolder === '/' ? '/' : currentSelectedFolder + '/';
   const childFolders = allFolders.filter(f => {
     if (f.folder_name === '/') return false;
     if (!f.folder_name.startsWith(currentPrefix)) return false;
-    // Ensure it's an immediate child (no further slashes)
     const remainder = f.folder_name.slice(currentPrefix.length);
     return remainder.length > 0 && !remainder.includes('/');
   });
@@ -390,7 +392,6 @@ function renderFilesTable() {
     `;
   }).join('');
 
-  // 3. Files inside currentSelectedFolder
   const filteredFiles = allFiles.filter(f => f.folder_path === currentSelectedFolder);
   const filesMarkup = filteredFiles.map(f => `
     <div class="grid grid-cols-12 px-4 py-3 items-center hover:bg-slate-50 dark:hover:bg-slate-800/50">
@@ -415,7 +416,7 @@ function renderFilesTable() {
   }
 }
 
-// 3-Dots Action Menu Handling (FIXED: Uses viewport coords without window.scrollY bug)
+// 3-Dots Action Menu Handling
 function openItemActionMenu(e, id, messageId, name, isFolder = false) {
   e.stopPropagation();
   activeContextItem = { id, messageId, name, isFolder };
@@ -446,7 +447,6 @@ function openItemActionMenu(e, id, messageId, name, isFolder = false) {
     }
   }
   
-  // Clamped viewport positioning
   const btn = e.target.closest('button');
   const rect = btn.getBoundingClientRect();
   const menuWidth = 176;
@@ -564,6 +564,103 @@ async function trashSelected() {
   } catch(err) { showToast(err.message, "error"); }
 }
 
+// User & Role Management Handlers
+async function openUserManagementModal() {
+  if (!isAdmin()) return;
+  showAnimatedModal("userManagementModal");
+  loadUsersList();
+}
+
+function closeUserManagementModal() { hideAnimatedModal("userManagementModal"); }
+
+async function loadUsersList() {
+  const container = document.getElementById("usersListContainer");
+  try {
+    const res = await fetch(`${API_BASE}/admin/users/list`);
+    const users = await res.json();
+
+    if (users.length === 0) {
+      container.innerHTML = `<p class="text-center py-10 text-slate-400">No users found.</p>`;
+      return;
+    }
+
+    container.innerHTML = users.map(u => {
+      const isSuper = u.student_id === '2510376101';
+      const isUserAdmin = u.role === 'super_admin';
+      const chatBanned = u.chat_banned_until && new Date() < new Date(u.chat_banned_until);
+      const fileBanned = u.file_banned_until && new Date() < new Date(u.file_banned_until);
+
+      return `
+        <div class="flex flex-col md:flex-row md:items-center justify-between py-3 gap-3">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-slate-800 dark:text-slate-100">${u.name}</span>
+              <span class="font-mono text-[10px] text-slate-400">(${u.student_id})</span>
+              <span class="px-2 py-0.5 rounded text-[10px] font-semibold ${isUserAdmin ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-400' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}">${u.role}</span>
+            </div>
+            <div class="flex gap-2 text-[10px] text-slate-400 mt-1 font-mono">
+              <span>Chat: ${chatBanned ? '<b class="text-rose-500">Banned</b>' : 'Allowed'}</span>
+              <span>•</span>
+              <span>Files: ${fileBanned ? '<b class="text-rose-500">Banned</b>' : 'Allowed'}</span>
+            </div>
+          </div>
+
+          ${isSuper ? '<span class="text-emerald-500 font-bold text-xs">Primary Admin</span>' : `
+            <div class="flex flex-wrap items-center gap-1.5">
+              <button onclick="toggleUserRole('${u.student_id}', '${isUserAdmin ? 'student' : 'super_admin'}')" class="px-2.5 py-1 rounded text-xs font-semibold ${isUserAdmin ? 'bg-slate-200 text-slate-700 hover:bg-slate-300' : 'bg-indigo-600 text-white hover:bg-indigo-500'}">
+                ${isUserAdmin ? 'Demote to Student' : 'Make Admin'}
+              </button>
+              
+              <!-- Ban Controls -->
+              <select onchange="applyUserBan('${u.student_id}', this.value)" class="bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded px-2 py-1 text-[11px]">
+                <option value="">Restrictions...</option>
+                <option value="chat:30">Ban Chat 30m</option>
+                <option value="chat:60">Ban Chat 1h</option>
+                <option value="chat:4320">Ban Chat 3d</option>
+                <option value="chat:0">Unban Chat</option>
+                <option value="file:30">Ban Files 30m</option>
+                <option value="file:60">Ban Files 1h</option>
+                <option value="file:4320">Ban Files 3d</option>
+                <option value="file:0">Unban Files</option>
+                <option value="both:4320">Ban All 3d</option>
+                <option value="both:0">Unban All</option>
+              </select>
+            </div>
+          `}
+        </div>
+      `;
+    }).join('');
+  } catch(e) { console.error(e); }
+}
+
+async function toggleUserRole(student_id, new_role) {
+  try {
+    const res = await fetch(`${API_BASE}/admin/users/update-role`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ student_id, role: new_role })
+    });
+    if (!res.ok) throw new Error("Failed to change role");
+    showToast(`Role updated to ${new_role}`, "success");
+    loadUsersList();
+  } catch(err) { showToast(err.message, "error"); }
+}
+
+async function applyUserBan(student_id, banCode) {
+  if (!banCode) return;
+  const [ban_type, mins] = banCode.split(':');
+  try {
+    const res = await fetch(`${API_BASE}/admin/users/ban`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ student_id, ban_type, duration_minutes: parseInt(mins) })
+    });
+    if (!res.ok) throw new Error("Ban action failed");
+    showToast(`Restriction updated!`, "success");
+    loadUsersList();
+  } catch(err) { showToast(err.message, "error"); }
+}
+
 // Admin Trash Bin Modal
 async function openAdminTrashModal() {
   if (!isAdmin()) return;
@@ -635,7 +732,7 @@ function sortFiles(type) {
   if (type === 'name_asc') { allFiles.sort((a,b) => a.file_name.localeCompare(b.file_name)); label.innerText = "Name A - Z"; }
   if (type === 'name_desc') { allFiles.sort((a,b) => b.file_name.localeCompare(a.file_name)); label.innerText = "Name Z - A"; }
   if (type === 'newest') { allFiles.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)); label.innerText = "Newest"; }
-  if (type === 'oldest') { allFiles.sort((a,b) => new Date(a.created_at) - new Date(b.created_at)); label.innerText = "Oldest"; }
+  if (type === 'oldest') { allFiles.sort((a,b) => new Date(a.created_at) - new Date(a.created_at)); label.innerText = "Oldest"; }
   if (type === 'largest') { allFiles.sort((a,b) => (b.file_size || 0) - (a.file_size || 0)); label.innerText = "Largest"; }
   if (type === 'smallest') { allFiles.sort((a,b) => (a.file_size || 0) - (b.file_size || 0)); label.innerText = "Smallest"; }
   renderFilesTable();
@@ -662,17 +759,37 @@ async function downloadSelectedZip() {
   showToast("ZIP download started!", "success");
 }
 
+// In-Browser PDF and Image Preview Fix
 function openPreview(name, id) {
   document.getElementById("previewTitle").innerText = name;
   const streamUrl = `${API_BASE}/slides/stream/${id}?filename=${encodeURIComponent(name)}`;
-  document.getElementById("previewFrame").src = streamUrl;
   document.getElementById("previewDownloadDirect").href = streamUrl;
+
+  const container = document.getElementById("previewContainer");
+  const lower = name.toLowerCase();
+
+  if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.webp')) {
+    container.innerHTML = `<img src="${streamUrl}" alt="${name}" class="max-w-full max-h-[85vh] object-contain rounded-lg shadow-xl">`;
+  } else if (lower.endsWith('.pdf')) {
+    container.innerHTML = `<iframe src="${streamUrl}" class="w-full h-full border-0 rounded-lg"></iframe>`;
+  } else {
+    container.innerHTML = `
+      <div class="text-center p-8 bg-slate-900 rounded-2xl border border-slate-800">
+        <i class="fa-solid fa-file-lines text-4xl text-slate-500 mb-3 block"></i>
+        <p class="text-sm font-medium text-slate-300 mb-4">No direct browser preview available for this file type.</p>
+        <a href="${streamUrl}" download="${name}" class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl text-xs font-semibold inline-flex items-center gap-2">
+          <i class="fa-solid fa-download"></i> Download File
+        </a>
+      </div>
+    `;
+  }
+
   showAnimatedModal("previewModal");
 }
 
 function closePreview() {
   hideAnimatedModal("previewModal");
-  document.getElementById("previewFrame").src = "";
+  document.getElementById("previewContainer").innerHTML = "";
 }
 
 // Fullscreen Live Chat View Handlers
@@ -698,7 +815,14 @@ function initWebSocket() {
   if (!ws) {
     const wsUrl = API_BASE.replace("https://", "wss://").replace("http://", "ws://") + "/ws/chat";
     ws = new WebSocket(wsUrl);
-    ws.onmessage = (e) => appendMessage(JSON.parse(e.data));
+    ws.onmessage = (e) => {
+      const data = JSON.parse(e.data);
+      if (data.system) {
+        showToast(data.message, "error");
+      } else {
+        appendMessage(data);
+      }
+    };
   }
 }
 
