@@ -26,7 +26,15 @@ function formatBytes(bytes) {
 
 function renderHeader() {
   const el = document.getElementById("navAuthSection");
+  const adminSection = document.getElementById("adminSidebarSection");
+
   if (currentUser) {
+    if (currentUser.role === 'super_admin' || currentUser.student_id === '2510376101') {
+      adminSection.classList.remove("hidden");
+    } else {
+      adminSection.classList.add("hidden");
+    }
+
     el.innerHTML = `
       <span class="text-xs text-slate-500 hidden sm:inline font-mono">${currentUser.name}</span>
       <button onclick="handleLogout()" class="border border-rose-300 text-rose-600 hover:bg-rose-50 text-xs font-medium px-3 py-1.5 rounded-lg flex items-center gap-1.5">
@@ -34,6 +42,7 @@ function renderHeader() {
       </button>
     `;
   } else {
+    adminSection.classList.add("hidden");
     el.innerHTML = `
       <button onclick="toggleAuthModal(true)" class="bg-blue-600 text-white text-xs font-medium px-4 py-1.5 rounded-lg">
         Login
@@ -129,33 +138,26 @@ window.addEventListener('click', (e) => {
   }
 });
 
+// Folders Management
 async function loadFolders() {
   try {
     const res = await fetch(`${API_BASE}/folders/list`);
     allFolders = await res.json();
-    const container = document.getElementById("drawerFolderList");
-    const moveSelect = document.getElementById("moveFolderSelect");
     
-    container.innerHTML = `<div onclick="selectFolder('/')" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer ${currentSelectedFolder === '/' ? 'font-bold text-blue-600' : ''}"><i class="fa-solid fa-house mr-2"></i>Home</div>`;
+    const moveSelect = document.getElementById("moveFolderSelect");
     moveSelect.innerHTML = `<option value="/">Home (/)</option>`;
-
     allFolders.forEach(f => {
       if(f.folder_name !== '/') {
-        container.innerHTML += `
-          <div onclick="selectFolder('${f.folder_name}')" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer ${currentSelectedFolder === f.folder_name ? 'font-bold text-blue-600' : ''}">
-            <i class="fa-regular fa-folder text-amber-500 mr-2"></i>${f.folder_name}
-          </div>
-        `;
         moveSelect.innerHTML += `<option value="${f.folder_name}">${f.folder_name}</option>`;
       }
     });
+    renderFilesTable();
   } catch(e) { console.error(e); }
 }
 
 function selectFolder(path) {
   currentSelectedFolder = path;
-  document.getElementById("breadcrumbPath").innerHTML = path === '/' ? '' : ` / <span class="text-slate-800 dark:text-white">${path}</span>`;
-  loadFolders();
+  document.getElementById("breadcrumbPath").innerHTML = path === '/' ? '' : ` / <span class="text-slate-800 dark:text-white font-bold">${path}</span>`;
   renderFilesTable();
 }
 
@@ -236,21 +238,33 @@ async function loadFiles() {
   } catch(e) { console.error(e); }
 }
 
+// Render Folders & Files inside Main View
 function renderFilesTable() {
   const container = document.getElementById("fileTableContent");
-  const filtered = currentSelectedFolder === '/' ? allFiles : allFiles.filter(f => f.folder_path === currentSelectedFolder);
+  const filteredFiles = currentSelectedFolder === '/' ? allFiles.filter(f => f.folder_path === '/' || !f.folder_path) : allFiles.filter(f => f.folder_path === currentSelectedFolder);
 
-  if (filtered.length === 0) {
-    container.innerHTML = `<div class="text-center py-10 text-slate-400">No files in this folder.</div>`;
-    return;
+  let foldersMarkup = "";
+  if (currentSelectedFolder === '/') {
+    const validFolders = allFolders.filter(f => f.folder_name !== '/');
+    foldersMarkup = validFolders.map(f => `
+      <div onclick="selectFolder('${f.folder_name}')" class="grid grid-cols-12 px-4 py-3 items-center hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer transition border-b border-slate-100 dark:border-slate-800">
+        <div class="col-span-8 md:col-span-9 flex items-center gap-3 overflow-hidden">
+          <i class="fa-solid fa-folder text-amber-500 text-base"></i>
+          <span class="font-medium truncate text-slate-800 dark:text-slate-200">${f.folder_name}</span>
+        </div>
+        <div class="col-span-4 md:col-span-3 flex items-center justify-end gap-3 text-slate-400 font-mono text-[11px]">
+          <span>Folder</span>
+        </div>
+      </div>
+    `).join('');
   }
 
-  container.innerHTML = filtered.map(f => `
+  const filesMarkup = filteredFiles.map(f => `
     <div class="grid grid-cols-12 px-4 py-3 items-center hover:bg-slate-50 dark:hover:bg-slate-800/50">
       <div class="col-span-8 md:col-span-9 flex items-center gap-3 overflow-hidden">
         <input type="checkbox" value="${f.id}" data-id="${f.telegram_message_id}" data-name="${f.file_name}" class="file-item-check rounded border-slate-300">
         <i class="fa-solid fa-file-lines text-slate-400 text-sm"></i>
-        <span onclick="openPreview('${f.file_name}', ${f.telegram_message_id})" class="truncate cursor-pointer hover:text-blue-600 font-medium">${f.file_name}</span>
+        <span onclick="openPreview('${f.file_name}', ${f.telegram_message_id})" class="truncate cursor-pointer hover:text-blue-600 font-medium text-slate-700 dark:text-slate-200">${f.file_name}</span>
       </div>
       <div class="col-span-4 md:col-span-3 flex items-center justify-end gap-3 text-slate-400 font-mono">
         <span>${formatBytes(f.file_size)}</span>
@@ -260,6 +274,12 @@ function renderFilesTable() {
       </div>
     </div>
   `).join('');
+
+  if (foldersMarkup === "" && filesMarkup === "") {
+    container.innerHTML = `<div class="text-center py-10 text-slate-400">No files in this folder.</div>`;
+  } else {
+    container.innerHTML = foldersMarkup + filesMarkup;
+  }
 }
 
 // 3-Dots Action Menu Handling
@@ -277,7 +297,7 @@ function openItemActionMenu(e, id, messageId, name) {
 function triggerDownloadCurrentItem() {
   if (!activeContextItem) return;
   const a = document.createElement("a");
-  a.href = `${API_BASE}/slides/stream/${activeContextItem.messageId}`;
+  a.href = `${API_BASE}/slides/stream/${activeContextItem.messageId}?filename=${encodeURIComponent(activeContextItem.name)}`;
   a.download = activeContextItem.name;
   a.click();
   document.getElementById("itemActionMenu").classList.add("hidden");
@@ -285,9 +305,9 @@ function triggerDownloadCurrentItem() {
 
 function copyCurrentShareLink() {
   if (!activeContextItem) return;
-  const link = `${API_BASE}/slides/stream/${activeContextItem.messageId}`;
+  const link = `${API_BASE}/slides/stream/${activeContextItem.messageId}?filename=${encodeURIComponent(activeContextItem.name)}`;
   navigator.clipboard.writeText(link);
-  showToast("Direct download link copied to clipboard!", "success");
+  showToast("Direct link copied to clipboard!", "success");
   document.getElementById("itemActionMenu").classList.add("hidden");
 }
 
@@ -320,21 +340,103 @@ async function executeMoveFile() {
   }
 }
 
-async function deleteCurrentItem() {
+// Trash Functions (Soft Delete)
+async function trashCurrentItem() {
   if (!activeContextItem) return;
   document.getElementById("itemActionMenu").classList.add("hidden");
   try {
-    const res = await fetch(`${API_BASE}/slides/delete`, {
+    const res = await fetch(`${API_BASE}/slides/trash`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ file_ids: [activeContextItem.id] })
     });
-    if (!res.ok) throw new Error("Delete failed");
-    showToast("File deleted", "success");
+    if (!res.ok) throw new Error("Trash failed");
+    showToast("Moved to Trash", "success");
     loadFiles();
   } catch(err) {
     showToast(err.message, "error");
   }
+}
+
+async function trashSelected() {
+  if (!currentUser) return toggleAuthModal(true);
+  const checked = document.querySelectorAll(".file-item-check:checked");
+  if (checked.length === 0) return showToast("No files selected", "error");
+
+  const ids = Array.from(checked).map(c => c.value);
+  try {
+    const res = await fetch(`${API_BASE}/slides/trash`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ file_ids: ids })
+    });
+    if(!res.ok) throw new Error("Trash failed");
+    showToast("Moved selected files to Trash", "success");
+    loadFiles();
+  } catch(err) { showToast(err.message, "error"); }
+}
+
+// Admin Trash Bin Modal
+async function openAdminTrashModal() {
+  document.getElementById("adminTrashModal").classList.remove("hidden");
+  loadTrashFiles();
+}
+
+function closeAdminTrashModal() {
+  document.getElementById("adminTrashModal").classList.add("hidden");
+}
+
+async function loadTrashFiles() {
+  const container = document.getElementById("trashListContainer");
+  try {
+    const res = await fetch(`${API_BASE}/admin/trash/list`);
+    const files = await res.json();
+
+    if (files.length === 0) {
+      container.innerHTML = `<p class="text-center py-10 text-slate-400">Trash is completely empty.</p>`;
+      return;
+    }
+
+    container.innerHTML = files.map(f => `
+      <div class="flex items-center justify-between py-3">
+        <div class="flex items-center gap-2 truncate">
+          <i class="fa-solid fa-file text-rose-400"></i>
+          <span class="truncate font-medium">${f.file_name}</span>
+          <span class="text-[10px] text-slate-400 font-mono">(${formatBytes(f.file_size)})</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="restoreTrashFile('${f.id}')" class="px-2.5 py-1 rounded bg-emerald-50 text-emerald-600 hover:bg-emerald-100 font-medium">Restore</button>
+          <button onclick="permanentlyDeleteFile('${f.id}')" class="px-2.5 py-1 rounded bg-rose-50 text-rose-600 hover:bg-rose-100 font-medium">Delete Forever</button>
+        </div>
+      </div>
+    `).join('');
+  } catch(e) { console.error(e); }
+}
+
+async function restoreTrashFile(id) {
+  try {
+    await fetch(`${API_BASE}/admin/trash/restore`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file_ids: [id] })
+    });
+    showToast("Restored file", "success");
+    loadTrashFiles();
+    loadFiles();
+  } catch(e) { showToast("Error restoring", "error"); }
+}
+
+async function permanentlyDeleteFile(id) {
+  if (!confirm("Are you sure you want to permanently delete this file? This cannot be undone.")) return;
+  try {
+    await fetch(`${API_BASE}/admin/trash/permanent-delete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file_ids: [id] })
+    });
+    showToast("Permanently deleted", "success");
+    loadTrashFiles();
+  } catch(e) { showToast("Error deleting", "error"); }
 }
 
 function toggleSelectAll(el) {
@@ -352,24 +454,6 @@ function sortFiles(type) {
   renderFilesTable();
 }
 
-async function deleteSelected() {
-  if (!currentUser) return toggleAuthModal(true);
-  const checked = document.querySelectorAll(".file-item-check:checked");
-  if (checked.length === 0) return showToast("No files selected", "error");
-
-  const ids = Array.from(checked).map(c => c.value);
-  try {
-    const res = await fetch(`${API_BASE}/slides/delete`, {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ file_ids: ids })
-    });
-    if(!res.ok) throw new Error("Delete failed");
-    showToast("Files deleted", "success");
-    loadFiles();
-  } catch(err) { showToast(err.message, "error"); }
-}
-
 async function downloadSelectedZip() {
   const checked = document.querySelectorAll(".file-item-check:checked");
   if (checked.length === 0) return showToast("Select files to download", "error");
@@ -379,7 +463,7 @@ async function downloadSelectedZip() {
   for (let box of checked) {
     const id = box.getAttribute("data-id");
     const name = box.getAttribute("data-name");
-    const res = await fetch(`${API_BASE}/slides/stream/${id}`);
+    const res = await fetch(`${API_BASE}/slides/stream/${id}?filename=${encodeURIComponent(name)}`);
     const blob = await res.blob();
     zip.file(name, blob);
   }
@@ -391,12 +475,15 @@ async function downloadSelectedZip() {
   showToast("ZIP download started!", "success");
 }
 
+// In-Browser Preview
 function openPreview(name, id) {
   document.getElementById("previewTitle").innerText = name;
-  document.getElementById("previewFrame").src = `${API_BASE}/slides/stream/${id}`;
-  document.getElementById("previewDownloadDirect").href = `${API_BASE}/slides/stream/${id}`;
+  const streamUrl = `${API_BASE}/slides/stream/${id}?filename=${encodeURIComponent(name)}`;
+  document.getElementById("previewFrame").src = streamUrl;
+  document.getElementById("previewDownloadDirect").href = streamUrl;
   document.getElementById("previewModal").classList.remove("hidden");
 }
+
 function closePreview() {
   document.getElementById("previewModal").classList.add("hidden");
   document.getElementById("previewFrame").src = "";
@@ -449,7 +536,7 @@ function sendLiveMessage(e) {
   input.value = "";
 }
 
-// App Launch
+// Start
 renderHeader();
 loadFolders();
 loadFiles();
