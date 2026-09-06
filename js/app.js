@@ -5,8 +5,9 @@ let currentSelectedFolder = "/";
 let allFiles = [];
 let allFolders = [];
 let activeContextItem = null;
+let activePreviewItem = null;
 
-// Configure PDF.js Worker
+// Initialize PDF.js worker
 if (window['pdfjs-dist/build/pdf']) {
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 }
@@ -39,7 +40,7 @@ function formatBytes(bytes) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
-// Dynamically Check Admin Role
+// Check Admin Status
 function isAdmin() {
   return currentUser && (currentUser.role === 'super_admin' || currentUser.student_id === '2510376101');
 }
@@ -53,7 +54,7 @@ function isFileBanned() {
   return new Date() < new Date(currentUser.file_banned_until);
 }
 
-// Verify dynamic role with backend to reflect new promotions immediately
+// Synchronize role dynamically so promoted admins don't need to re-login
 async function syncUserRole() {
   if (!currentUser) return;
   try {
@@ -94,7 +95,6 @@ async function renderPortalView() {
       </button>
     `;
 
-    // Toggle Admin Features
     if (isAdmin()) {
       adminDropzone.classList.remove("hidden");
       adminSidebar.classList.remove("hidden");
@@ -107,7 +107,6 @@ async function renderPortalView() {
       adminToolbarTrash.classList.add("hidden");
     }
 
-    // Only Primary Super Admin sees clear chat button
     if (isPrimarySuperAdmin()) {
       clearChatBtn.classList.remove("hidden");
     } else {
@@ -241,7 +240,7 @@ window.addEventListener('click', (e) => {
   }
 });
 
-// Folders Management
+// Load Folders & Populate Options
 async function loadFolders() {
   if (!currentUser) return;
   try {
@@ -265,6 +264,7 @@ async function loadFolders() {
   } catch(e) { console.error(e); }
 }
 
+// Navigation & Parent Folder (..) Handler
 function selectFolder(path) {
   currentSelectedFolder = path.startsWith('/') ? path : '/' + path;
   if (currentSelectedFolder !== '/' && currentSelectedFolder.endsWith('/')) {
@@ -311,7 +311,7 @@ async function handleCreateFolder() {
   }
 }
 
-// Upload File
+// Subfolder Upload Handler
 function uploadSelectedFile(input) {
   if (!isAdmin()) return showToast("Only Admin can upload files", "error");
   if (!input.files[0]) return;
@@ -374,7 +374,7 @@ async function loadFiles() {
   } catch(e) { console.error(e); }
 }
 
-// Table Rendering
+// Render Files & Folders Table
 function renderFilesTable() {
   const container = document.getElementById("fileTableContent");
   
@@ -449,7 +449,7 @@ function renderFilesTable() {
   }
 }
 
-// 3-Dots Action Menu Handling
+// 3-Dots Action Menu Handling (Files & Folders)
 function openItemActionMenu(e, id, messageId, name, isFolder = false) {
   e.stopPropagation();
   activeContextItem = { id, messageId, name, isFolder };
@@ -460,15 +460,25 @@ function openItemActionMenu(e, id, messageId, name, isFolder = false) {
   const moveBtn = document.getElementById("menuMoveBtn");
   const trashBtn = document.getElementById("menuTrashBtn");
   const delFolderBtn = document.getElementById("menuDeleteFolderBtn");
+  const downloadFolderBtn = document.getElementById("menuDownloadFolderBtn");
 
   if (isFolder) {
+    // Hide file options
     downloadBtn.classList.add("hidden");
     shareBtn.classList.add("hidden");
     moveBtn.classList.add("hidden");
     trashBtn.classList.add("hidden");
+    
+    // Show folder options
+    downloadFolderBtn.classList.remove("hidden");
     if (isAdmin()) delFolderBtn.classList.remove("hidden");
+    else delFolderBtn.classList.add("hidden");
   } else {
+    // Hide folder options
     delFolderBtn.classList.add("hidden");
+    downloadFolderBtn.classList.add("hidden");
+
+    // Show file options
     downloadBtn.classList.remove("hidden");
     shareBtn.classList.remove("hidden");
     if (isAdmin()) {
@@ -482,8 +492,8 @@ function openItemActionMenu(e, id, messageId, name, isFolder = false) {
   
   const btn = e.target.closest('button');
   const rect = btn.getBoundingClientRect();
-  const menuWidth = 176;
-  const menuHeight = isFolder ? 45 : 160;
+  const menuWidth = 192;
+  const menuHeight = isFolder ? 80 : 160;
 
   let top = rect.bottom + 4;
   if (top + menuHeight > window.innerHeight) {
@@ -496,6 +506,76 @@ function openItemActionMenu(e, id, messageId, name, isFolder = false) {
   menu.style.top = `${top}px`;
   menu.style.left = `${left}px`;
   menu.classList.remove("hidden");
+}
+
+// Direct File Download via Blob to prevent white screen
+async function downloadDirectFile(messageId, fileName) {
+  showToast(`Downloading ${fileName}...`, "info");
+  try {
+    const res = await fetch(`${API_BASE}/slides/stream/${messageId}?filename=${encodeURIComponent(fileName)}`);
+    if (!res.ok) throw new Error("Download failed");
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    showToast("Download finished!", "success");
+  } catch(err) {
+    showToast("Error downloading file", "error");
+  }
+}
+
+function triggerDownloadCurrentItem() {
+  if (!activeContextItem) return;
+  downloadDirectFile(activeContextItem.messageId, activeContextItem.name);
+  document.getElementById("itemActionMenu").classList.add("hidden");
+}
+
+function downloadActivePreviewFile() {
+  if (!activePreviewItem) return;
+  downloadDirectFile(activePreviewItem.id, activePreviewItem.name);
+}
+
+// Download Target Folder in Hierarchical ZIP
+async function triggerDownloadTargetFolder() {
+  if (!activeContextItem || !activeContextItem.isFolder) return;
+  document.getElementById("itemActionMenu").classList.add("hidden");
+
+  const targetPath = activeContextItem.name;
+  const filesToPack = allFiles.filter(f => f.folder_path === targetPath || f.folder_path.startsWith(targetPath + '/'));
+
+  if (filesToPack.length === 0) return showToast("This folder is empty, nothing to download", "error");
+
+  showToast(`Packing full folder into ZIP...`, "info");
+  const zip = new JSZip();
+
+  for (let f of filesToPack) {
+    try {
+      const res = await fetch(`${API_BASE}/slides/stream/${f.telegram_message_id}?filename=${encodeURIComponent(f.file_name)}`);
+      const blob = await res.blob();
+      
+      let relative = f.folder_path.replace(targetPath, '').replace(/^\/+/, '');
+      if (relative) {
+        zip.folder(relative).file(f.file_name, blob);
+      } else {
+        zip.file(f.file_name, blob);
+      }
+    } catch(e) {
+      console.error(e);
+    }
+  }
+
+  const zipBlob = await zip.generateAsync({ type: "blob" });
+  const folderName = targetPath.split('/').filter(Boolean).pop() || "Folder";
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(zipBlob);
+  link.download = `${folderName}.zip`;
+  link.click();
+  showToast(`Folder ${folderName}.zip download complete!`, "success");
 }
 
 async function deleteCurrentFolder() {
@@ -516,15 +596,6 @@ async function deleteCurrentFolder() {
   } catch(err) {
     showToast(err.message, "error");
   }
-}
-
-function triggerDownloadCurrentItem() {
-  if (!activeContextItem) return;
-  const a = document.createElement("a");
-  a.href = `${API_BASE}/slides/stream/${activeContextItem.messageId}?filename=${encodeURIComponent(activeContextItem.name)}`;
-  a.download = activeContextItem.name;
-  a.click();
-  document.getElementById("itemActionMenu").classList.add("hidden");
 }
 
 function copyCurrentShareLink() {
@@ -773,42 +844,6 @@ function sortFiles(type) {
   renderFilesTable();
 }
 
-// Download Entire Active Folder with Hierarchical ZIP
-async function downloadFolderAsZip() {
-  const filesToPack = currentSelectedFolder === '/' 
-    ? allFiles 
-    : allFiles.filter(f => f.folder_path.startsWith(currentSelectedFolder));
-
-  if (filesToPack.length === 0) return showToast("No files to zip in this folder", "error");
-
-  showToast(`Packaging ${filesToPack.length} files into ZIP...`, "info");
-  const zip = new JSZip();
-
-  for (let f of filesToPack) {
-    try {
-      const res = await fetch(`${API_BASE}/slides/stream/${f.telegram_message_id}?filename=${encodeURIComponent(f.file_name)}`);
-      const blob = await res.blob();
-      
-      let relativePath = f.folder_path.replace(currentSelectedFolder, '').replace(/^\/+/, '');
-      if (relativePath) {
-        zip.folder(relativePath).file(f.file_name, blob);
-      } else {
-        zip.file(f.file_name, blob);
-      }
-    } catch(e) {
-      console.error(e);
-    }
-  }
-
-  const zipBlob = await zip.generateAsync({ type: "blob" });
-  const folderName = currentSelectedFolder === '/' ? 'Root_Drive' : currentSelectedFolder.split('/').filter(Boolean).pop();
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(zipBlob);
-  link.download = `${folderName}_Package.zip`;
-  link.click();
-  showToast("Folder ZIP download complete!", "success");
-}
-
 // Download Checked Items ZIP
 async function downloadSelectedZip() {
   const checked = document.querySelectorAll(".file-item-check:checked");
@@ -834,8 +869,8 @@ async function downloadSelectedZip() {
 // Universal In-Browser Preview using Mozilla PDF.js & Image Renderer
 async function openPreview(name, id) {
   document.getElementById("previewTitle").innerText = name;
+  activePreviewItem = { name, id };
   const streamUrl = `${API_BASE}/slides/stream/${id}?filename=${encodeURIComponent(name)}`;
-  document.getElementById("previewDownloadDirect").href = streamUrl;
 
   const container = document.getElementById("previewContainer");
   container.innerHTML = `<div class="text-center text-slate-400 py-20 flex flex-col items-center gap-2"><span class="spinner"></span><span>Loading document...</span></div>`;
@@ -851,7 +886,6 @@ async function openPreview(name, id) {
       const pdf = await loadingTask.promise;
       container.innerHTML = "";
 
-      // Render each page into canvas seamlessly (Works on Android/iOS/Desktop)
       for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
         const page = await pdf.getPage(pageNum);
         const viewport = page.getViewport({ scale: 1.35 });
@@ -869,9 +903,9 @@ async function openPreview(name, id) {
       container.innerHTML = `
         <div class="text-center p-8 bg-slate-900 rounded-2xl border border-slate-800">
           <p class="text-xs text-rose-400 mb-3">Unable to preview PDF directly.</p>
-          <a href="${streamUrl}" download="${name}" class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl text-xs font-semibold inline-flex items-center gap-2">
+          <button onclick="downloadActivePreviewFile()" class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl text-xs font-semibold inline-flex items-center gap-2">
             <i class="fa-solid fa-download"></i> Download PDF
-          </a>
+          </button>
         </div>
       `;
     }
@@ -880,9 +914,9 @@ async function openPreview(name, id) {
       <div class="text-center p-8 bg-slate-900 rounded-2xl border border-slate-800">
         <i class="fa-solid fa-file-lines text-4xl text-slate-500 mb-3 block"></i>
         <p class="text-sm font-medium text-slate-300 mb-4">No direct browser preview available for this file type.</p>
-        <a href="${streamUrl}" download="${name}" class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl text-xs font-semibold inline-flex items-center gap-2">
+        <button onclick="downloadActivePreviewFile()" class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl text-xs font-semibold inline-flex items-center gap-2">
           <i class="fa-solid fa-download"></i> Download File
-        </a>
+        </button>
       </div>
     `;
   }
@@ -891,6 +925,7 @@ async function openPreview(name, id) {
 function closePreview() {
   hideAnimatedModal("previewModal");
   document.getElementById("previewContainer").innerHTML = "";
+  activePreviewItem = null;
 }
 
 // Fullscreen Live Chat View Handlers
