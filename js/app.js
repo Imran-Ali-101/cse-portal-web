@@ -10,6 +10,7 @@ let currentSortMode = 'name_asc';
 let activeContextItem = null;
 let activePreviewItem = null;
 let activeNoticeTarget = null;
+const pdfCache = {};
 
 // PDF Rendering Global State
 let currentPdfDoc = null;
@@ -1660,7 +1661,7 @@ async function openPreview(name, id) {
   }
 }
 
-async function renderPdfPages(scale) {
+async function renderPdfPages(scale, cacheId = null) {
   if (!currentPdfDoc) return;
   const container = document.getElementById("previewContainer");
   const pageIndicator = document.getElementById("pdfPageIndicator");
