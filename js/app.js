@@ -1658,7 +1658,7 @@ async function renderPdfPages(scale) {
   for (let pageNum = 1; pageNum <= currentPdfDoc.numPages; pageNum++) {
     const page = await currentPdfDoc.getPage(pageNum);
     const dpr = window.devicePixelRatio || 1;
-ㅤㅤ const viewport = page.getViewport({ scale: scale * dpr });
+    const viewport = page.getViewport({ scale: scale * dpr });
 
     const canvas = document.createElement("canvas");
     canvas.className = "pdf-page-canvas w-full max-w-full";
