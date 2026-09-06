@@ -103,7 +103,7 @@ function toggleAuthForms(showRegister) {
   document.getElementById("registerSection").classList.toggle("hidden", !showRegister);
 }
 
-// Pure AJAX Authentication
+// Authentication
 async function handleLogin() {
   const student_id = document.getElementById("loginId").value.trim();
   const password = document.getElementById("loginPass").value.trim();
@@ -126,7 +126,7 @@ async function handleLogin() {
     currentUser = data;
     localStorage.setItem("user", JSON.stringify(data));
     toggleAuthModal(false);
-    showToast(`Welcome back, ${data.name}!`, "success");
+    showToast(`Welcome, ${data.name}!`, "success");
     renderPortalView();
   } catch(err) {
     showToast(err.message, "error");
@@ -158,7 +158,7 @@ async function handleRegister() {
     const data = await res.json();
     if (!res.ok) {
       if (res.status === 400 && data.detail && data.detail.includes("already registered")) {
-        throw new Error("This Student ID is already registered! Please login.");
+        throw new Error("Student ID already registered! Please login.");
       }
       throw new Error(data.detail || "Registration failed");
     }
@@ -201,17 +201,24 @@ window.addEventListener('click', (e) => {
   }
 });
 
-// Load & Manage Folders
+// Load Folders & Populate Options
 async function loadFolders() {
   if (!currentUser) return;
   try {
     const res = await fetch(`${API_BASE}/folders/list`);
     allFolders = await res.json();
     
+    // Normalize folder names to start with /
+    allFolders = allFolders.map(f => {
+      let n = f.folder_name;
+      if (!n.startsWith('/')) n = '/' + n;
+      return { ...f, folder_name: n };
+    });
+
     const moveSelect = document.getElementById("moveFolderSelect");
     moveSelect.innerHTML = `<option value="/">Home (/)</option>`;
     allFolders.forEach(f => {
-      if(f.folder_name !== '/') {
+      if (f.folder_name !== '/') {
         moveSelect.innerHTML += `<option value="${f.folder_name}">${f.folder_name}</option>`;
       }
     });
@@ -219,32 +226,51 @@ async function loadFolders() {
   } catch(e) { console.error(e); }
 }
 
+// Navigation & Parent Folder (..) Handler
 function selectFolder(path) {
-  currentSelectedFolder = path;
-  document.getElementById("breadcrumbPath").innerHTML = path === '/' ? '' : ` / <span class="text-slate-800 dark:text-white font-bold">${path}</span>`;
-  document.getElementById("activeFolderBadge").innerText = `Folder: ${path}`;
-  document.getElementById("dropzoneCurrentFolderLabel").innerText = path === '/' ? 'Home (/)' : path;
+  currentSelectedFolder = path.startsWith('/') ? path : '/' + path;
+  if (currentSelectedFolder !== '/' && currentSelectedFolder.endsWith('/')) {
+    currentSelectedFolder = currentSelectedFolder.slice(0, -1);
+  }
+  document.getElementById("activeFolderPathText").innerText = `Folder: ${currentSelectedFolder}`;
   renderFilesTable();
+}
+
+function goToParentFolder() {
+  if (currentSelectedFolder === '/') return;
+  const parts = currentSelectedFolder.split('/').filter(Boolean);
+  parts.pop();
+  const parent = parts.length === 0 ? '/' : '/' + parts.join('/');
+  selectFolder(parent);
 }
 
 function openFolderModal() { 
   if (!isAdmin()) return showToast("Only Admin can create folders", "error");
+  document.getElementById("folderModalSubText").innerText = `Creating inside: ${currentSelectedFolder}`;
+  document.getElementById("newFolderName").value = "";
   showAnimatedModal("folderModal"); 
 }
 function closeFolderModal() { hideAnimatedModal("folderModal"); }
 
 async function handleCreateFolder() {
-  const name = document.getElementById("newFolderName").value.trim();
+  let name = document.getElementById("newFolderName").value.trim();
   if (!name) return showToast("Enter folder name", "error");
+  
+  // Clean slash
+  name = name.replace(/^\/+|\/+$/g, '');
+  
+  // Compute absolute folder path relative to current folder
+  let targetPath = currentSelectedFolder === '/' ? `/${name}` : `${currentSelectedFolder}/${name}`;
+
   const formData = new FormData();
-  formData.append("folder_name", name);
+  formData.append("folder_name", targetPath);
+
   try {
     const res = await fetch(`${API_BASE}/folders/create`, { method: "POST", body: formData });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail);
     showToast("Folder created!", "success");
     closeFolderModal();
-    document.getElementById("newFolderName").value = "";
     loadFolders();
   } catch(err) {
     showToast(err.message, "error");
@@ -259,7 +285,7 @@ function uploadSelectedFile(input) {
   const file = input.files[0];
   const formData = new FormData();
   formData.append("file", file);
-  formData.append("folder", currentSelectedFolder); // Correctly associates to active folder
+  formData.append("folder", currentSelectedFolder);
 
   const progressBar = document.getElementById("uploadProgressBar");
   const progressText = document.getElementById("uploadProgressText");
@@ -283,7 +309,7 @@ function uploadSelectedFile(input) {
     hideAnimatedModal("uploadProgressModal");
     input.value = "";
     if (xhr.status >= 200 && xhr.status < 300) {
-      showToast("Uploaded successfully to " + (currentSelectedFolder === '/' ? 'Home' : currentSelectedFolder), "success");
+      showToast("Uploaded successfully to " + currentSelectedFolder, "success");
       loadFiles();
     } else {
       showToast("Upload failed, please try again.", "error");
@@ -303,6 +329,14 @@ async function loadFiles() {
   try {
     const res = await fetch(`${API_BASE}/slides/list`);
     allFiles = await res.json();
+    
+    // Normalize file folder paths
+    allFiles = allFiles.map(f => {
+      let p = f.folder_path || '/';
+      if (!p.startsWith('/')) p = '/' + p;
+      return { ...f, folder_path: p };
+    });
+
     renderFilesTable();
   } catch(e) { console.error(e); }
 }
@@ -310,18 +344,41 @@ async function loadFiles() {
 // Render Folders & Files inside Main Table
 function renderFilesTable() {
   const container = document.getElementById("fileTableContent");
-  const filteredFiles = currentSelectedFolder === '/' 
-    ? allFiles.filter(f => f.folder_path === '/' || !f.folder_path) 
-    : allFiles.filter(f => f.folder_path === currentSelectedFolder);
+  
+  // 1. Parent Folder ".." navigation row
+  let parentRow = "";
+  if (currentSelectedFolder !== '/') {
+    parentRow = `
+      <div onclick="goToParentFolder()" class="grid grid-cols-12 px-4 py-3 items-center hover:bg-slate-100 dark:hover:bg-slate-800/80 cursor-pointer transition border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40">
+        <div class="col-span-8 md:col-span-9 flex items-center gap-3 overflow-hidden">
+          <i class="fa-solid fa-arrow-turn-up rotate-90 text-blue-600 font-bold text-sm"></i>
+          <span class="font-bold text-sm text-slate-800 dark:text-slate-100">..</span>
+          <span class="text-[11px] text-slate-400 font-normal">(Parent folder)</span>
+        </div>
+        <div class="col-span-4 md:col-span-3 flex items-center justify-end text-slate-400 font-mono text-[11px]">
+          <span>Up</span>
+        </div>
+      </div>
+    `;
+  }
 
-  let foldersMarkup = "";
-  if (currentSelectedFolder === '/') {
-    const validFolders = allFolders.filter(f => f.folder_name !== '/');
-    foldersMarkup = validFolders.map(f => `
+  // 2. Child Folders of currentSelectedFolder
+  const currentPrefix = currentSelectedFolder === '/' ? '/' : currentSelectedFolder + '/';
+  const childFolders = allFolders.filter(f => {
+    if (f.folder_name === '/') return false;
+    if (!f.folder_name.startsWith(currentPrefix)) return false;
+    // Ensure it's an immediate child (no further slashes)
+    const remainder = f.folder_name.slice(currentPrefix.length);
+    return remainder.length > 0 && !remainder.includes('/');
+  });
+
+  const foldersMarkup = childFolders.map(f => {
+    const displayName = f.folder_name.split('/').filter(Boolean).pop();
+    return `
       <div class="grid grid-cols-12 px-4 py-3 items-center hover:bg-slate-50 dark:hover:bg-slate-800/60 transition border-b border-slate-100 dark:border-slate-800">
         <div onclick="selectFolder('${f.folder_name}')" class="col-span-8 md:col-span-9 flex items-center gap-3 overflow-hidden cursor-pointer">
           <i class="fa-solid fa-folder text-amber-500 text-base"></i>
-          <span class="font-medium truncate text-slate-800 dark:text-slate-200 hover:text-blue-600">${f.folder_name}</span>
+          <span class="font-medium truncate text-slate-800 dark:text-slate-200 hover:text-blue-600">${displayName}</span>
         </div>
         <div class="col-span-4 md:col-span-3 flex items-center justify-end gap-3 text-slate-400 font-mono text-[11px]">
           <span>Folder</span>
@@ -330,9 +387,11 @@ function renderFilesTable() {
           </button>
         </div>
       </div>
-    `).join('');
-  }
+    `;
+  }).join('');
 
+  // 3. Files inside currentSelectedFolder
+  const filteredFiles = allFiles.filter(f => f.folder_path === currentSelectedFolder);
   const filesMarkup = filteredFiles.map(f => `
     <div class="grid grid-cols-12 px-4 py-3 items-center hover:bg-slate-50 dark:hover:bg-slate-800/50">
       <div class="col-span-8 md:col-span-9 flex items-center gap-3 overflow-hidden">
@@ -349,14 +408,14 @@ function renderFilesTable() {
     </div>
   `).join('');
 
-  if (foldersMarkup === "" && filesMarkup === "") {
+  if (!parentRow && foldersMarkup === "" && filesMarkup === "") {
     container.innerHTML = `<div class="text-center py-10 text-slate-400">No files in this folder.</div>`;
   } else {
-    container.innerHTML = foldersMarkup + filesMarkup;
+    container.innerHTML = parentRow + foldersMarkup + filesMarkup;
   }
 }
 
-// 3-Dots Action Menu Handling (Files & Folders)
+// 3-Dots Action Menu Handling (FIXED: Uses viewport coords without window.scrollY bug)
 function openItemActionMenu(e, id, messageId, name, isFolder = false) {
   e.stopPropagation();
   activeContextItem = { id, messageId, name, isFolder };
@@ -387,16 +446,29 @@ function openItemActionMenu(e, id, messageId, name, isFolder = false) {
     }
   }
   
-  const rect = e.target.getBoundingClientRect();
-  menu.style.top = `${rect.bottom + window.scrollY + 4}px`;
-  menu.style.left = `${Math.min(rect.left + window.scrollX - 120, window.innerWidth - 180)}px`;
+  // Clamped viewport positioning
+  const btn = e.target.closest('button');
+  const rect = btn.getBoundingClientRect();
+  const menuWidth = 176;
+  const menuHeight = isFolder ? 45 : 160;
+
+  let top = rect.bottom + 4;
+  if (top + menuHeight > window.innerHeight) {
+    top = rect.top - menuHeight - 4;
+  }
+
+  let left = rect.right - menuWidth;
+  if (left < 10) left = 10;
+
+  menu.style.top = `${top}px`;
+  menu.style.left = `${left}px`;
   menu.classList.remove("hidden");
 }
 
 async function deleteCurrentFolder() {
   if (!activeContextItem || !activeContextItem.isFolder) return;
   document.getElementById("itemActionMenu").classList.add("hidden");
-  if (!confirm(`Are you sure you want to delete "${activeContextItem.name}"? All files inside will be moved to Trash.`)) return;
+  if (!confirm(`Delete "${activeContextItem.name}"? Files inside will be moved to Trash.`)) return;
 
   try {
     const res = await fetch(`${API_BASE}/folders/delete`, {
