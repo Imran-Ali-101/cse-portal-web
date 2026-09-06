@@ -1607,18 +1607,30 @@ async function openPreview(name, id) {
     container.innerHTML = `<img src="${streamUrl}" alt="${name}" class="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl">`;
   }
   else if (lower.endsWith('.pdf')) {
+    // Check if already cached
+    if (pdfCache[id]) {
+      container.innerHTML = "";
+      for (let wrapper of pdfCache[id]) {
+        container.appendChild(wrapper);
+      }
+      pageIndicator.innerText = `Page 1 of ${pdfCache[id].length}`;
+      pageIndicator.classList.remove("hidden");
+      container.scrollTop = 0;
+      return;
+    }
+
     try {
       const loadingTask = pdfjsLib.getDocument(streamUrl);
       currentPdfDoc = await loadingTask.promise;
-      
+
       const firstPage = await currentPdfDoc.getPage(1);
       const unscaledViewport = firstPage.getViewport({ scale: 1.0 });
-      
+
       const availableWidth = container.clientWidth > 40 ? (container.clientWidth - 32) : window.innerWidth;
       defaultFitScale = parseFloat((availableWidth / unscaledViewport.width).toFixed(2));
       currentPdfScale = defaultFitScale;
 
-      await renderPdfPages(currentPdfScale);
+      await renderPdfPages(currentPdfScale, id);
 
     } catch(err) {
       container.style.justifyContent = "center";
@@ -1736,6 +1748,11 @@ async function renderPdfPages(scale) {
       }
     }
   };
+
+  // Save rendered wrappers to cache
+  if (cacheId) {
+    pdfCache[cacheId] = pageWrappers;
+  }
 }
 
 function closePreview() {
