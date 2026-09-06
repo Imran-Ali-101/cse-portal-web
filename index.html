@@ -34,7 +34,7 @@
   <!-- Header -->
   <header class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 md:px-8 py-3 flex justify-between items-center sticky top-0 z-30 shadow-xs">
     <div class="flex items-center space-x-4">
-      <button onclick="toggleSidebar(true)" class="p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
+      <button id="sidebarToggleBtn" onclick="toggleSidebar(true)" class="p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
         <i class="fa-solid fa-bars text-lg"></i>
       </button>
       <div class="flex items-center space-x-2">
@@ -45,138 +45,119 @@
     <div id="navAuthSection" class="flex items-center gap-2"></div>
   </header>
 
-  <!-- Breadcrumb Path -->
-  <div class="max-w-6xl w-full mx-auto px-4 pt-4 flex items-center justify-between text-xs text-slate-500">
-    <div class="flex items-center gap-1.5 font-medium">
-      <a href="#" onclick="selectFolder('/')" class="text-blue-600 hover:underline">Home</a>
-      <span id="breadcrumbPath"></span>
+  <!-- Guest Landing Screen (যখন কেউ লগইন থাকবে না) -->
+  <div id="guestLandingView" class="hidden flex-1 flex flex-col items-center justify-center p-6 text-center">
+    <div class="w-20 h-20 bg-blue-100 dark:bg-blue-950 text-blue-600 rounded-3xl flex items-center justify-center text-3xl mb-4 shadow-inner">
+      <i class="fa-solid fa-shield-halved"></i>
+    </div>
+    <h1 class="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white">CSE Academic Portal</h1>
+    <p class="text-sm text-slate-500 dark:text-slate-400 mt-2 max-w-sm">Access private course slides, academic resources, and class discussions.</p>
+    <div class="mt-6 flex gap-3">
+      <button onclick="toggleAuthModal(true); toggleAuthForms(false);" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-6 py-2.5 rounded-xl shadow-md transition">
+        Login Now
+      </button>
+      <button onclick="toggleAuthModal(true); toggleAuthForms(true);" class="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold px-6 py-2.5 rounded-xl shadow-xs transition">
+        Create Account
+      </button>
     </div>
   </div>
 
-  <!-- Main File Manager UI -->
-  <main class="flex-1 max-w-6xl w-full mx-auto p-4 space-y-4">
-    
-    <!-- Upload Dropzone Container -->
-    <div id="dropzoneArea" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 text-center shadow-xs">
-      <div class="dashed-border rounded-xl p-8 flex flex-col items-center justify-center gap-3">
-        <div class="w-12 h-12 bg-blue-50 dark:bg-slate-800 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center text-xl">
-          <i class="fa-solid fa-cloud-arrow-up"></i>
-        </div>
-        <p class="text-xs md:text-sm text-slate-500 dark:text-slate-400">Drag & drop files or folders here, or click to select</p>
-        
-        <div class="flex flex-wrap items-center justify-center gap-2 mt-2">
-          <input type="file" id="directFileInput" onchange="uploadSelectedFile(this)" class="hidden">
-          <button onclick="document.getElementById('directFileInput').click()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm">
-            <i class="fa-solid fa-file-circle-plus"></i> Files
-          </button>
-          <button onclick="openFolderModal()" class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5">
-            <i class="fa-regular fa-folder"></i> New Folder
-          </button>
-        </div>
+  <!-- Authenticated Portal View (লগইন করার পর যা দেখা যাবে) -->
+  <div id="authenticatedView" class="hidden flex-1 flex flex-col">
+    <!-- Breadcrumb Path -->
+    <div class="max-w-6xl w-full mx-auto px-4 pt-4 flex items-center justify-between text-xs text-slate-500">
+      <div class="flex items-center gap-1.5 font-medium">
+        <a href="#" onclick="selectFolder('/')" class="text-blue-600 hover:underline">Home</a>
+        <span id="breadcrumbPath"></span>
       </div>
     </div>
 
-    <!-- Actions & Toolbar Bar -->
-    <div class="flex flex-wrap items-center justify-between gap-3 pt-2 text-xs">
-      <div class="flex items-center gap-2">
-        <label class="flex items-center gap-2 cursor-pointer select-none text-slate-600 dark:text-slate-400">
-          <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)" class="rounded border-slate-300">
-          Select All
-        </label>
-
-        <!-- Actions Dropdown -->
-        <div class="relative">
-          <button onclick="toggleDropdown('actionsDropdownMenu')" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
-            Actions <i class="fa-solid fa-chevron-down text-[10px]"></i>
-          </button>
-          <div id="actionsDropdownMenu" class="hidden absolute left-0 mt-1 w-44 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl py-1 z-20">
-            <button onclick="downloadSelectedZip()" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2">
-              <i class="fa-solid fa-download text-slate-400"></i> Download Selected
+    <!-- Main File Manager UI -->
+    <main class="flex-1 max-w-6xl w-full mx-auto p-4 space-y-4">
+      
+      <!-- Upload Dropzone Container (শুধু Admin দেখতে পাবে) -->
+      <div id="adminDropzoneArea" class="hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 text-center shadow-xs">
+        <div class="dashed-border rounded-xl p-8 flex flex-col items-center justify-center gap-3">
+          <div class="w-12 h-12 bg-blue-50 dark:bg-slate-800 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center text-xl">
+            <i class="fa-solid fa-cloud-arrow-up"></i>
+          </div>
+          <p class="text-xs md:text-sm text-slate-500 dark:text-slate-400">Drag & drop files or folders here, or click to select</p>
+          
+          <div class="flex flex-wrap items-center justify-center gap-2 mt-2">
+            <input type="file" id="directFileInput" onchange="uploadSelectedFile(this)" class="hidden">
+            <button onclick="document.getElementById('directFileInput').click()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm">
+              <i class="fa-solid fa-file-circle-plus"></i> Files
             </button>
-            <button onclick="trashSelected()" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-rose-600 flex items-center gap-2">
-              <i class="fa-regular fa-trash-can"></i> Move to Trash
+            <button onclick="openFolderModal()" class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5">
+              <i class="fa-regular fa-folder"></i> New Folder
             </button>
           </div>
         </div>
-
-        <button onclick="trashSelected()" class="bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 hover:text-rose-600 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
-          <i class="fa-regular fa-trash-can"></i> Trash
-        </button>
       </div>
 
-      <!-- Sort Dropdown -->
-      <div class="relative">
-        <button onclick="toggleDropdown('sortDropdownMenu')" class="bg-slate-800 text-white px-3 py-1.5 rounded-lg flex items-center gap-1.5 font-medium">
-          <i class="fa-solid fa-arrow-down-a-z"></i> <span id="currentSortLabel">Name A - Z</span> <i class="fa-solid fa-chevron-down text-[10px]"></i>
-        </button>
-        <div id="sortDropdownMenu" class="hidden absolute right-0 mt-1 w-36 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl py-1 z-20">
-          <button onclick="sortFiles('name_asc')" class="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800">Name A - Z</button>
-          <button onclick="sortFiles('name_desc')" class="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800">Name Z - A</button>
-          <button onclick="sortFiles('newest')" class="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800">Newest</button>
-          <button onclick="sortFiles('oldest')" class="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800">Oldest</button>
-          <button onclick="sortFiles('largest')" class="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800">Largest</button>
-          <button onclick="sortFiles('smallest')" class="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800">Smallest</button>
+      <!-- Actions & Toolbar Bar -->
+      <div class="flex flex-wrap items-center justify-between gap-3 pt-2 text-xs">
+        <div class="flex items-center gap-2">
+          <label class="flex items-center gap-2 cursor-pointer select-none text-slate-600 dark:text-slate-400">
+            <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)" class="rounded border-slate-300">
+            Select All
+          </label>
+
+          <!-- Actions Dropdown -->
+          <div class="relative">
+            <button onclick="toggleDropdown('actionsDropdownMenu')" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+              Actions <i class="fa-solid fa-chevron-down text-[10px]"></i>
+            </button>
+            <div id="actionsDropdownMenu" class="hidden absolute left-0 mt-1 w-44 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl py-1 z-20">
+              <button onclick="downloadSelectedZip()" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2">
+                <i class="fa-solid fa-download text-slate-400"></i> Download Selected
+              </button>
+              <button id="adminActionTrashBtn" onclick="trashSelected()" class="hidden w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-rose-600 flex items-center gap-2">
+                <i class="fa-regular fa-trash-can"></i> Move to Trash
+              </button>
+            </div>
+          </div>
+
+          <button id="adminToolbarTrashBtn" onclick="trashSelected()" class="hidden bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 hover:text-rose-600 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
+            <i class="fa-regular fa-trash-can"></i> Trash
+          </button>
+        </div>
+
+        <!-- Sort Dropdown -->
+        <div class="relative">
+          <button onclick="toggleDropdown('sortDropdownMenu')" class="bg-slate-800 text-white px-3 py-1.5 rounded-lg flex items-center gap-1.5 font-medium">
+            <i class="fa-solid fa-arrow-down-a-z"></i> <span id="currentSortLabel">Name A - Z</span> <i class="fa-solid fa-chevron-down text-[10px]"></i>
+          </button>
+          <div id="sortDropdownMenu" class="hidden absolute right-0 mt-1 w-36 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl py-1 z-20">
+            <button onclick="sortFiles('name_asc')" class="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800">Name A - Z</button>
+            <button onclick="sortFiles('name_desc')" class="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800">Name Z - A</button>
+            <button onclick="sortFiles('newest')" class="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800">Newest</button>
+            <button onclick="sortFiles('oldest')" class="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800">Oldest</button>
+            <button onclick="sortFiles('largest')" class="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800">Largest</button>
+            <button onclick="sortFiles('smallest')" class="w-full text-left px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800">Smallest</button>
+          </div>
         </div>
       </div>
-    </div>
 
-    <!-- File Explorer List Table -->
-    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-xs">
-      <div class="grid grid-cols-12 px-4 py-3 border-b border-slate-200 dark:border-slate-800 font-semibold text-xs text-slate-500 uppercase tracking-wider bg-slate-50 dark:bg-slate-900/50">
-        <div class="col-span-8 md:col-span-9 flex items-center gap-3">Name</div>
-        <div class="col-span-4 md:col-span-3 text-right">Size</div>
+      <!-- File Explorer List Table -->
+      <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-xs">
+        <div class="grid grid-cols-12 px-4 py-3 border-b border-slate-200 dark:border-slate-800 font-semibold text-xs text-slate-500 uppercase tracking-wider bg-slate-50 dark:bg-slate-900/50">
+          <div class="col-span-8 md:col-span-9 flex items-center gap-3">Name</div>
+          <div class="col-span-4 md:col-span-3 text-right">Size</div>
+        </div>
+        
+        <div id="fileTableContent" class="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+          <div class="text-center py-12 text-slate-400">Loading files...</div>
+        </div>
       </div>
-      
-      <div id="fileTableContent" class="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-        <div class="text-center py-12 text-slate-400">Loading files...</div>
-      </div>
-    </div>
-
-    <footer class="text-center text-[11px] text-slate-400 py-6">
-      Copyright © Md. Imran Ali
-    </footer>
-  </main>
-
-  <!-- Uploading Confirmation Dialog -->
-  <div id="uploadProgressModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs hidden z-50 flex items-center justify-center p-4">
-    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-sm p-6 rounded-2xl shadow-2xl flex flex-col items-center gap-4 text-center">
-      <h3 class="font-bold text-sm text-slate-800 dark:text-white">Uploading...</h3>
-      <div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-3.5 overflow-hidden p-0.5">
-        <div id="uploadProgressBar" class="bg-blue-600 h-full rounded-full progress-bar-striped transition-all duration-150" style="width: 0%"></div>
-      </div>
-      <span id="uploadProgressText" class="text-xs text-slate-500 font-mono">0 KB / 0 KB</span>
-    </div>
+    </main>
   </div>
 
-  <!-- Move File Modal -->
-  <div id="moveModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs hidden z-50 flex items-center justify-center p-4">
-    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-sm p-5 rounded-2xl shadow-2xl relative">
-      <button onclick="closeMoveModal()" class="absolute top-4 right-4 text-slate-400"><i class="fa-solid fa-xmark"></i></button>
-      <h3 class="text-sm font-bold mb-3"><i class="fa-solid fa-arrows-up-down-left-right mr-1 text-blue-600"></i> Move File</h3>
-      <input type="hidden" id="moveTargetFileId">
-      <p class="text-xs text-slate-500 mb-2">Select destination folder:</p>
-      <select id="moveFolderSelect" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs mb-4"></select>
-      <button onclick="executeMoveFile()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-xl text-xs font-semibold">Move Here</button>
-    </div>
-  </div>
+  <footer class="text-center text-[11px] text-slate-400 py-6 mt-auto">
+    Copyright © Md. Imran Ali
+  </footer>
 
-  <!-- Action Menu Dropdown (3-Dots) -->
-  <div id="itemActionMenu" class="hidden fixed bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl py-1 z-50 w-44 text-xs">
-    <button onclick="triggerDownloadCurrentItem()" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 text-slate-700 dark:text-slate-200">
-      <i class="fa-solid fa-download text-slate-400"></i> Download
-    </button>
-    <button onclick="copyCurrentShareLink()" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 text-slate-700 dark:text-slate-200">
-      <i class="fa-solid fa-link text-slate-400"></i> Copy Share Link
-    </button>
-    <button onclick="openMoveModalForCurrentItem()" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 text-slate-700 dark:text-slate-200">
-      <i class="fa-solid fa-folder-tree text-slate-400"></i> Move File
-    </button>
-    <button onclick="trashCurrentItem()" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-rose-600 flex items-center gap-2 border-t border-slate-100 dark:border-slate-800">
-      <i class="fa-regular fa-trash-can"></i> Move to Trash
-    </button>
-  </div>
-
-  <!-- Sidebar Drawer (Triple Bar) -->
+  <!-- Sidebar Drawer (Triple Bar - শুধু Login অবস্থায় দৃশ্যমান) -->
   <div id="sideDrawer" class="fixed inset-0 z-50 hidden">
     <div onclick="toggleSidebar(false)" class="fixed inset-0 bg-black/40 backdrop-blur-xs"></div>
     <div class="fixed top-0 left-0 bottom-0 w-72 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 p-5 flex flex-col justify-between shadow-2xl z-10">
@@ -216,6 +197,45 @@
         <span class="font-mono text-emerald-500">Online</span>
       </div>
     </div>
+  </div>
+
+  <!-- Uploading Confirmation Dialog -->
+  <div id="uploadProgressModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-sm p-6 rounded-2xl shadow-2xl flex flex-col items-center gap-4 text-center">
+      <h3 class="font-bold text-sm text-slate-800 dark:text-white">Uploading...</h3>
+      <div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-3.5 overflow-hidden p-0.5">
+        <div id="uploadProgressBar" class="bg-blue-600 h-full rounded-full progress-bar-striped transition-all duration-150" style="width: 0%"></div>
+      </div>
+      <span id="uploadProgressText" class="text-xs text-slate-500 font-mono">0 KB / 0 KB</span>
+    </div>
+  </div>
+
+  <!-- Move File Modal -->
+  <div id="moveModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-sm p-5 rounded-2xl shadow-2xl relative">
+      <button onclick="closeMoveModal()" class="absolute top-4 right-4 text-slate-400"><i class="fa-solid fa-xmark"></i></button>
+      <h3 class="text-sm font-bold mb-3"><i class="fa-solid fa-arrows-up-down-left-right mr-1 text-blue-600"></i> Move File</h3>
+      <input type="hidden" id="moveTargetFileId">
+      <p class="text-xs text-slate-500 mb-2">Select destination folder:</p>
+      <select id="moveFolderSelect" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs mb-4"></select>
+      <button onclick="executeMoveFile()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-xl text-xs font-semibold">Move Here</button>
+    </div>
+  </div>
+
+  <!-- Action Menu Dropdown (3-Dots) -->
+  <div id="itemActionMenu" class="hidden fixed bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl py-1 z-50 w-44 text-xs">
+    <button onclick="triggerDownloadCurrentItem()" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 text-slate-700 dark:text-slate-200">
+      <i class="fa-solid fa-download text-slate-400"></i> Download
+    </button>
+    <button onclick="copyCurrentShareLink()" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 text-slate-700 dark:text-slate-200">
+      <i class="fa-solid fa-link text-slate-400"></i> Copy Share Link
+    </button>
+    <button id="menuMoveBtn" onclick="openMoveModalForCurrentItem()" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 text-slate-700 dark:text-slate-200">
+      <i class="fa-solid fa-folder-tree text-slate-400"></i> Move File
+    </button>
+    <button id="menuTrashBtn" onclick="trashCurrentItem()" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-rose-600 flex items-center gap-2 border-t border-slate-100 dark:border-slate-800">
+      <i class="fa-regular fa-trash-can"></i> Move to Trash
+    </button>
   </div>
 
   <!-- Admin Trash Modal Window -->
@@ -263,7 +283,7 @@
     </div>
   </div>
 
-  <!-- In-Browser File Preview Modal (No Direct Download) -->
+  <!-- In-Browser File Preview Modal -->
   <div id="previewModal" class="fixed inset-0 bg-black/90 backdrop-blur-xs hidden z-50 flex flex-col">
     <div class="p-3 bg-slate-900 border-b border-slate-800 flex justify-between items-center px-6">
       <span id="previewTitle" class="text-xs font-semibold text-slate-200 truncate"></span>
