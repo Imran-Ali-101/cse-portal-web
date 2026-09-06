@@ -11,6 +11,11 @@ let activeContextItem = null;
 let activePreviewItem = null;
 let activeNoticeTarget = null;
 
+// PDF Rendering Global State for Google Drive Style Zoom
+let currentPdfDoc = null;
+let currentPdfScale = 1.0;
+let defaultFitScale = 1.0;
+
 if (window['pdfjs-dist/build/pdf']) {
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 }
@@ -231,7 +236,6 @@ async function executePasswordReset() {
   }
 }
 
-// Settings & Security Handlers
 function openSettingsModal() {
   if (!currentUser) return showToast("Please login first", "error");
   switchSettingsTab('pass');
@@ -553,7 +557,14 @@ async function uploadSelectedFiles(input) {
         method: "POST",
         body: formData
       });
-      if (res.ok) uploadedCount++;
+      if (res.ok) {
+        const jsonRes = await res.json();
+        // Immediately prepend to local files array so it renders without delay
+        if (jsonRes.file) {
+          allFiles.unshift(jsonRes.file);
+        }
+        uploadedCount++;
+      }
     } catch(err) {
       console.error(err);
     }
@@ -564,7 +575,7 @@ async function uploadSelectedFiles(input) {
   input.value = "";
   showToast(`Successfully uploaded ${uploadedCount} of ${totalFiles} files!`, "success");
   
-  // Instant fetch and re-render
+  // Instant fetch from server to verify synchronization
   await loadFiles();
 }
 
@@ -1525,7 +1536,7 @@ async function downloadSelectedZip() {
   showToast("ZIP download started!", "success");
 }
 
-// In-Browser Universal Preview (Fixed Top-Scroll bug for PDF & PPTX)
+// Universal In-Browser Preview (With Google Drive-Style Fit-To-Screen Zoom)
 async function openPreview(name, id) {
   document.getElementById("previewTitle").innerText = name;
   activePreviewItem = { name, id };
@@ -1534,11 +1545,14 @@ async function openPreview(name, id) {
 
   const container = document.getElementById("previewContainer");
   const pageIndicator = document.getElementById("pdfPageIndicator");
+  const pdfZoomToolbar = document.getElementById("pdfZoomToolbar");
+  
   pageIndicator.classList.add("hidden");
+  pdfZoomToolbar.classList.add("hidden");
 
   container.scrollTop = 0;
   container.style.justifyContent = "flex-start";
-  container.innerHTML = `<div class="m-auto text-center text-slate-400 py-20 flex flex-col items-center gap-2"><span class="spinner"></span><span>Loading document...</span></div>`;
+  container.innerHTML = `<div class="m-auto text-center text-slate-400 py-20 flex flex-col items-center gap-2"><span class="spinner"></span><span>Loading preview...</span></div>`;
   showAnimatedModal("previewModal");
 
   const lower = name.toLowerCase();
@@ -1591,48 +1605,21 @@ async function openPreview(name, id) {
     container.style.justifyContent = "center";
     container.innerHTML = `<img src="${streamUrl}" alt="${name}" class="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl">`;
   }
-  // 5. PDF Documents (Fixed Auto-scroll Glitch)
+  // 5. PDF Documents (Google Drive Style Fit-to-screen & Zoom Controls)
   else if (lower.endsWith('.pdf')) {
     try {
       const loadingTask = pdfjsLib.getDocument(streamUrl);
-      const pdf = await loadingTask.promise;
-      container.innerHTML = "";
+      currentPdfDoc = await loadingTask.promise;
+      
+      // Calculate automatic "Fit to Screen" Scale
+      const firstPage = await currentPdfDoc.getPage(1);
+      const unscaledViewport = firstPage.getViewport({ scale: 1.0 });
+      const availableWidth = Math.min(container.clientWidth - 40, 900);
+      defaultFitScale = Math.max(0.7, parseFloat((availableWidth / unscaledViewport.width).toFixed(2)));
+      currentPdfScale = defaultFitScale;
 
-      pageIndicator.innerText = `Page 1 of ${pdf.numPages}`;
-      pageIndicator.classList.remove("hidden");
-
-      const pageCanvases = [];
-
-      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-        const page = await pdf.getPage(pageNum);
-        const viewport = page.getViewport({ scale: 1.35 });
-
-        const canvas = document.createElement("canvas");
-        canvas.className = "pdf-page-canvas";
-        canvas.setAttribute("data-page-number", pageNum);
-        const ctx = canvas.getContext("2d");
-        canvas.height = viewport.height;
-        canvas.width = viewport.width;
-
-        container.appendChild(canvas);
-        pageCanvases.push(canvas);
-
-        await page.render({ canvasContext: ctx, viewport: viewport }).promise;
-      }
-
-      container.scrollTop = 0;
-
-      container.onscroll = () => {
-        const containerTop = container.getBoundingClientRect().top;
-        for (let canvas of pageCanvases) {
-          const rect = canvas.getBoundingClientRect();
-          if (rect.top - containerTop <= 160 && rect.bottom - containerTop > 40) {
-            const currentNum = canvas.getAttribute("data-page-number");
-            pageIndicator.innerText = `Page ${currentNum} of ${pdf.numPages}`;
-            break;
-          }
-        }
-      };
+      pdfZoomToolbar.classList.remove("hidden");
+      await renderPdfPages(currentPdfScale);
 
     } catch(err) {
       container.style.justifyContent = "center";
@@ -1646,42 +1633,15 @@ async function openPreview(name, id) {
       `;
     }
   }
-  // 6. PPTX Slide Formats (Microsoft Official Office Online Engine)
-  else if (lower.endsWith('.pptx') || lower.endsWith('.ppt')) {
-    try {
-      container.style.justifyContent = "stretch";
-      pageIndicator.innerText = `PowerPoint Viewer`;
-      pageIndicator.classList.remove("hidden");
-
-      const officeViewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(streamUrl)}`;
-
-      container.innerHTML = `
-        <iframe 
-          src="${officeViewerUrl}" 
-          class="w-full h-full border-0 rounded-xl bg-white shadow-2xl" 
-          frameborder="0"
-          allowfullscreen="true">
-        </iframe>
-      `;
-    } catch(err) {
-      container.style.justifyContent = "center";
-      container.innerHTML = `
-        <div class="text-center p-8 bg-slate-900 rounded-2xl border border-slate-800">
-          <p class="text-xs text-rose-400 mb-3">Unable to preview presentation slides.</p>
-          <button onclick="downloadActivePreviewFile()" class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl text-xs font-semibold inline-flex items-center gap-2">
-            <i class="fa-solid fa-download"></i> Download PPTX
-          </button>
-        </div>
-      `;
-    }
-  }
-  // 7. Unsupported File Formats
+  // 6. PowerPoint PPTX and Other Downloadable Files
   else {
+    const isPptx = lower.endsWith('.pptx') || lower.endsWith('.ppt');
     container.style.justifyContent = "center";
     container.innerHTML = `
-      <div class="text-center p-8 bg-slate-900 rounded-2xl border border-slate-800">
-        <i class="fa-solid fa-file-lines text-4xl text-slate-500 mb-3 block"></i>
-        <p class="text-sm font-medium text-slate-300 mb-4">No direct browser preview available for this file type.</p>
+      <div class="text-center p-8 bg-slate-900 rounded-2xl border border-slate-800 max-w-sm">
+        <i class="fa-solid ${isPptx ? 'fa-file-powerpoint text-amber-500' : 'fa-file-lines text-slate-500'} text-4xl mb-3 block"></i>
+        <h4 class="text-sm font-semibold text-slate-200 mb-1 break-all">${name}</h4>
+        <p class="text-xs text-slate-400 mb-4">${isPptx ? 'PowerPoint Presentation' : 'Document File'}</p>
         <button onclick="downloadActivePreviewFile()" class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl text-xs font-semibold inline-flex items-center gap-2">
           <i class="fa-solid fa-download"></i> Download File
         </button>
@@ -1690,10 +1650,73 @@ async function openPreview(name, id) {
   }
 }
 
+// Google Drive Style PDF Render & Zoom Engine
+async function renderPdfPages(scale) {
+  if (!currentPdfDoc) return;
+  const container = document.getElementById("previewContainer");
+  const pageIndicator = document.getElementById("pdfPageIndicator");
+  const zoomPercentage = document.getElementById("zoomPercentage");
+
+  container.innerHTML = "";
+  pageIndicator.innerText = `Page 1 of ${currentPdfDoc.numPages}`;
+  pageIndicator.classList.remove("hidden");
+  zoomPercentage.innerText = `${Math.round(scale * 100)}%`;
+
+  const pageCanvases = [];
+
+  for (let pageNum = 1; pageNum <= currentPdfDoc.numPages; pageNum++) {
+    const page = await currentPdfDoc.getPage(pageNum);
+    const viewport = page.getViewport({ scale: scale });
+
+    const canvas = document.createElement("canvas");
+    canvas.className = "pdf-page-canvas";
+    canvas.setAttribute("data-page-number", pageNum);
+    const ctx = canvas.getContext("2d");
+    canvas.height = viewport.height;
+    canvas.width = viewport.width;
+
+    container.appendChild(canvas);
+    pageCanvases.push(canvas);
+
+    await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+  }
+
+  // Ensure top page 1 view on initial load
+  container.scrollTop = 0;
+
+  // Real-time Page Indicator Observer on scroll
+  container.onscroll = () => {
+    const containerTop = container.getBoundingClientRect().top;
+    for (let canvas of pageCanvases) {
+      const rect = canvas.getBoundingClientRect();
+      if (rect.top - containerTop <= 160 && rect.bottom - containerTop > 40) {
+        const currentNum = canvas.getAttribute("data-page-number");
+        pageIndicator.innerText = `Page ${currentNum} of ${currentPdfDoc.numPages}`;
+        break;
+      }
+    }
+  };
+}
+
+function zoomPdf(delta) {
+  let newScale = parseFloat((currentPdfScale + delta).toFixed(2));
+  if (newScale < 0.4) newScale = 0.4;
+  if (newScale > 3.0) newScale = 3.0;
+  currentPdfScale = newScale;
+  renderPdfPages(currentPdfScale);
+}
+
+function resetPdfFitToScreen() {
+  currentPdfScale = defaultFitScale;
+  renderPdfPages(currentPdfScale);
+}
+
 function closePreview() {
   hideAnimatedModal("previewModal");
   document.getElementById("previewContainer").innerHTML = "";
   document.getElementById("pdfPageIndicator").classList.add("hidden");
+  document.getElementById("pdfZoomToolbar").classList.add("hidden");
+  currentPdfDoc = null;
   activePreviewItem = null;
 }
 
@@ -1783,5 +1806,5 @@ function sendLiveMessage(e) {
   input.value = "";
 }
 
-// Launch
+// Launch Lifecycle
 renderPortalView();
