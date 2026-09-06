@@ -67,7 +67,6 @@ function isFileBanned() {
   return new Date() < new Date(currentUser.file_banned_until);
 }
 
-// Check if user has permission for a specific folder path
 function hasFolderPermission(folderPath) {
   if (isPrimarySuperAdmin()) return true;
   if (!folderPath || folderPath === '/') return true;
@@ -232,6 +231,95 @@ async function executePasswordReset() {
   }
 }
 
+// Settings & Self-Service Handlers
+function openSettingsModal() {
+  if (!currentUser) return showToast("Please login first", "error");
+  switchSettingsTab('pass');
+  document.getElementById("setCurPass").value = "";
+  document.getElementById("setNewPass").value = "";
+  document.getElementById("setSecCurPass").value = "";
+  document.getElementById("setNewQ").value = "";
+  document.getElementById("setNewA").value = "";
+  showAnimatedModal("settingsModal");
+}
+
+function closeSettingsModal() {
+  hideAnimatedModal("settingsModal");
+}
+
+function switchSettingsTab(tab) {
+  const passTab = document.getElementById("setTabPass");
+  const secTab = document.getElementById("setTabSec");
+  const passBtn = document.getElementById("setTabPassBtn");
+  const secBtn = document.getElementById("setTabSecBtn");
+
+  if (tab === 'pass') {
+    passTab.classList.remove("hidden");
+    secTab.classList.add("hidden");
+    passBtn.className = "px-3 py-1 font-semibold text-blue-600 border-b-2 border-blue-600";
+    secBtn.className = "px-3 py-1 text-slate-400 hover:text-slate-600";
+  } else {
+    passTab.classList.add("hidden");
+    secTab.classList.remove("hidden");
+    secBtn.className = "px-3 py-1 font-semibold text-blue-600 border-b-2 border-blue-600";
+    passBtn.className = "px-3 py-1 text-slate-400 hover:text-slate-600";
+  }
+}
+
+async function saveNewPassword() {
+  const current_password = document.getElementById("setCurPass").value.trim();
+  const new_password = document.getElementById("setNewPass").value.trim();
+
+  if (!current_password || !new_password) return showToast("Fill all fields", "error");
+
+  try {
+    const res = await fetch(`${API_BASE}/user/change-password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        student_id: currentUser.student_id,
+        current_password,
+        new_password
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail);
+
+    showToast(data.message, "success");
+    closeSettingsModal();
+  } catch(err) {
+    showToast(err.message, "error");
+  }
+}
+
+async function saveNewSecurityQuestion() {
+  const current_password = document.getElementById("setSecCurPass").value.trim();
+  const question = document.getElementById("setNewQ").value.trim();
+  const answer = document.getElementById("setNewA").value.trim();
+
+  if (!current_password || !question || !answer) return showToast("Fill all fields", "error");
+
+  try {
+    const res = await fetch(`${API_BASE}/user/update-security-question`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        student_id: currentUser.student_id,
+        current_password,
+        question,
+        answer
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail);
+
+    showToast(data.message, "success");
+    closeSettingsModal();
+  } catch(err) {
+    showToast(err.message, "error");
+  }
+}
+
 async function handleLogin() {
   const student_id = document.getElementById("loginId").value.trim();
   const password = document.getElementById("loginPass").value.trim();
@@ -289,8 +377,12 @@ async function handleRegister() {
       })
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "Registration failed");
-
+    if (!res.ok) {
+      if (res.status === 400 && data.detail && data.detail.includes("already registered")) {
+        throw new Error("Student ID already registered! Please login.");
+      }
+      throw new Error(data.detail || "Registration failed");
+    }
     showToast(data.message, "success");
     toggleAuthForms('login');
   } catch(err) {
@@ -1002,13 +1094,12 @@ async function trashSelected() {
   } catch(err) { showToast(err.message, "error"); }
 }
 
-// Notice Board Operations (With Permission-based Visibility)
+// Notice Board Operations
 async function checkUnseenNotices() {
   try {
     const res = await fetch(`${API_BASE}/notices/list`);
     const notices = await res.json();
     
-    // Filter out notices for folders that the current user has NO permission to access
     allNotices = notices.filter(n => {
       if (!n.folder_path || n.folder_path === '/') return true;
       return hasFolderPermission(n.folder_path);
@@ -1051,7 +1142,6 @@ async function loadNoticesList() {
     const res = await fetch(`${API_BASE}/notices/list`);
     const rawNotices = await res.json();
 
-    // Enforce permission filter
     allNotices = rawNotices.filter(n => {
       if (!n.folder_path || n.folder_path === '/') return true;
       return hasFolderPermission(n.folder_path);
@@ -1171,7 +1261,7 @@ function goToNoticeFolder() {
   selectFolder(activeNoticeTarget.folder_path);
 }
 
-// User & Role Management Handlers
+// User Management Handlers (With Remove Account Option)
 async function openUserManagementModal() {
   if (!isAdmin()) return;
   showAnimatedModal("userManagementModal");
@@ -1224,6 +1314,11 @@ async function loadUsersList() {
                 <button onclick="toggleUserStatus('${u.student_id}', 'approved')" class="px-2.5 py-1 rounded text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-500">Approve</button>
               `}
 
+              <!-- Remove Account Button -->
+              <button onclick="removeUserAccount('${u.student_id}', '${u.name}')" class="px-2.5 py-1 rounded text-xs font-semibold bg-red-600 hover:bg-red-700 text-white flex items-center gap-1" title="Delete Account Permanently">
+                <i class="fa-solid fa-user-xmark"></i> Remove
+              </button>
+
               <button onclick="toggleUserRole('${u.student_id}', '${isUserAdmin ? 'student' : 'super_admin'}')" class="px-2.5 py-1 rounded text-xs font-semibold ${isUserAdmin ? 'bg-slate-200 text-slate-700 hover:bg-slate-300' : 'bg-indigo-600 text-white hover:bg-indigo-500'}">
                 ${isUserAdmin ? 'Demote' : 'Make Admin'}
               </button>
@@ -1249,6 +1344,28 @@ async function loadUsersList() {
   } catch(e) { console.error(e); }
 }
 
+async function removeUserAccount(student_id, name) {
+  if (!confirm(`Are you sure you want to completely remove ${name} (${student_id}) from the system?`)) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/admin/users/delete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        student_id,
+        admin_id: currentUser.student_id
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail);
+
+    showToast(data.message, "success");
+    loadUsersList();
+  } catch(err) {
+    showToast(err.message, "error");
+  }
+}
+
 async function toggleUserStatus(student_id, new_status) {
   try {
     const res = await fetch(`${API_BASE}/admin/users/update-status`, {
@@ -1264,7 +1381,7 @@ async function toggleUserStatus(student_id, new_status) {
   }
 }
 
-// Classmates Verification Directory Modal
+// Classmates Directory Modal with Higher Z-Index
 function openClassmatesListModal() {
   const formattedText = allDirectoryUsers.map((u, i) => {
     return `${i + 1}. Name: ${u.name}\n   Student ID: ${u.student_id}\n   Registration No: ${u.reg_no || 'Not Set'}\n   Status: ${u.status.toUpperCase()}\n----------------------------------------`;
@@ -1494,7 +1611,6 @@ function closePreview() {
 
 function openChatFullscreen() {
   if (!currentUser) return showToast("Please login first", "error");
-  if (!isApproved()) return showToast("Account is pending approval. Chat locked.", "error");
   document.getElementById("chatModal").classList.remove("chat-closed");
 }
 
