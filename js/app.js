@@ -148,8 +148,8 @@ async function renderPortalView() {
       clearChatBtn.classList.add("hidden");
     }
 
-    loadFolders();
-    loadFiles();
+    await loadFolders();
+    await loadFiles();
     initWebSocket();
     checkUnseenNotices();
     loadDynamicTools();
@@ -517,12 +517,14 @@ async function handleCreateFolder() {
     if (!res.ok) throw new Error(data.detail);
     showToast("Folder created!", "success");
     closeFolderModal();
-    loadFolders();
+    await loadFolders();
+    await loadFiles();
   } catch(err) {
     showToast(err.message, "error");
   }
 }
 
+// Fixed Instant Refresh on Upload Finish
 async function uploadSelectedFiles(input) {
   if (!isAdmin()) return showToast("Only Admin can upload files", "error");
   if (!input.files || input.files.length === 0) return;
@@ -561,16 +563,18 @@ async function uploadSelectedFiles(input) {
   hideAnimatedModal("uploadProgressModal");
   input.value = "";
   showToast(`Successfully uploaded ${uploadedCount} of ${totalFiles} files!`, "success");
-  loadFiles();
+  
+  // Instant fetch and re-render
+  await loadFiles();
 }
 
 async function loadFiles() {
   if (!currentUser) return;
   try {
     const res = await fetch(`${API_BASE}/slides/list`);
-    allFiles = await res.json();
+    const data = await res.json();
     
-    allFiles = allFiles.map(f => {
+    allFiles = data.map(f => {
       let p = f.folder_path || '/';
       if (!p.startsWith('/')) p = '/' + p;
       return { ...f, folder_path: p };
@@ -867,7 +871,8 @@ async function saveFolderPermissions() {
     if (!res.ok) throw new Error("Could not update permissions");
     showToast(isPublic ? "Folder is now public to all" : `Restricted to ${allowed.length} students`, "success");
     closePermissionsModal();
-    loadFolders();
+    await loadFolders();
+    await loadFiles();
   } catch(err) {
     showToast(err.message, "error");
   }
@@ -923,8 +928,8 @@ async function executeRenameItem() {
     if (!res.ok) throw new Error("Failed to rename");
     showToast("Renamed successfully!", "success");
     closeRenameModal();
-    loadFolders();
-    loadFiles();
+    await loadFolders();
+    await loadFiles();
   } catch(err) {
     showToast(err.message, "error");
   }
@@ -1016,8 +1021,8 @@ async function deleteCurrentFolder() {
     });
     if (!res.ok) throw new Error("Could not delete folder");
     showToast("Folder deleted and files moved to Trash", "success");
-    loadFolders();
-    loadFiles();
+    await loadFolders();
+    await loadFiles();
   } catch(err) {
     showToast(err.message, "error");
   }
@@ -1053,7 +1058,7 @@ async function executeMoveFile() {
     if (!res.ok) throw new Error("Move failed");
     showToast(`Moved to ${target}`, "success");
     closeMoveModal();
-    loadFiles();
+    await loadFiles();
   } catch(err) {
     showToast(err.message, "error");
   }
@@ -1070,7 +1075,7 @@ async function trashCurrentItem() {
     });
     if (!res.ok) throw new Error("Trash failed");
     showToast("Moved to Trash", "success");
-    loadFiles();
+    await loadFiles();
   } catch(err) {
     showToast(err.message, "error");
   }
@@ -1090,10 +1095,11 @@ async function trashSelected() {
     });
     if(!res.ok) throw new Error("Trash failed");
     showToast("Moved selected files to Trash", "success");
-    loadFiles();
+    await loadFiles();
   } catch(err) { showToast(err.message, "error"); }
 }
 
+// Notice Board Operations
 async function checkUnseenNotices() {
   try {
     const res = await fetch(`${API_BASE}/notices/list`);
@@ -1475,7 +1481,7 @@ async function restoreTrashFile(id) {
     });
     showToast("Restored file", "success");
     loadTrashFiles();
-    loadFiles();
+    await loadFiles();
   } catch(e) { showToast("Error restoring", "error"); }
 }
 
@@ -1519,7 +1525,7 @@ async function downloadSelectedZip() {
   showToast("ZIP download started!", "success");
 }
 
-// In-Browser Universal Preview: Videos, Audios, Text, Images, PDF, and PPTX
+// In-Browser Universal Preview (Fixed Top-Scroll bug for PDF & PPTX)
 async function openPreview(name, id) {
   document.getElementById("previewTitle").innerText = name;
   activePreviewItem = { name, id };
@@ -1530,13 +1536,16 @@ async function openPreview(name, id) {
   const pageIndicator = document.getElementById("pdfPageIndicator");
   pageIndicator.classList.add("hidden");
 
-  container.innerHTML = `<div class="text-center text-slate-400 py-20 flex flex-col items-center gap-2"><span class="spinner"></span><span>Loading preview...</span></div>`;
+  container.scrollTop = 0;
+  container.style.justifyContent = "flex-start";
+  container.innerHTML = `<div class="m-auto text-center text-slate-400 py-20 flex flex-col items-center gap-2"><span class="spinner"></span><span>Loading document...</span></div>`;
   showAnimatedModal("previewModal");
 
   const lower = name.toLowerCase();
 
   // 1. Video Formats
   if (lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.endsWith('.ogg') || lower.endsWith('.mkv') || lower.endsWith('.mov')) {
+    container.style.justifyContent = "center";
     container.innerHTML = `
       <div class="w-full max-w-4xl max-h-[85vh] flex items-center justify-center">
         <video controls autoplay playsinline class="w-full max-h-[80vh] rounded-xl shadow-2xl bg-black">
@@ -1548,6 +1557,7 @@ async function openPreview(name, id) {
   }
   // 2. Audio Formats
   else if (lower.endsWith('.mp3') || lower.endsWith('.wav') || lower.endsWith('.m4a') || lower.endsWith('.aac')) {
+    container.style.justifyContent = "center";
     container.innerHTML = `
       <div class="p-8 bg-slate-900 border border-slate-800 rounded-2xl flex flex-col items-center gap-4 text-center">
         <div class="w-16 h-16 rounded-full bg-blue-600/20 text-blue-500 flex items-center justify-center text-2xl">
@@ -1567,19 +1577,21 @@ async function openPreview(name, id) {
       const res = await fetch(streamUrl);
       const textContent = await res.text();
       container.innerHTML = `
-        <div class="w-full max-w-4xl max-h-[85vh] bg-slate-900 border border-slate-800 rounded-xl p-4 overflow-auto text-left">
+        <div class="w-full max-w-4xl bg-slate-900 border border-slate-800 rounded-xl p-4 text-left my-2">
           <pre class="text-xs text-slate-200 font-mono whitespace-pre-wrap break-all">${textContent.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>
         </div>
       `;
+      container.scrollTop = 0;
     } catch (e) {
-      container.innerHTML = `<p class="text-xs text-rose-400">Failed to render text content.</p>`;
+      container.innerHTML = `<p class="m-auto text-xs text-rose-400">Failed to render text content.</p>`;
     }
   }
   // 4. Image Formats
   else if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.webp') || lower.endsWith('.gif') || lower.endsWith('.svg')) {
+    container.style.justifyContent = "center";
     container.innerHTML = `<img src="${streamUrl}" alt="${name}" class="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl">`;
   }
-  // 5. PDF Documents (Canvas Rendering with Scroll Page Tracker)
+  // 5. PDF Documents (Fixed Auto-scroll Glitch)
   else if (lower.endsWith('.pdf')) {
     try {
       const loadingTask = pdfjsLib.getDocument(streamUrl);
@@ -1608,11 +1620,13 @@ async function openPreview(name, id) {
         await page.render({ canvasContext: ctx, viewport: viewport }).promise;
       }
 
+      container.scrollTop = 0;
+
       container.onscroll = () => {
         const containerTop = container.getBoundingClientRect().top;
         for (let canvas of pageCanvases) {
           const rect = canvas.getBoundingClientRect();
-          if (rect.top - containerTop <= 150 && rect.bottom - containerTop > 50) {
+          if (rect.top - containerTop <= 160 && rect.bottom - containerTop > 40) {
             const currentNum = canvas.getAttribute("data-page-number");
             pageIndicator.innerText = `Page ${currentNum} of ${pdf.numPages}`;
             break;
@@ -1621,6 +1635,7 @@ async function openPreview(name, id) {
       };
 
     } catch(err) {
+      container.style.justifyContent = "center";
       container.innerHTML = `
         <div class="text-center p-8 bg-slate-900 rounded-2xl border border-slate-800">
           <p class="text-xs text-rose-400 mb-3">Unable to preview PDF directly.</p>
@@ -1631,32 +1646,28 @@ async function openPreview(name, id) {
       `;
     }
   }
-  // 6. PPTX PowerPoint Slide Formats
-  else if (lower.endsWith('.pptx')) {
+  // 6. PPTX Slide Formats (Microsoft Official Office Online Engine)
+  else if (lower.endsWith('.pptx') || lower.endsWith('.ppt')) {
     try {
-      container.innerHTML = `<div id="pptxViewerContainer" class="w-full max-w-4xl min-h-full"></div>`;
-      
-      const response = await fetch(streamUrl);
-      if (!response.ok) throw new Error("Could not fetch presentation");
-      const blob = await response.blob();
-      const file = new File([blob], name);
-
-      $("#pptxViewerContainer").pptxToHtml({
-        pptxFileUrl: file,
-        fileInputId: null,
-        slideMode: false,
-        keyBoard: false,
-        mediaProcess: true,
-        jsZipV2: false
-      });
-
-      pageIndicator.innerText = `PowerPoint Slides`;
+      container.style.justifyContent = "stretch";
+      pageIndicator.innerText = `PowerPoint Viewer`;
       pageIndicator.classList.remove("hidden");
 
+      const officeViewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(streamUrl)}`;
+
+      container.innerHTML = `
+        <iframe 
+          src="${officeViewerUrl}" 
+          class="w-full h-full border-0 rounded-xl bg-white shadow-2xl" 
+          frameborder="0"
+          allowfullscreen="true">
+        </iframe>
+      `;
     } catch(err) {
+      container.style.justifyContent = "center";
       container.innerHTML = `
         <div class="text-center p-8 bg-slate-900 rounded-2xl border border-slate-800">
-          <p class="text-xs text-rose-400 mb-3">Unable to preview PPTX slides.</p>
+          <p class="text-xs text-rose-400 mb-3">Unable to preview presentation slides.</p>
           <button onclick="downloadActivePreviewFile()" class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl text-xs font-semibold inline-flex items-center gap-2">
             <i class="fa-solid fa-download"></i> Download PPTX
           </button>
@@ -1666,6 +1677,7 @@ async function openPreview(name, id) {
   }
   // 7. Unsupported File Formats
   else {
+    container.style.justifyContent = "center";
     container.innerHTML = `
       <div class="text-center p-8 bg-slate-900 rounded-2xl border border-slate-800">
         <i class="fa-solid fa-file-lines text-4xl text-slate-500 mb-3 block"></i>
@@ -1724,14 +1736,15 @@ function initWebSocket() {
   if (!ws) {
     const wsUrl = API_BASE.replace("https://", "wss://").replace("http://", "ws://") + "/ws/chat";
     ws = new WebSocket(wsUrl);
-    ws.onmessage = (e) => {
+    ws.onmessage = async (e) => {
       const data = JSON.parse(e.data);
       if (data.type === "notice") {
         if (!data.folder_path || hasFolderPermission(data.folder_path)) {
           document.getElementById("headerUnseenNoticeDot").classList.remove("hidden");
           document.getElementById("noticeBadgeCount").classList.remove("hidden");
           showToast(data.title, "info", `${data.file_name || data.message || ''} • ${data.time}`);
-          loadFiles();
+          // Instantly refresh list when new files arrive
+          await loadFiles();
         }
       } else if (data.type === "chat_event" && data.cleared) {
         document.getElementById("chatMessages").innerHTML = "";
