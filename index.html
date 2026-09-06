@@ -12,8 +12,20 @@
     }
   </script>
   <link rel="stylesheet" href="css/style.css">
+  
+  <!-- Core Utilities -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  
+  <!-- PDF.js Engine -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+  <!-- PPTX.js Dependencies & Engine for PowerPoint Slides -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pptxjs@1.21.1/dist/pptxjs.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.17/d3.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pptxjs@1.21.1/dist/pptxjs.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pptxjs@1.21.1/dist/divs2slides.min.js"></script>
+
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
   <style>
     .progress-bar-striped {
@@ -32,11 +44,19 @@
       max-width: 100% !important;
       height: auto !important;
     }
+    #pptxViewerContainer .slide {
+      margin: 0 auto 20px auto !important;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25) !important;
+      border-radius: 8px !important;
+      background: white !important;
+      max-width: 100% !important;
+    }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100 min-h-screen flex flex-col antialiased">
 
-  <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+  <!-- Toast Notification Container (z-[999] guarantees toasts always sit on top) -->
+  <div id="toastContainer" class="fixed bottom-5 right-5 z-[999] flex flex-col gap-2 pointer-events-none"></div>
 
   <!-- Header -->
   <header class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 md:px-8 py-3 flex justify-between items-center sticky top-0 z-30 shadow-xs">
@@ -167,7 +187,7 @@
     Copyright © Algorus - 33
   </footer>
 
-  <!-- Sidebar Drawer (Triple Bar) -->
+  <!-- Sidebar Drawer -->
   <div id="sideDrawer" class="fixed inset-0 z-50 modal-hidden modal-backdrop">
     <div onclick="toggleSidebar(false)" class="fixed inset-0 bg-black/40 backdrop-blur-xs"></div>
     <div class="modal-box fixed top-0 left-0 bottom-0 w-72 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 p-5 flex flex-col justify-between shadow-2xl z-10">
@@ -195,12 +215,10 @@
             <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
           </button>
 
-          <!-- Settings Option for All Users -->
           <button onclick="openSettingsModal(); toggleSidebar(false);" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300">
             <i class="fa-solid fa-gear text-slate-500"></i> Settings & Security
           </button>
 
-          <!-- Dynamic Tools Container -->
           <div id="dynamicToolsContainer" class="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1">
             <span class="text-[10px] font-bold text-indigo-500 uppercase tracking-wider block mb-1">Academic Tools</span>
           </div>
@@ -224,7 +242,7 @@
     </div>
   </div>
 
-  <!-- Settings & Security Modal (For All Users) -->
+  <!-- Settings & Security Modal -->
   <div id="settingsModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs modal-hidden modal-backdrop z-50 flex items-center justify-center p-4">
     <div class="modal-box bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-md p-6 rounded-2xl shadow-2xl relative">
       <button onclick="closeSettingsModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
@@ -237,7 +255,6 @@
         <button id="setTabSecBtn" onclick="switchSettingsTab('sec')" class="px-3 py-1 text-slate-400 hover:text-slate-600">Security Question</button>
       </div>
 
-      <!-- Tab 1: Change Password -->
       <div id="setTabPass" class="space-y-3 text-xs">
         <div>
           <label class="text-slate-400 block mb-1">Current Password (or Reg No):</label>
@@ -250,7 +267,6 @@
         <button onclick="saveNewPassword()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-xl font-semibold">Update Password</button>
       </div>
 
-      <!-- Tab 2: Change Security Question -->
       <div id="setTabSec" class="hidden space-y-3 text-xs">
         <div>
           <label class="text-slate-400 block mb-1">Current Password:</label>
@@ -285,7 +301,6 @@
         </div>
       </div>
 
-      <!-- Admin Custom Notice Box -->
       <div id="adminNoticeComposer" class="hidden p-3 bg-amber-50/50 dark:bg-amber-950/20 border-b border-slate-200 dark:border-slate-800 flex flex-col gap-2">
         <input id="customNoticeTitle" type="text" placeholder="Notice Title..." class="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-1.5 text-xs font-semibold">
         <textarea id="customNoticeMsg" rows="2" placeholder="Write custom announcement message..." class="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-1.5 text-xs"></textarea>
@@ -366,7 +381,7 @@
     </div>
   </div>
 
-  <!-- Classmates Verification Text Modal (High Z-Index & Clean Height) -->
+  <!-- Classmates Verification Text Modal -->
   <div id="classmatesListModal" class="fixed inset-0 bg-black/80 backdrop-blur-xs modal-hidden modal-backdrop z-[70] flex items-center justify-center p-3 md:p-6">
     <div class="modal-box bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-xl h-[75vh] p-5 rounded-2xl shadow-2xl relative flex flex-col">
       <div class="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
@@ -397,7 +412,7 @@
     </div>
   </div>
 
-  <!-- In-Browser Universal PDF Preview Modal with Live Page Tracker -->
+  <!-- In-Browser Universal File Preview Modal (PDF, PPTX, Video, Audio, Text, Images) -->
   <div id="previewModal" class="fixed inset-0 bg-black/90 backdrop-blur-xs modal-hidden modal-backdrop z-50 flex flex-col">
     <div class="p-3 bg-slate-900 border-b border-slate-800 flex justify-between items-center px-4 md:px-6">
       <div class="flex items-center gap-3 max-w-[65%]">
@@ -411,7 +426,7 @@
         <button onclick="closePreview()" class="text-slate-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
       </div>
     </div>
-    <div id="previewContainer" class="flex-1 w-full h-full relative bg-slate-950 overflow-y-auto p-4 flex flex-col items-center"></div>
+    <div id="previewContainer" class="flex-1 w-full h-full relative bg-slate-950 overflow-y-auto p-4 flex flex-col items-center justify-center"></div>
   </div>
 
   <!-- Fullscreen Live Chat View -->
@@ -544,7 +559,7 @@
     </div>
   </div>
 
-  <!-- Auth Modal (With Reg No & Forgot Password) -->
+  <!-- Auth Modal -->
   <div id="authModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs modal-hidden modal-backdrop z-50 flex items-center justify-center p-4">
     <div class="modal-box bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-md p-6 rounded-2xl shadow-2xl relative">
       <button onclick="toggleAuthModal(false)" class="absolute top-4 right-4 text-slate-400"><i class="fa-solid fa-xmark"></i></button>
