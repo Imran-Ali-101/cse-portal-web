@@ -2,114 +2,76 @@ const API_BASE = "https://varsity-portal-api.onrender.com";
 let ws = null;
 let currentUser = JSON.parse(localStorage.getItem("user") || "null");
 let currentSelectedFolder = "/";
+let allFiles = [];
+let allFolders = [];
+let activeContextItem = null;
 
-// --- Custom Toast Alert Notification ---
 function showToast(message, type = "info") {
   const container = document.getElementById("toastContainer");
   const toast = document.createElement("div");
-  
-  let bg = "bg-slate-900 border-indigo-500/50 text-indigo-300";
-  let icon = "fa-circle-info";
-  if (type === "success") {
-    bg = "bg-slate-900 border-emerald-500/50 text-emerald-400";
-    icon = "fa-circle-check";
-  } else if (type === "error") {
-    bg = "bg-slate-900 border-rose-500/50 text-rose-400";
-    icon = "fa-triangle-exclamation";
-  }
-
-  toast.className = `flex items-center gap-3 px-4 py-3 rounded-2xl border shadow-2xl backdrop-blur-md transition-all duration-300 transform translate-y-4 opacity-0 text-xs font-medium ${bg}`;
-  toast.innerHTML = `<i class="fa-solid ${icon} text-sm"></i> <span>${message}</span>`;
-  
+  let border = type === "success" ? "border-emerald-500 text-emerald-500" : (type === "error" ? "border-rose-500 text-rose-500" : "border-blue-500 text-blue-500");
+  toast.className = `flex items-center gap-2 px-4 py-3 rounded-xl border bg-white dark:bg-slate-900 shadow-xl text-xs font-medium ${border}`;
+  toast.innerHTML = `<i class="fa-solid ${type === 'success' ? 'fa-check' : (type === 'error' ? 'fa-exclamation' : 'fa-info')}"></i> <span>${message}</span>`;
   container.appendChild(toast);
-  setTimeout(() => toast.classList.remove("translate-y-4", "opacity-0"), 10);
-  setTimeout(() => {
-    toast.classList.add("translate-y-4", "opacity-0");
-    setTimeout(() => toast.remove(), 300);
-  }, 3500);
+  setTimeout(() => toast.remove(), 3500);
 }
 
-// --- Theme Management ---
-function initTheme() {
-  const isDark = localStorage.getItem("theme") !== "light";
-  document.documentElement.classList.toggle("dark", isDark);
-  document.getElementById("themeIcon").className = isDark ? "fa-solid fa-sun" : "fa-solid fa-moon";
+function formatBytes(bytes) {
+  if (!bytes || bytes === 0) return '0 KB';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
-function toggleTheme() {
-  const isDark = document.documentElement.classList.toggle("dark");
-  localStorage.setItem("theme", isDark ? "dark" : "light");
-  document.getElementById("themeIcon").className = isDark ? "fa-solid fa-sun" : "fa-solid fa-moon";
-}
-
-function toggleSidebar(show) {
-  document.getElementById("sideDrawer").classList.toggle("hidden", !show);
-}
-
-// --- Auth Header & Modal Controls ---
 function renderHeader() {
-  const el = document.getElementById("authHeaderAction");
-  const adminHeader = document.getElementById("adminActionHeader");
-  
+  const el = document.getElementById("navAuthSection");
   if (currentUser) {
-    if (currentUser.role === 'super_admin' || currentUser.student_id === '2510376101') {
-      adminHeader.classList.remove("hidden");
-    }
     el.innerHTML = `
-      <button onclick="openProfileModal()" class="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 px-3 py-1.5 rounded-xl transition">
-        <i class="fa-solid fa-circle-user text-indigo-500"></i>
-        <span class="text-xs font-medium">${currentUser.name.split(' ')[0]}</span>
+      <span class="text-xs text-slate-500 hidden sm:inline font-mono">${currentUser.name}</span>
+      <button onclick="handleLogout()" class="border border-rose-300 text-rose-600 hover:bg-rose-50 text-xs font-medium px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+        <i class="fa-solid fa-arrow-right-from-bracket"></i> Logout
       </button>
     `;
   } else {
-    adminHeader.classList.add("hidden");
     el.innerHTML = `
-      <button onclick="toggleAuthModal(true)" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-1.5 rounded-xl font-medium shadow-md shadow-indigo-600/20 transition">Login / Register</button>
+      <button onclick="toggleAuthModal(true)" class="bg-blue-600 text-white text-xs font-medium px-4 py-1.5 rounded-lg">
+        Login
+      </button>
     `;
   }
 }
 
-function toggleAuthModal(show) {
-  document.getElementById("authModal").classList.toggle("hidden", !show);
+function toggleAuthModal(show) { document.getElementById("authModal").classList.toggle("hidden", !show); }
+function toggleAuthForms(showRegister) {
+  document.getElementById("loginSection").classList.toggle("hidden", showRegister);
+  document.getElementById("registerSection").classList.toggle("hidden", !showRegister);
 }
 
-function showRegisterForm(show) {
-  document.getElementById("loginFormSection").classList.toggle("hidden", show);
-  document.getElementById("registerFormSection").classList.toggle("hidden", !show);
-}
-
-// --- Auth Handlers with Spinner ---
 async function handleLogin() {
   const student_id = document.getElementById("loginId").value.trim();
   const password = document.getElementById("loginPass").value.trim();
-  if (!student_id || !password) return showToast("Please fill all fields", "error");
+  if (!student_id || !password) return showToast("Enter credentials", "error");
 
   const btn = document.getElementById("loginSubmitBtn");
-  const text = document.getElementById("loginBtnText");
-  const spinner = document.getElementById("loginSpinner");
-
-  btn.disabled = true;
-  text.classList.add("hidden");
-  spinner.classList.remove("hidden");
+  const text = document.getElementById("loginText");
+  const spin = document.getElementById("loginSpin");
+  btn.disabled = true; text.classList.add("hidden"); spin.classList.remove("hidden");
 
   try {
     const res = await fetch(`${API_BASE}/auth/login`, {
       method: "POST",
       headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({student_id, password})
+      body: JSON.stringify({ student_id, password })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || "Login failed");
-    
     localStorage.setItem("user", JSON.stringify(data));
-    showToast("Logged in successfully!", "success");
-    setTimeout(() => location.reload(), 600);
+    location.reload();
   } catch(err) {
     showToast(err.message, "error");
   } finally {
-    btn.disabled = false;
-    text.classList.remove("hidden");
-    spinner.classList.add("hidden");
+    btn.disabled = false; text.classList.remove("hidden"); spin.classList.add("hidden");
   }
 }
 
@@ -120,15 +82,12 @@ async function handleRegister() {
   const q1 = document.getElementById("secQ1").value.trim();
   const a1 = document.getElementById("secA1").value.trim();
 
-  if (!name || !student_id || !password || !q1 || !a1) return showToast("Please complete all inputs", "error");
+  if (!name || !student_id || !password || !q1 || !a1) return showToast("Fill all fields", "error");
 
   const btn = document.getElementById("regSubmitBtn");
-  const text = document.getElementById("regBtnText");
-  const spinner = document.getElementById("regSpinner");
-
-  btn.disabled = true;
-  text.classList.add("hidden");
-  spinner.classList.remove("hidden");
+  const text = document.getElementById("regText");
+  const spin = document.getElementById("regSpin");
+  btn.disabled = true; text.classList.add("hidden"); spin.classList.remove("hidden");
 
   try {
     const res = await fetch(`${API_BASE}/auth/register`, {
@@ -138,15 +97,12 @@ async function handleRegister() {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || "Registration failed");
-    
-    showToast("Account registered! Please login.", "success");
-    showRegisterForm(false);
+    showToast("Registration Complete! Please Login", "success");
+    toggleAuthForms(false);
   } catch(err) {
     showToast(err.message, "error");
   } finally {
-    btn.disabled = false;
-    text.classList.remove("hidden");
-    spinner.classList.add("hidden");
+    btn.disabled = false; text.classList.remove("hidden"); spin.classList.add("hidden");
   }
 }
 
@@ -155,168 +111,269 @@ function handleLogout() {
   location.reload();
 }
 
-function openProfileModal() {
-  if (!currentUser) return toggleAuthModal(true);
-  document.getElementById("profName").innerText = currentUser.name;
-  document.getElementById("profId").innerText = `ID: ${currentUser.student_id}`;
-  
-  const roleBadge = document.getElementById("profRole");
-  if (currentUser.role === 'super_admin') {
-    roleBadge.innerText = "Super Admin";
-    roleBadge.className = "inline-block text-[11px] px-2.5 py-0.5 rounded-full font-semibold bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400";
-  } else {
-    roleBadge.innerText = "Verified Student";
-    roleBadge.className = "inline-block text-[11px] px-2.5 py-0.5 rounded-full font-semibold bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400";
+function toggleSidebar(show) { document.getElementById("sideDrawer").classList.toggle("hidden", !show); }
+function toggleDropdown(id) {
+  const drop = document.getElementById(id);
+  drop.classList.toggle("hidden");
+}
+
+window.addEventListener('click', (e) => {
+  if (!e.target.closest('#actionsDropdownMenu') && !e.target.closest('button[onclick*="actionsDropdownMenu"]')) {
+    document.getElementById("actionsDropdownMenu").classList.add("hidden");
   }
-  document.getElementById("profileModal").classList.remove("hidden");
-}
+  if (!e.target.closest('#sortDropdownMenu') && !e.target.closest('button[onclick*="sortDropdownMenu"]')) {
+    document.getElementById("sortDropdownMenu").classList.add("hidden");
+  }
+  if (!e.target.closest('#itemActionMenu') && !e.target.closest('button[onclick*="openItemActionMenu"]')) {
+    document.getElementById("itemActionMenu").classList.add("hidden");
+  }
+});
 
-function closeProfileModal() {
-  document.getElementById("profileModal").classList.add("hidden");
-}
-
-// --- Folder Management ---
 async function loadFolders() {
   try {
     const res = await fetch(`${API_BASE}/folders/list`);
-    const folders = await res.json();
+    allFolders = await res.json();
+    const container = document.getElementById("drawerFolderList");
+    const moveSelect = document.getElementById("moveFolderSelect");
     
-    const sidebarList = document.getElementById("sidebarFolderList");
-    const uploadSelect = document.getElementById("uploadFolderSelect");
-    
-    sidebarList.innerHTML = `<div onclick="selectFolder('/')" class="flex items-center justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer ${currentSelectedFolder === '/' ? 'text-indigo-500 font-bold' : ''}"><span><i class="fa-solid fa-house mr-2"></i>Root Folder (/)</span></div>`;
-    uploadSelect.innerHTML = `<option value="/">Root Folder (/)</option>`;
+    container.innerHTML = `<div onclick="selectFolder('/')" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer ${currentSelectedFolder === '/' ? 'font-bold text-blue-600' : ''}"><i class="fa-solid fa-house mr-2"></i>Home</div>`;
+    moveSelect.innerHTML = `<option value="/">Home (/)</option>`;
 
-    folders.forEach(f => {
-      if (f.folder_name !== '/') {
-        sidebarList.innerHTML += `
-          <div onclick="selectFolder('${f.folder_name}')" class="flex items-center justify-between p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer ${currentSelectedFolder === f.folder_name ? 'text-indigo-500 font-bold' : ''}">
-            <span><i class="fa-regular fa-folder text-amber-500 mr-2"></i>${f.folder_name}</span>
+    allFolders.forEach(f => {
+      if(f.folder_name !== '/') {
+        container.innerHTML += `
+          <div onclick="selectFolder('${f.folder_name}')" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer ${currentSelectedFolder === f.folder_name ? 'font-bold text-blue-600' : ''}">
+            <i class="fa-regular fa-folder text-amber-500 mr-2"></i>${f.folder_name}
           </div>
         `;
-        uploadSelect.innerHTML += `<option value="${f.folder_name}">${f.folder_name}</option>`;
+        moveSelect.innerHTML += `<option value="${f.folder_name}">${f.folder_name}</option>`;
       }
     });
   } catch(e) { console.error(e); }
 }
 
-function selectFolder(name) {
-  currentSelectedFolder = name;
-  document.getElementById("currentFolderTitle").innerText = name === '/' ? 'All Materials' : name;
+function selectFolder(path) {
+  currentSelectedFolder = path;
+  document.getElementById("breadcrumbPath").innerHTML = path === '/' ? '' : ` / <span class="text-slate-800 dark:text-white">${path}</span>`;
   loadFolders();
-  loadFiles();
-  toggleSidebar(false);
+  renderFilesTable();
 }
 
-async function handleCreateFolder() {
-  const name = document.getElementById("newFolderNameInput").value.trim();
-  if (!name) return showToast("Folder name is required", "error");
+function openFolderModal() { document.getElementById("folderModal").classList.remove("hidden"); }
+function closeFolderModal() { document.getElementById("folderModal").classList.add("hidden"); }
 
+async function handleCreateFolder() {
+  const name = document.getElementById("newFolderName").value.trim();
+  if (!name) return showToast("Enter folder name", "error");
   const formData = new FormData();
   formData.append("folder_name", name);
-
   try {
     const res = await fetch(`${API_BASE}/folders/create`, { method: "POST", body: formData });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "Failed to create folder");
-    
-    showToast("Folder created successfully!", "success");
-    document.getElementById("newFolderNameInput").value = "";
+    if (!res.ok) throw new Error(data.detail);
+    showToast("Folder created!", "success");
     closeFolderModal();
+    document.getElementById("newFolderName").value = "";
     loadFolders();
   } catch(err) {
     showToast(err.message, "error");
   }
 }
 
-function openFolderModal() { document.getElementById("folderModal").classList.remove("hidden"); }
-function closeFolderModal() { document.getElementById("folderModal").classList.add("hidden"); }
-
-// --- File Storage & Upload Operations ---
-function openUploadModal() { document.getElementById("uploadModal").classList.remove("hidden"); }
-function closeUploadModal() { document.getElementById("uploadModal").classList.add("hidden"); }
-
-async function handleFileUpload() {
-  const fileInput = document.getElementById("slideFileInput");
-  const folder = document.getElementById("uploadFolderSelect").value;
-  if (!fileInput.files[0]) return showToast("Please select a file to upload", "error");
-
+// Upload with Progress Bar Modal
+function uploadSelectedFile(input) {
+  if (!currentUser) return toggleAuthModal(true);
+  if (!input.files[0]) return;
+  
+  const file = input.files[0];
   const formData = new FormData();
-  formData.append("file", fileInput.files[0]);
-  formData.append("folder", folder);
+  formData.append("file", file);
+  formData.append("folder", currentSelectedFolder);
 
-  const btn = document.getElementById("uploadSubmitBtn");
-  const text = document.getElementById("uploadBtnText");
-  const spinner = document.getElementById("uploadSpinner");
+  const progressModal = document.getElementById("uploadProgressModal");
+  const progressBar = document.getElementById("uploadProgressBar");
+  const progressText = document.getElementById("uploadProgressText");
 
-  btn.disabled = true;
-  text.classList.add("hidden");
-  spinner.classList.remove("hidden");
+  progressModal.classList.remove("hidden");
+  progressBar.style.width = "0%";
+  progressText.innerText = `0 KB / ${formatBytes(file.size)}`;
 
-  try {
-    const res = await fetch(`${API_BASE}/slides/upload`, { method: "POST", body: formData });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "Upload failed");
-    
-    showToast("Slide uploaded successfully!", "success");
-    closeUploadModal();
-    fileInput.value = "";
-    loadFiles();
-  } catch(err) {
-    showToast(err.message, "error");
-  } finally {
-    btn.disabled = false;
-    text.classList.remove("hidden");
-    spinner.classList.add("hidden");
-  }
+  const xhr = new XMLHttpRequest();
+  xhr.open("POST", `${API_BASE}/slides/upload`, true);
+
+  xhr.upload.onprogress = (e) => {
+    if (e.lengthComputable) {
+      const percent = Math.round((e.loaded / e.total) * 100);
+      progressBar.style.width = `${percent}%`;
+      progressText.innerText = `${formatBytes(e.loaded)} / ${formatBytes(e.total)}`;
+    }
+  };
+
+  xhr.onload = () => {
+    progressModal.classList.add("hidden");
+    input.value = "";
+    if (xhr.status >= 200 && xhr.status < 300) {
+      showToast("Uploaded successfully to cloud storage!", "success");
+      loadFiles();
+    } else {
+      showToast("Upload failed, please try again.", "error");
+    }
+  };
+
+  xhr.onerror = () => {
+    progressModal.classList.add("hidden");
+    showToast("Network error during upload", "error");
+  };
+
+  xhr.send(formData);
 }
 
 async function loadFiles() {
-  if (!currentUser) return;
   try {
     const res = await fetch(`${API_BASE}/slides/list`);
-    let files = await res.json();
-    
-    if (currentSelectedFolder !== '/') {
-      files = files.filter(f => f.folder_path === currentSelectedFolder);
-    }
-
-    const container = document.getElementById("fileContainer");
-    if (files.length === 0) {
-      container.innerHTML = `<p class="text-slate-400 dark:text-slate-500 text-xs text-center py-6">No slides found in this folder.</p>`;
-      return;
-    }
-    
-    container.innerHTML = files.map(f => `
-      <div class="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 hover:border-indigo-500 transition">
-        <div class="flex items-center gap-3 overflow-hidden">
-          <input type="checkbox" data-id="${f.telegram_message_id}" data-name="${f.file_name}" class="file-checkbox rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950">
-          <i class="fa-solid fa-file-pdf text-rose-500 text-lg"></i>
-          <span class="text-xs truncate font-medium text-slate-700 dark:text-slate-200 cursor-pointer hover:underline" onclick="openViewer(${f.telegram_message_id}, '${f.file_name}')">${f.file_name}</span>
-        </div>
-        <button onclick="openViewer(${f.telegram_message_id}, '${f.file_name}')" class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline px-2 py-1">
-          <i class="fa-solid fa-eye mr-1"></i> Preview
-        </button>
-      </div>
-    `).join('');
+    allFiles = await res.json();
+    renderFilesTable();
   } catch(e) { console.error(e); }
 }
 
-function openViewer(id, name) {
-  document.getElementById("previewFileName").innerText = name;
-  document.getElementById("pdfFrame").src = `${API_BASE}/slides/stream/${id}`;
-  document.getElementById("pdfModal").classList.remove("hidden");
+function renderFilesTable() {
+  const container = document.getElementById("fileTableContent");
+  const filtered = currentSelectedFolder === '/' ? allFiles : allFiles.filter(f => f.folder_path === currentSelectedFolder);
+
+  if (filtered.length === 0) {
+    container.innerHTML = `<div class="text-center py-10 text-slate-400">No files in this folder.</div>`;
+    return;
+  }
+
+  container.innerHTML = filtered.map(f => `
+    <div class="grid grid-cols-12 px-4 py-3 items-center hover:bg-slate-50 dark:hover:bg-slate-800/50">
+      <div class="col-span-8 md:col-span-9 flex items-center gap-3 overflow-hidden">
+        <input type="checkbox" value="${f.id}" data-id="${f.telegram_message_id}" data-name="${f.file_name}" class="file-item-check rounded border-slate-300">
+        <i class="fa-solid fa-file-lines text-slate-400 text-sm"></i>
+        <span onclick="openPreview('${f.file_name}', ${f.telegram_message_id})" class="truncate cursor-pointer hover:text-blue-600 font-medium">${f.file_name}</span>
+      </div>
+      <div class="col-span-4 md:col-span-3 flex items-center justify-end gap-3 text-slate-400 font-mono">
+        <span>${formatBytes(f.file_size)}</span>
+        <button onclick="openItemActionMenu(event, '${f.id}', ${f.telegram_message_id}, '${f.file_name}')" class="hover:text-slate-600 p-1">
+          <i class="fa-solid fa-ellipsis-vertical"></i>
+        </button>
+      </div>
+    </div>
+  `).join('');
 }
 
-function closeViewer() {
-  document.getElementById("pdfModal").classList.add("hidden");
-  document.getElementById("pdfFrame").src = "";
+// 3-Dots Action Menu Handling
+function openItemActionMenu(e, id, messageId, name) {
+  e.stopPropagation();
+  activeContextItem = { id, messageId, name };
+  const menu = document.getElementById("itemActionMenu");
+  
+  const rect = e.target.getBoundingClientRect();
+  menu.style.top = `${rect.bottom + window.scrollY + 4}px`;
+  menu.style.left = `${Math.min(rect.left + window.scrollX - 120, window.innerWidth - 180)}px`;
+  menu.classList.remove("hidden");
+}
+
+function triggerDownloadCurrentItem() {
+  if (!activeContextItem) return;
+  const a = document.createElement("a");
+  a.href = `${API_BASE}/slides/stream/${activeContextItem.messageId}`;
+  a.download = activeContextItem.name;
+  a.click();
+  document.getElementById("itemActionMenu").classList.add("hidden");
+}
+
+function copyCurrentShareLink() {
+  if (!activeContextItem) return;
+  const link = `${API_BASE}/slides/stream/${activeContextItem.messageId}`;
+  navigator.clipboard.writeText(link);
+  showToast("Direct download link copied to clipboard!", "success");
+  document.getElementById("itemActionMenu").classList.add("hidden");
+}
+
+function openMoveModalForCurrentItem() {
+  if (!activeContextItem) return;
+  document.getElementById("moveTargetFileId").value = activeContextItem.id;
+  document.getElementById("itemActionMenu").classList.add("hidden");
+  document.getElementById("moveModal").classList.remove("hidden");
+}
+
+function closeMoveModal() {
+  document.getElementById("moveModal").classList.add("hidden");
+}
+
+async function executeMoveFile() {
+  const fileId = document.getElementById("moveTargetFileId").value;
+  const target = document.getElementById("moveFolderSelect").value;
+  try {
+    const res = await fetch(`${API_BASE}/slides/move`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file_id: fileId, target_folder: target })
+    });
+    if (!res.ok) throw new Error("Move failed");
+    showToast(`Moved to ${target}`, "success");
+    closeMoveModal();
+    loadFiles();
+  } catch(err) {
+    showToast(err.message, "error");
+  }
+}
+
+async function deleteCurrentItem() {
+  if (!activeContextItem) return;
+  document.getElementById("itemActionMenu").classList.add("hidden");
+  try {
+    const res = await fetch(`${API_BASE}/slides/delete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file_ids: [activeContextItem.id] })
+    });
+    if (!res.ok) throw new Error("Delete failed");
+    showToast("File deleted", "success");
+    loadFiles();
+  } catch(err) {
+    showToast(err.message, "error");
+  }
+}
+
+function toggleSelectAll(el) {
+  document.querySelectorAll(".file-item-check").forEach(cb => cb.checked = el.checked);
+}
+
+function sortFiles(type) {
+  const label = document.getElementById("currentSortLabel");
+  if (type === 'name_asc') { allFiles.sort((a,b) => a.file_name.localeCompare(b.file_name)); label.innerText = "Name A - Z"; }
+  if (type === 'name_desc') { allFiles.sort((a,b) => b.file_name.localeCompare(a.file_name)); label.innerText = "Name Z - A"; }
+  if (type === 'newest') { allFiles.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)); label.innerText = "Newest"; }
+  if (type === 'oldest') { allFiles.sort((a,b) => new Date(a.created_at) - new Date(b.created_at)); label.innerText = "Oldest"; }
+  if (type === 'largest') { allFiles.sort((a,b) => (b.file_size || 0) - (a.file_size || 0)); label.innerText = "Largest"; }
+  if (type === 'smallest') { allFiles.sort((a,b) => (a.file_size || 0) - (b.file_size || 0)); label.innerText = "Smallest"; }
+  renderFilesTable();
+}
+
+async function deleteSelected() {
+  if (!currentUser) return toggleAuthModal(true);
+  const checked = document.querySelectorAll(".file-item-check:checked");
+  if (checked.length === 0) return showToast("No files selected", "error");
+
+  const ids = Array.from(checked).map(c => c.value);
+  try {
+    const res = await fetch(`${API_BASE}/slides/delete`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ file_ids: ids })
+    });
+    if(!res.ok) throw new Error("Delete failed");
+    showToast("Files deleted", "success");
+    loadFiles();
+  } catch(err) { showToast(err.message, "error"); }
 }
 
 async function downloadSelectedZip() {
-  const checked = document.querySelectorAll(".file-checkbox:checked");
-  if (checked.length === 0) return showToast("Select at least one slide to download ZIP", "error");
-  
+  const checked = document.querySelectorAll(".file-item-check:checked");
+  if (checked.length === 0) return showToast("Select files to download", "error");
+
   showToast("Packing ZIP archive...", "info");
   const zip = new JSZip();
   for (let box of checked) {
@@ -326,30 +383,47 @@ async function downloadSelectedZip() {
     const blob = await res.blob();
     zip.file(name, blob);
   }
-  const zipBlob = await zip.generateAsync({type: "blob"});
+  const zipBlob = await zip.generateAsync({ type: "blob" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(zipBlob);
-  link.download = "Course_Materials.zip";
+  link.download = "downloaded_files.zip";
   link.click();
-  showToast("Download started!", "success");
+  showToast("ZIP download started!", "success");
 }
 
-// --- Live WebSockets Chat ---
-function initWebSocket() {
-  if (!currentUser) return;
-  document.getElementById("chatInput").disabled = false;
-  document.getElementById("chatSendBtn").disabled = false;
+function openPreview(name, id) {
+  document.getElementById("previewTitle").innerText = name;
+  document.getElementById("previewFrame").src = `${API_BASE}/slides/stream/${id}`;
+  document.getElementById("previewDownloadDirect").href = `${API_BASE}/slides/stream/${id}`;
+  document.getElementById("previewModal").classList.remove("hidden");
+}
+function closePreview() {
+  document.getElementById("previewModal").classList.add("hidden");
+  document.getElementById("previewFrame").src = "";
+}
 
+// Live Chat Handlers
+function openChatWindow() {
+  if (!currentUser) return toggleAuthModal(true);
+  document.getElementById("chatModal").classList.remove("hidden");
+  initWebSocket();
+}
+function closeChatWindow() { document.getElementById("chatModal").classList.add("hidden"); }
+
+function initWebSocket() {
   fetch(`${API_BASE}/chat/history`)
     .then(res => res.json())
     .then(msgs => {
-      document.getElementById("chatMessages").innerHTML = "";
+      const box = document.getElementById("chatMessages");
+      box.innerHTML = "";
       msgs.forEach(appendMessage);
     });
 
-  const wsUrl = API_BASE.replace("https://", "wss://").replace("http://", "ws://") + "/ws/chat";
-  ws = new WebSocket(wsUrl);
-  ws.onmessage = (e) => appendMessage(JSON.parse(e.data));
+  if (!ws) {
+    const wsUrl = API_BASE.replace("https://", "wss://").replace("http://", "ws://") + "/ws/chat";
+    ws = new WebSocket(wsUrl);
+    ws.onmessage = (e) => appendMessage(JSON.parse(e.data));
+  }
 }
 
 function appendMessage(msg) {
@@ -359,7 +433,7 @@ function appendMessage(msg) {
   el.className = `flex flex-col ${isMe ? 'items-end' : 'items-start'}`;
   el.innerHTML = `
     <span class="text-[9px] text-slate-400 mb-0.5">${msg.sender_name} (${msg.student_id})</span>
-    <div class="px-3 py-1.5 rounded-2xl max-w-[85%] text-xs ${isMe ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-none'}">
+    <div class="px-3 py-1.5 rounded-2xl max-w-[80%] text-xs ${isMe ? 'bg-blue-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200'}">
       ${msg.message}
     </div>
   `;
@@ -375,11 +449,7 @@ function sendLiveMessage(e) {
   input.value = "";
 }
 
-// --- Init ---
-initTheme();
+// App Launch
 renderHeader();
 loadFolders();
-if (currentUser) {
-  loadFiles();
-  initWebSocket();
-}
+loadFiles();
