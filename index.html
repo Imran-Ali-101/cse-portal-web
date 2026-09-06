@@ -86,7 +86,7 @@
     <!-- Main File Manager UI -->
     <main class="flex-1 max-w-6xl w-full mx-auto p-4 space-y-4">
       
-      <!-- Upload Dropzone Container (Admin Only with Multi-upload support) -->
+      <!-- Upload Dropzone Container -->
       <div id="adminDropzoneArea" class="hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 text-center shadow-xs">
         <div class="dashed-border rounded-xl p-8 flex flex-col items-center justify-center gap-3">
           <div class="w-12 h-12 bg-blue-50 dark:bg-slate-800 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center text-xl">
@@ -97,7 +97,6 @@
           </p>
           
           <div class="flex flex-wrap items-center justify-center gap-2 mt-2">
-            <!-- Enabled multiple attribute for bulk upload -->
             <input type="file" id="directFileInput" multiple onchange="uploadSelectedFiles(this)" class="hidden">
             <button onclick="document.getElementById('directFileInput').click()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm">
               <i class="fa-solid fa-file-circle-plus"></i> Upload Files
@@ -117,7 +116,6 @@
             Select All
           </label>
 
-          <!-- Actions Dropdown -->
           <div class="relative">
             <button onclick="toggleDropdown('actionsDropdownMenu')" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
               Actions <i class="fa-solid fa-chevron-down text-[10px]"></i>
@@ -189,7 +187,6 @@
             <i class="fa-solid fa-hard-drive"></i> Storage Drive
           </a>
           
-          <!-- Notice Board Navigation Item with Red Notification Pill -->
           <button onclick="openNoticeBoardModal(); toggleSidebar(false);" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300">
             <span class="flex items-center gap-3"><i class="fa-solid fa-bullhorn text-amber-500"></i> Notice Board</span>
             <span id="noticeBadgeCount" class="hidden px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500 text-white">NEW</span>
@@ -199,13 +196,13 @@
             <span class="flex items-center gap-3"><i class="fa-solid fa-comments text-emerald-500"></i> Live Class Chat</span>
             <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
           </button>
-          
-          <a href="tools/cgpa.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300">
-            <i class="fa-solid fa-calculator text-indigo-500"></i> CGPA / GPA Suite
-          </a>
+
+          <!-- Dynamic Tools Container -->
+          <div id="dynamicToolsContainer" class="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1">
+            <span class="text-[10px] font-bold text-indigo-500 uppercase tracking-wider block mb-1">Academic Tools</span>
+          </div>
         </nav>
 
-        <!-- Admin Management Section -->
         <div id="adminSidebarSection" class="hidden pt-4 border-t border-slate-200 dark:border-slate-800 space-y-1">
           <span class="text-[10px] font-bold text-rose-500 uppercase tracking-wider block mb-2">Administration</span>
           <button onclick="openUserManagementModal(); toggleSidebar(false);" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 font-medium">
@@ -224,15 +221,32 @@
     </div>
   </div>
 
-  <!-- Notice Board Modal Window -->
+  <!-- Notice Board Modal Window (With Custom Notice Creation & Clear All) -->
   <div id="noticeBoardModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs modal-hidden modal-backdrop z-50 flex items-center justify-center p-3 md:p-6">
-    <div class="modal-box bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-xl h-[550px] rounded-2xl shadow-2xl flex flex-col overflow-hidden relative">
+    <div class="modal-box bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-xl h-[580px] rounded-2xl shadow-2xl flex flex-col overflow-hidden relative">
       <div class="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950">
         <div class="flex items-center gap-2">
           <i class="fa-solid fa-bullhorn text-amber-500"></i>
-          <span class="font-bold text-sm">Notice Board (Recent Uploads)</span>
+          <span class="font-bold text-sm">Notice Board</span>
         </div>
-        <button onclick="closeNoticeBoardModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+        <div class="flex items-center gap-2">
+          <!-- Admin Only Clear All Notices Button -->
+          <button id="adminClearNoticesBtn" onclick="confirmClearAllNotices()" class="hidden px-2.5 py-1 text-[11px] font-semibold bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400 rounded-lg border border-rose-200 dark:border-rose-900">
+            <i class="fa-solid fa-broom mr-1"></i> Clear All
+          </button>
+          <button onclick="closeNoticeBoardModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+        </div>
+      </div>
+
+      <!-- Admin Custom Notice Box -->
+      <div id="adminNoticeComposer" class="hidden p-3 bg-amber-50/50 dark:bg-amber-950/20 border-b border-slate-200 dark:border-slate-800 flex flex-col gap-2">
+        <input id="customNoticeTitle" type="text" placeholder="Notice Title..." class="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-1.5 text-xs font-semibold">
+        <textarea id="customNoticeMsg" rows="2" placeholder="Write custom announcement message..." class="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-1.5 text-xs"></textarea>
+        <div class="flex justify-end">
+          <button onclick="postCustomNotice()" class="bg-amber-600 hover:bg-amber-500 text-white px-4 py-1 rounded-lg text-xs font-semibold flex items-center gap-1">
+            <i class="fa-solid fa-paper-plane"></i> Broadcast Notice
+          </button>
+        </div>
       </div>
 
       <div id="noticesListContainer" class="flex-1 p-4 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 text-xs">
@@ -250,31 +264,35 @@
           <i class="fa-solid fa-file-arrow-up"></i>
         </div>
         <div>
-          <h3 class="font-bold text-sm text-slate-800 dark:text-white">Uploaded File Details</h3>
-          <span id="ndTime" class="text-[11px] text-slate-400"></span>
+          <h3 id="ndModalHeading" class="font-bold text-sm text-slate-800 dark:text-white">Notice Details</h3>
+          <span id="ndTime" class="text-[11px] text-slate-400 font-mono"></span>
         </div>
       </div>
       <div class="space-y-3 bg-slate-50 dark:bg-slate-950/60 p-4 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
-        <div>
+        <div id="ndFileBox">
           <span class="text-slate-400 block text-[10px] uppercase font-bold">File Name:</span>
           <span id="ndFileName" class="font-semibold text-slate-800 dark:text-slate-200 break-all"></span>
         </div>
-        <div>
-          <span class="text-slate-400 block text-[10px] uppercase font-bold">Location / Folder:</span>
+        <div id="ndFolderBox">
+          <span class="text-slate-400 block text-[10px] uppercase font-bold">Folder Location:</span>
           <span id="ndFolderPath" class="font-mono text-blue-600 dark:text-blue-400 break-all"></span>
         </div>
+        <div id="ndCustomMsgBox" class="hidden">
+          <span class="text-slate-400 block text-[10px] uppercase font-bold">Announcement Message:</span>
+          <p id="ndCustomMsg" class="text-slate-700 dark:text-slate-300 leading-relaxed"></p>
+        </div>
         <div>
-          <span class="text-slate-400 block text-[10px] uppercase font-bold">Uploaded By:</span>
+          <span class="text-slate-400 block text-[10px] uppercase font-bold">Published By:</span>
           <span id="ndUploader" class="text-slate-700 dark:text-slate-300"></span>
         </div>
       </div>
-      <button onclick="goToNoticeFolder()" class="mt-4 w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-2">
-        <i class="fa-solid fa-folder-open"></i> Go to Folder
+      <button id="ndGoFolderBtn" onclick="goToNoticeFolder()" class="mt-4 w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-2">
+        <i class="fa-solid fa-folder-open"></i> Go to Folder Location
       </button>
     </div>
   </div>
 
-  <!-- Rename Modal (File or Folder) -->
+  <!-- Rename Modal -->
   <div id="renameModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs modal-hidden modal-backdrop z-50 flex items-center justify-center p-4">
     <div class="modal-box bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-sm p-5 rounded-2xl shadow-2xl relative">
       <button onclick="closeRenameModal()" class="absolute top-4 right-4 text-slate-400"><i class="fa-solid fa-xmark"></i></button>
@@ -287,12 +305,11 @@
     </div>
   </div>
 
-  <!-- Universal In-Browser PDF & Image Preview Modal (With Live Page Tracker) -->
+  <!-- In-Browser Universal PDF Preview Modal with Live Page Tracker -->
   <div id="previewModal" class="fixed inset-0 bg-black/90 backdrop-blur-xs modal-hidden modal-backdrop z-50 flex flex-col">
     <div class="p-3 bg-slate-900 border-b border-slate-800 flex justify-between items-center px-4 md:px-6">
       <div class="flex items-center gap-3 max-w-[65%]">
         <span id="previewTitle" class="text-xs font-semibold text-slate-200 truncate"></span>
-        <!-- Live PDF Page Counter -->
         <span id="pdfPageIndicator" class="hidden font-mono text-[10px] bg-slate-800 text-blue-400 border border-slate-700 px-2 py-0.5 rounded-full whitespace-nowrap"></span>
       </div>
       <div class="flex items-center gap-4">
@@ -316,7 +333,7 @@
           <h2 class="font-bold text-sm text-slate-800 dark:text-white flex items-center gap-2">
             Live Class Hub <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
           </h2>
-          <span class="text-[10px] text-slate-400">Real-time room conversation</span>
+          <span class="text-[10px] text-slate-400">Real-time conversation</span>
         </div>
       </div>
       <div class="flex items-center gap-2">
@@ -328,9 +345,7 @@
         </button>
       </div>
     </div>
-    
     <div id="chatMessages" class="flex-1 p-4 md:p-6 overflow-y-auto space-y-3 max-w-4xl w-full mx-auto text-xs"></div>
-    
     <form id="chatForm" onsubmit="sendLiveMessage(event)" class="p-3 md:p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900">
       <div class="max-w-4xl w-full mx-auto flex gap-2">
         <input id="chatInput" type="text" placeholder="Type a message..." class="flex-1 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-200">
@@ -341,7 +356,7 @@
     </form>
   </div>
 
-  <!-- User Management Modal Window -->
+  <!-- User Management Modal -->
   <div id="userManagementModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs modal-hidden modal-backdrop z-50 flex items-center justify-center p-3 md:p-6">
     <div class="modal-box bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-3xl h-[600px] rounded-2xl shadow-2xl flex flex-col overflow-hidden relative">
       <div class="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950">
@@ -392,7 +407,7 @@
     </div>
   </div>
 
-  <!-- 3-Dots Action Menu (With Rename support) -->
+  <!-- 3-Dots Action Menu (With Hide/Lock & Rename support) -->
   <div id="itemActionMenu" class="hidden fixed bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl py-1 z-50 w-52 text-xs">
     <!-- File Specific Items -->
     <button id="menuDownloadBtn" onclick="triggerDownloadCurrentItem()" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 text-slate-700 dark:text-slate-200">
@@ -414,6 +429,10 @@
     <!-- Folder Specific Items -->
     <button id="menuDownloadFolderBtn" onclick="triggerDownloadTargetFolder()" class="hidden w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 text-blue-600 font-medium">
       <i class="fa-solid fa-file-zipper text-blue-500"></i> Download Full Folder
+    </button>
+    <!-- Lock / Hide Folder (Exclusive Primary Super Admin) -->
+    <button id="menuToggleLockBtn" onclick="toggleCurrentFolderLock()" class="hidden w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 text-amber-600 font-medium border-t border-slate-100 dark:border-slate-800">
+      <i id="menuToggleLockIcon" class="fa-solid fa-eye-slash"></i> <span id="menuToggleLockText">Hide Folder</span>
     </button>
     <button id="menuDeleteFolderBtn" onclick="deleteCurrentFolder()" class="hidden w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-rose-600 flex items-center gap-2 border-t border-slate-100 dark:border-slate-800">
       <i class="fa-regular fa-trash-can"></i> Delete Folder
