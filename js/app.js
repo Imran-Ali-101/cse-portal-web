@@ -170,6 +170,21 @@ async function renderPortalView() {
       </button>
     `;
   }
+  // Back/Forward button handle করবে
+  window.addEventListener('popstate', (e) => {
+    if (!currentUser) return;
+    const folder = e.state?.folder || '/';
+    currentSelectedFolder = folder;
+    document.getElementById("activeFolderPathText").innerText = `Folder: ${currentSelectedFolder}`;
+    renderFilesTable();
+  });
+  // Page load বা refresh এ URL থেকে folder পড়বে
+  function restoreFolderFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const folder = params.get('folder') || '/';
+    currentSelectedFolder = folder;
+    history.replaceState({ folder }, '', folder === '/' ? '/' : '/?folder=' + encodeURIComponent(folder));
+  }
 }
 
 function toggleAuthModal(show, isRegister = false) { 
@@ -487,6 +502,11 @@ function selectFolder(path) {
 
   currentSelectedFolder = (target !== '/' && target.endsWith('/')) ? target.slice(0, -1) : target;
   document.getElementById("activeFolderPathText").innerText = `Folder: ${currentSelectedFolder}`;
+  
+  // URL update করো
+  const newUrl = currentSelectedFolder === '/' ? '/' : '/?folder=' + encodeURIComponent(currentSelectedFolder);
+  history.pushState({ folder: currentSelectedFolder }, '', newUrl);
+  
   renderFilesTable();
 }
 
