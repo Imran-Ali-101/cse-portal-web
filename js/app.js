@@ -600,8 +600,8 @@ function sortFiles(type) {
   const label = document.getElementById("currentSortLabel");
 
   const sortFn = (a, b, isFolder = false) => {
-    const nameA = isFolder ? a.folder_name.split('/').filter(Boolean).pop() : a.file_name;
-    const nameB = isFolder ? b.folder_name.split('/').filter(Boolean).pop() : b.file_name;
+    const nameA = (isFolder ? (a.folder_name || '').split('/').filter(Boolean).pop() : a.file_name) || '';
+    const nameB = (isFolder ? (b.folder_name || '').split('/').filter(Boolean).pop() : b.file_name) || '';
 
     if (type === 'name_asc') return nameA.localeCompare(nameB);
     if (type === 'name_desc') return nameB.localeCompare(nameA);
