@@ -1657,38 +1657,82 @@ async function renderPdfPages(scale) {
   pageIndicator.innerText = `Page 1 of ${currentPdfDoc.numPages}`;
   pageIndicator.classList.remove("hidden");
 
-  const pageCanvases = [];
+  const dpr = window.devicePixelRatio || 1;
+  const totalPages = currentPdfDoc.numPages;
+  const renderedPages = new Set();
+  const pageWrappers = [];
 
-  for (let pageNum = 1; pageNum <= currentPdfDoc.numPages; pageNum++) {
+  // Create placeholder divs for all pages first
+  const firstPage = await currentPdfDoc.getPage(1);
+  const firstViewport = firstPage.getViewport({ scale: scale * dpr });
+  const pageWidth = firstViewport.width / dpr;
+  const pageHeight = firstViewport.height / dpr;
+
+  for (let i = 1; i <= totalPages; i++) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "pdf-page-canvas";
+    wrapper.setAttribute("data-page-number", i);
+    wrapper.style.width = pageWidth + "px";
+    wrapper.style.height = pageHeight + "px";
+    wrapper.style.backgroundColor = "#fff";
+    wrapper.style.marginBottom = "16px";
+    wrapper.style.borderRadius = "6px";
+    wrapper.style.boxShadow = "0 4px 14px rgba(0,0,0,0.2)";
+    wrapper.style.display = "flex";
+    wrapper.style.alignItems = "center";
+    wrapper.style.justifyContent = "center";
+    wrapper.innerHTML = `<span style="color:#94a3b8;font-size:11px;">Page ${i}</span>`;
+    container.appendChild(wrapper);
+    pageWrappers.push(wrapper);
+  }
+
+  // Function to render a single page
+  async function renderPage(pageNum) {
+    if (renderedPages.has(pageNum)) return;
+    renderedPages.add(pageNum);
+
+    const wrapper = pageWrappers[pageNum - 1];
     const page = await currentPdfDoc.getPage(pageNum);
-    const dpr = window.devicePixelRatio || 1;
     const viewport = page.getViewport({ scale: scale * dpr });
 
     const canvas = document.createElement("canvas");
-    canvas.className = "pdf-page-canvas w-full max-w-full";
-    canvas.setAttribute("data-page-number", pageNum);
-    const ctx = canvas.getContext("2d");
-    canvas.height = viewport.height;
     canvas.width = viewport.width;
-    canvas.style.width = (viewport.width / dpr) + 'px';
-    canvas.style.height = (viewport.height / dpr) + 'px';
+    canvas.height = viewport.height;
+    canvas.style.width = (viewport.width / dpr) + "px";
+    canvas.style.height = (viewport.height / dpr) + "px";
+    canvas.style.display = "block";
 
-    container.appendChild(canvas);
-    pageCanvases.push(canvas);
+    wrapper.innerHTML = "";
+    wrapper.style.height = "auto";
+    wrapper.appendChild(canvas);
 
-    await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+    await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+  }
+
+  // Render first 3 pages immediately
+  for (let i = 1; i <= Math.min(3, totalPages); i++) {
+    await renderPage(i);
   }
 
   container.scrollTop = 0;
 
+  // Render nearby pages on scroll
   container.onscroll = () => {
     const containerTop = container.getBoundingClientRect().top;
-    for (let canvas of pageCanvases) {
-      const rect = canvas.getBoundingClientRect();
-      if (rect.top - containerTop <= 160 && rect.bottom - containerTop > 40) {
-        const currentNum = canvas.getAttribute("data-page-number");
-        pageIndicator.innerText = `Page ${currentNum} of ${currentPdfDoc.numPages}`;
-        break;
+    const containerHeight = container.clientHeight;
+
+    for (let wrapper of pageWrappers) {
+      const rect = wrapper.getBoundingClientRect();
+      const pageNum = parseInt(wrapper.getAttribute("data-page-number"));
+
+      // Render pages that are visible or nearby
+      if (rect.top < containerTop + containerHeight + 1000 && rect.bottom > containerTop - 500) {
+        renderPage(pageNum);
+
+        // Update page indicator
+        if (rect.top - containerTop <= 160 && rect.bottom - containerTop > 40) {
+          pageIndicator.innerText = `Page ${pageNum} of ${totalPages}`;
+        }
       }
     }
   };
