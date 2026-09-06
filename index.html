@@ -27,9 +27,9 @@
       to { background-position: 0 0; }
     }
     .pdf-page-canvas {
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-      border-radius: 4px;
-      margin-bottom: 12px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+      border-radius: 6px;
+      margin-bottom: 16px;
       max-width: 100% !important;
       height: auto !important;
     }
@@ -37,14 +37,15 @@
 </head>
 <body class="bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100 min-h-screen flex flex-col antialiased">
 
-  <!-- Toast Container -->
+  <!-- Toast Notification Container -->
   <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
   <!-- Header -->
   <header class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 md:px-8 py-3 flex justify-between items-center sticky top-0 z-30 shadow-xs">
     <div class="flex items-center space-x-4">
-      <button id="sidebarToggleBtn" onclick="toggleSidebar(true)" class="p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
+      <button id="sidebarToggleBtn" onclick="toggleSidebar(true)" class="relative p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
         <i class="fa-solid fa-bars text-lg"></i>
+        <span id="headerUnseenNoticeDot" class="hidden absolute top-1.5 right-1.5 h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-white dark:ring-slate-900"></span>
       </button>
       <div class="flex items-center space-x-2">
         <i class="fa-solid fa-cloud text-blue-600 text-xl"></i>
@@ -85,20 +86,21 @@
     <!-- Main File Manager UI -->
     <main class="flex-1 max-w-6xl w-full mx-auto p-4 space-y-4">
       
-      <!-- Upload Dropzone Container (Admin Only) -->
+      <!-- Upload Dropzone Container (Admin Only with Multi-upload support) -->
       <div id="adminDropzoneArea" class="hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 text-center shadow-xs">
         <div class="dashed-border rounded-xl p-8 flex flex-col items-center justify-center gap-3">
           <div class="w-12 h-12 bg-blue-50 dark:bg-slate-800 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center text-xl">
             <i class="fa-solid fa-cloud-arrow-up"></i>
           </div>
           <p class="text-xs md:text-sm text-slate-500 dark:text-slate-400">
-            Drag & drop files or folders here, or click to select
+            Drag & drop files or folders here, or select multiple files
           </p>
           
           <div class="flex flex-wrap items-center justify-center gap-2 mt-2">
-            <input type="file" id="directFileInput" onchange="uploadSelectedFile(this)" class="hidden">
+            <!-- Enabled multiple attribute for bulk upload -->
+            <input type="file" id="directFileInput" multiple onchange="uploadSelectedFiles(this)" class="hidden">
             <button onclick="document.getElementById('directFileInput').click()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm">
-              <i class="fa-solid fa-file-circle-plus"></i> Files
+              <i class="fa-solid fa-file-circle-plus"></i> Upload Files
             </button>
             <button onclick="openFolderModal()" class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5">
               <i class="fa-regular fa-folder"></i> New Folder
@@ -166,7 +168,7 @@
   </div>
 
   <footer class="text-center text-[11px] text-slate-400 py-6 mt-auto">
-    Copyright © Md. Imran Ali
+    Copyright © Algorus - 33
   </footer>
 
   <!-- Sidebar Drawer (Triple Bar) -->
@@ -186,10 +188,18 @@
           <a href="#" onclick="selectFolder('/'); toggleSidebar(false);" class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 font-semibold">
             <i class="fa-solid fa-hard-drive"></i> Storage Drive
           </a>
+          
+          <!-- Notice Board Navigation Item with Red Notification Pill -->
+          <button onclick="openNoticeBoardModal(); toggleSidebar(false);" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300">
+            <span class="flex items-center gap-3"><i class="fa-solid fa-bullhorn text-amber-500"></i> Notice Board</span>
+            <span id="noticeBadgeCount" class="hidden px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500 text-white">NEW</span>
+          </button>
+
           <button onclick="openChatFullscreen(); toggleSidebar(false);" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300">
             <span class="flex items-center gap-3"><i class="fa-solid fa-comments text-emerald-500"></i> Live Class Chat</span>
             <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
           </button>
+          
           <a href="tools/cgpa.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300">
             <i class="fa-solid fa-calculator text-indigo-500"></i> CGPA / GPA Suite
           </a>
@@ -212,6 +222,87 @@
         <span class="font-mono text-emerald-500">Online</span>
       </div>
     </div>
+  </div>
+
+  <!-- Notice Board Modal Window -->
+  <div id="noticeBoardModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs modal-hidden modal-backdrop z-50 flex items-center justify-center p-3 md:p-6">
+    <div class="modal-box bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-xl h-[550px] rounded-2xl shadow-2xl flex flex-col overflow-hidden relative">
+      <div class="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-bullhorn text-amber-500"></i>
+          <span class="font-bold text-sm">Notice Board (Recent Uploads)</span>
+        </div>
+        <button onclick="closeNoticeBoardModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+
+      <div id="noticesListContainer" class="flex-1 p-4 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+        <p class="text-center py-10 text-slate-400">Loading notices...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Single Notice Details Popup Modal -->
+  <div id="noticeDetailsModal" class="fixed inset-0 bg-black/70 backdrop-blur-xs modal-hidden modal-backdrop z-50 flex items-center justify-center p-4">
+    <div class="modal-box bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-md p-6 rounded-2xl shadow-2xl relative">
+      <button onclick="closeNoticeDetailsModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-500 flex items-center justify-center text-lg">
+          <i class="fa-solid fa-file-arrow-up"></i>
+        </div>
+        <div>
+          <h3 class="font-bold text-sm text-slate-800 dark:text-white">Uploaded File Details</h3>
+          <span id="ndTime" class="text-[11px] text-slate-400"></span>
+        </div>
+      </div>
+      <div class="space-y-3 bg-slate-50 dark:bg-slate-950/60 p-4 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
+        <div>
+          <span class="text-slate-400 block text-[10px] uppercase font-bold">File Name:</span>
+          <span id="ndFileName" class="font-semibold text-slate-800 dark:text-slate-200 break-all"></span>
+        </div>
+        <div>
+          <span class="text-slate-400 block text-[10px] uppercase font-bold">Location / Folder:</span>
+          <span id="ndFolderPath" class="font-mono text-blue-600 dark:text-blue-400 break-all"></span>
+        </div>
+        <div>
+          <span class="text-slate-400 block text-[10px] uppercase font-bold">Uploaded By:</span>
+          <span id="ndUploader" class="text-slate-700 dark:text-slate-300"></span>
+        </div>
+      </div>
+      <button onclick="goToNoticeFolder()" class="mt-4 w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-2">
+        <i class="fa-solid fa-folder-open"></i> Go to Folder
+      </button>
+    </div>
+  </div>
+
+  <!-- Rename Modal (File or Folder) -->
+  <div id="renameModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs modal-hidden modal-backdrop z-50 flex items-center justify-center p-4">
+    <div class="modal-box bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-sm p-5 rounded-2xl shadow-2xl relative">
+      <button onclick="closeRenameModal()" class="absolute top-4 right-4 text-slate-400"><i class="fa-solid fa-xmark"></i></button>
+      <h3 class="text-sm font-bold mb-3"><i class="fa-solid fa-pen mr-1 text-blue-600"></i> Rename Item</h3>
+      <input type="hidden" id="renameItemId">
+      <input type="hidden" id="renameItemIsFolder">
+      <input type="hidden" id="renameItemOldName">
+      <input id="renameNewNameInput" type="text" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs mb-4">
+      <button onclick="executeRenameItem()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-xl text-xs font-semibold">Save Name</button>
+    </div>
+  </div>
+
+  <!-- Universal In-Browser PDF & Image Preview Modal (With Live Page Tracker) -->
+  <div id="previewModal" class="fixed inset-0 bg-black/90 backdrop-blur-xs modal-hidden modal-backdrop z-50 flex flex-col">
+    <div class="p-3 bg-slate-900 border-b border-slate-800 flex justify-between items-center px-4 md:px-6">
+      <div class="flex items-center gap-3 max-w-[65%]">
+        <span id="previewTitle" class="text-xs font-semibold text-slate-200 truncate"></span>
+        <!-- Live PDF Page Counter -->
+        <span id="pdfPageIndicator" class="hidden font-mono text-[10px] bg-slate-800 text-blue-400 border border-slate-700 px-2 py-0.5 rounded-full whitespace-nowrap"></span>
+      </div>
+      <div class="flex items-center gap-4">
+        <button onclick="downloadActivePreviewFile()" class="text-slate-400 hover:text-white text-sm" title="Download File">
+          <i class="fa-solid fa-download"></i>
+        </button>
+        <button onclick="closePreview()" class="text-slate-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+    </div>
+    <div id="previewContainer" class="flex-1 w-full h-full relative bg-slate-950 overflow-y-auto p-4 flex flex-col items-center"></div>
   </div>
 
   <!-- Fullscreen Live Chat View -->
@@ -260,10 +351,7 @@
         </div>
         <button onclick="closeUserManagementModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
       </div>
-
-      <div id="usersListContainer" class="flex-1 p-4 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-        <p class="text-center py-10 text-slate-400">Loading user directory...</p>
-      </div>
+      <div id="usersListContainer" class="flex-1 p-4 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 text-xs"></div>
     </div>
   </div>
 
@@ -277,35 +365,18 @@
         </div>
         <button onclick="closeAdminTrashModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
       </div>
-
-      <div id="trashListContainer" class="flex-1 p-4 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-        <p class="text-center py-10 text-slate-400">Loading trash...</p>
-      </div>
+      <div id="trashListContainer" class="flex-1 p-4 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 text-xs"></div>
     </div>
-  </div>
-
-  <!-- In-Browser Universal PDF / Image Preview Modal (PDF.js) -->
-  <div id="previewModal" class="fixed inset-0 bg-black/90 backdrop-blur-xs modal-hidden modal-backdrop z-50 flex flex-col">
-    <div class="p-3 bg-slate-900 border-b border-slate-800 flex justify-between items-center px-4 md:px-6">
-      <span id="previewTitle" class="text-xs font-semibold text-slate-200 truncate"></span>
-      <div class="flex items-center gap-4">
-        <button onclick="downloadActivePreviewFile()" class="text-slate-400 hover:text-white text-sm" title="Download File">
-          <i class="fa-solid fa-download"></i>
-        </button>
-        <button onclick="closePreview()" class="text-slate-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
-      </div>
-    </div>
-    <div id="previewContainer" class="flex-1 w-full h-full relative bg-slate-950 overflow-y-auto p-4 flex flex-col items-center"></div>
   </div>
 
   <!-- Upload Progress Bar Modal -->
   <div id="uploadProgressModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs modal-hidden modal-backdrop z-50 flex items-center justify-center p-4">
     <div class="modal-box bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-sm p-6 rounded-2xl shadow-2xl flex flex-col items-center gap-4 text-center">
-      <h3 class="font-bold text-sm text-slate-800 dark:text-white">Uploading...</h3>
+      <h3 class="font-bold text-sm text-slate-800 dark:text-white">Uploading Files...</h3>
       <div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-3.5 overflow-hidden p-0.5">
         <div id="uploadProgressBar" class="bg-blue-600 h-full rounded-full progress-bar-striped transition-all duration-150" style="width: 0%"></div>
       </div>
-      <span id="uploadProgressText" class="text-xs text-slate-500 font-mono">0 KB / 0 KB</span>
+      <span id="uploadProgressText" class="text-xs text-slate-500 font-mono">Preparing upload...</span>
     </div>
   </div>
 
@@ -321,14 +392,17 @@
     </div>
   </div>
 
-  <!-- 3-Dots Action Menu (Includes "Download Full Folder") -->
-  <div id="itemActionMenu" class="hidden fixed bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl py-1 z-50 w-48 text-xs">
+  <!-- 3-Dots Action Menu (With Rename support) -->
+  <div id="itemActionMenu" class="hidden fixed bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl py-1 z-50 w-52 text-xs">
     <!-- File Specific Items -->
     <button id="menuDownloadBtn" onclick="triggerDownloadCurrentItem()" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 text-slate-700 dark:text-slate-200">
       <i class="fa-solid fa-download text-slate-400"></i> Download
     </button>
     <button id="menuShareBtn" onclick="copyCurrentShareLink()" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 text-slate-700 dark:text-slate-200">
       <i class="fa-solid fa-link text-slate-400"></i> Copy Share Link
+    </button>
+    <button id="menuRenameBtn" onclick="openRenameModalForCurrentItem()" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 text-slate-700 dark:text-slate-200">
+      <i class="fa-solid fa-pen text-slate-400"></i> Rename
     </button>
     <button id="menuMoveBtn" onclick="openMoveModalForCurrentItem()" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 text-slate-700 dark:text-slate-200">
       <i class="fa-solid fa-folder-tree text-slate-400"></i> Move File
