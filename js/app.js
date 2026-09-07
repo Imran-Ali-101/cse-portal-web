@@ -1722,6 +1722,7 @@ async function renderPdfPages(scale, cacheId = null) {
     wrapper.appendChild(canvas);
 
     await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+    await new Promise(resolve => setTimeout(resolve, 0));
   }
 
   // Render first 3 pages immediately
