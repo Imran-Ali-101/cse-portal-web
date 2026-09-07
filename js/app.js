@@ -1619,7 +1619,7 @@ async function openPreview(name, id) {
     const viewportMeta = document.querySelector('meta[name="viewport"]');
     if (viewportMeta) {
       originalViewportContent = viewportMeta.getAttribute("content");
-      viewportMeta.setAttribute("content", "width=1024, initial-scale=1");
+      viewportMeta.setAttribute("content", "width=1024");
     }
     
     // Hide our custom outer toolbar because PDF.js has its own
@@ -1628,7 +1628,7 @@ async function openPreview(name, id) {
     // Remove container padding so PDF.js fits edge-to-edge
     container.style.padding = "0";
 
-    const viewerUrl = `/pdfjs/web/viewer.html?file=${encodeURIComponent(streamUrl)}`;
+    const viewerUrl = `/pdfjs/web/viewer.html?file=${encodeURIComponent(streamUrl)}#zoom=page-width`;
 
     container.style.justifyContent = "center";
     container.innerHTML = `
