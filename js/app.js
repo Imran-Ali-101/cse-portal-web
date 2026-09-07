@@ -1641,10 +1641,13 @@ async function openPreview(name, id) {
         const openFileBtn = doc.getElementById('openFile');
         if (openFileBtn) openFileBtn.style.display = 'none';
 
-        // Add File Name Title in the middle of PDF.js toolbar
-        const toolbarMiddle = doc.getElementById('toolbarViewerMiddle');
-        if (toolbarMiddle) {
-           toolbarMiddle.innerHTML = `<div style="color:#d1d5db; font-size:13px; font-weight:600; padding-top:6px; max-width:300px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${name}</div>`;
+        // Add File Name Title in the left of PDF.js toolbar
+        const toolbarLeft = doc.getElementById('toolbarViewerLeft');
+        if (toolbarLeft) {
+           const titleEl = doc.createElement('div');
+           titleEl.innerHTML = name;
+           titleEl.style.cssText = 'color:#d1d5db; font-size:13px; font-weight:600; padding-top:6px; margin-left:20px; max-width:250px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:inline-block; vertical-align:top;';
+           toolbarLeft.appendChild(titleEl); 
         }
 
         // Add Close Button on the right side of PDF.js toolbar
@@ -1652,9 +1655,7 @@ async function openPreview(name, id) {
         if (toolbarRight) {
           const closeBtn = doc.createElement('button');
           closeBtn.innerHTML = '✕ Close';
-          closeBtn.style.cssText = 'background-color: #e11d48; border: none; padding: 4px 12px; margin-top: 4px; margin-right: 8px; border-radius: 6px; cursor: pointer; color: white; font-weight: bold; font-size: 12px; font-family: sans-serif; transition: 0.2s;';
-          closeBtn.onmouseover = () => closeBtn.style.backgroundColor = '#be123c';
-          closeBtn.onmouseout = () => closeBtn.style.backgroundColor = '#e11d48';
+          closeBtn.style.cssText = 'background-color: #e11d48; border: none; padding: 4px 12px; margin-top: 4px; margin-right: 8px; border-radius: 6px; cursor: pointer; color: white; font-weight: bold; font-size: 12px; transition: 0.2s;';
           closeBtn.onclick = () => window.parent.closePreview();
           toolbarRight.insertBefore(closeBtn, toolbarRight.firstChild);
         }
