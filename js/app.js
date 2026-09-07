@@ -11,6 +11,8 @@ let activeContextItem = null;
 let activePreviewItem = null;
 let activeNoticeTarget = null;
 const pdfCache = {};
+let originalViewportContent = "";
+
 
 // PDF Rendering Global State
 let currentPdfDoc = null;
@@ -1613,6 +1615,13 @@ async function openPreview(name, id) {
     container.innerHTML = `<img src="${streamUrl}" alt="${name}" class="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl">`;
   }
   else if (lower.endsWith('.pdf')) {
+    // Set viewport desktop on mobile
+    const viewportMeta = document.querySelector('meta[name="viewport"]');
+    if (viewportMeta) {
+      originalViewportContent = viewportMeta.getAttribute("content");
+      viewportMeta.setAttribute("content", "width=1024, initial-scale=1");
+    }
+    
     // Hide our custom outer toolbar because PDF.js has its own
     if(topBar) topBar.classList.add("hidden");
     
@@ -1691,6 +1700,13 @@ function closePreview() {
   
   document.getElementById("pdfPageIndicator").classList.add("hidden");
   activePreviewItem = null;
+  
+  // Close desktop mode
+  const viewportMeta = document.querySelector('meta[name="viewport"]');
+  if (viewportMeta && originalViewportContent) {
+    viewportMeta.setAttribute("content", originalViewportContent);
+    originalViewportContent = ""; // Reset
+  }
 }
 
 function openChatFullscreen() {
