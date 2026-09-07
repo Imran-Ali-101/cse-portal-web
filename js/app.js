@@ -1553,11 +1553,16 @@ async function openPreview(name, id) {
 
   const container = document.getElementById("previewContainer");
   const pageIndicator = document.getElementById("pdfPageIndicator");
+  const topBar = document.getElementById("previewTopBar");
   
   pageIndicator.classList.add("hidden");
-
   container.scrollTop = 0;
   container.style.justifyContent = "flex-start";
+  container.style.padding = "16px"; // Default padding
+  
+  // Show top bar by default for other files
+  if(topBar) topBar.classList.remove("hidden");
+
   container.innerHTML = `<div class="m-auto text-center text-slate-400 py-20 flex flex-col items-center gap-2"><span class="spinner"></span><span>Loading preview...</span></div>`;
   showAnimatedModal("previewModal");
 
@@ -1608,18 +1613,55 @@ async function openPreview(name, id) {
     container.innerHTML = `<img src="${streamUrl}" alt="${name}" class="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl">`;
   }
   else if (lower.endsWith('.pdf')) {
+    // Hide our custom outer toolbar because PDF.js has its own
+    if(topBar) topBar.classList.add("hidden");
+    
+    // Remove container padding so PDF.js fits edge-to-edge
+    container.style.padding = "0";
+
     const viewerUrl = `/pdfjs/web/viewer.html?file=${encodeURIComponent(streamUrl)}`;
 
     container.style.justifyContent = "center";
     container.innerHTML = `
-      <div class="w-full h-full" style="height: 85vh;">
-        <iframe 
-          src="${viewerUrl}" 
-          class="w-full h-full rounded-lg border-0 shadow-xl"
-          allowfullscreen>
-        </iframe>
-      </div>
+      <iframe 
+        id="pdfIframe"
+        src="${viewerUrl}" 
+        class="w-full h-full border-0 shadow-xl"
+        allowfullscreen>
+      </iframe>
     `;
+
+    // Inject Custom Title & Close Button directly into PDF.js Toolbar
+    const iframe = document.getElementById("pdfIframe");
+    iframe.onload = () => {
+      try {
+        const doc = iframe.contentDocument || iframe.contentWindow.document;
+        
+        // Hide default "Open File" button to keep it clean
+        const openFileBtn = doc.getElementById('openFile');
+        if (openFileBtn) openFileBtn.style.display = 'none';
+
+        // Add File Name Title in the middle of PDF.js toolbar
+        const toolbarMiddle = doc.getElementById('toolbarViewerMiddle');
+        if (toolbarMiddle) {
+           toolbarMiddle.innerHTML = `<div style="color:#d1d5db; font-size:13px; font-weight:600; padding-top:6px; max-width:300px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${name}</div>`;
+        }
+
+        // Add Close Button on the right side of PDF.js toolbar
+        const toolbarRight = doc.getElementById('toolbarViewerRight');
+        if (toolbarRight) {
+          const closeBtn = doc.createElement('button');
+          closeBtn.innerHTML = '✕ Close';
+          closeBtn.style.cssText = 'background-color: #e11d48; border: none; padding: 4px 12px; margin-top: 4px; margin-right: 8px; border-radius: 6px; cursor: pointer; color: white; font-weight: bold; font-size: 12px; font-family: sans-serif; transition: 0.2s;';
+          closeBtn.onmouseover = () => closeBtn.style.backgroundColor = '#be123c';
+          closeBtn.onmouseout = () => closeBtn.style.backgroundColor = '#e11d48';
+          closeBtn.onclick = () => window.parent.closePreview();
+          toolbarRight.insertBefore(closeBtn, toolbarRight.firstChild);
+        }
+      } catch(e) {
+        console.error("Iframe injection failed", e);
+      }
+    };
   }
   else {
     const isPptx = lower.endsWith('.pptx') || lower.endsWith('.ppt');
@@ -1640,6 +1682,12 @@ async function openPreview(name, id) {
 function closePreview() {
   hideAnimatedModal("previewModal");
   document.getElementById("previewContainer").innerHTML = "";
+  
+  // Reset things back to normal when closing
+  document.getElementById("previewContainer").style.padding = "16px";
+  const topBar = document.getElementById("previewTopBar");
+  if(topBar) topBar.classList.remove("hidden");
+  
   document.getElementById("pdfPageIndicator").classList.add("hidden");
   activePreviewItem = null;
 }
