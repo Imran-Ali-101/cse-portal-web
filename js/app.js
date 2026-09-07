@@ -1608,44 +1608,18 @@ async function openPreview(name, id) {
     container.innerHTML = `<img src="${streamUrl}" alt="${name}" class="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl">`;
   }
   else if (lower.endsWith('.pdf')) {
-    // Check if already cached
-   if (pdfCache[id]) {
-      container.innerHTML = "";
-      for (let wrapper of pdfCache[id]) {
-        container.appendChild(wrapper);
-      }
-      pageIndicator.innerText = `Page 1 of ${pdfCache[id].length}`;
-      pageIndicator.classList.remove("hidden");
-      container.scrollTop = 0;
-      // Resume rendering unfinished pages
-      document.getElementById("previewModal").dispatchEvent(new Event("modalResumed"));
-      return;
-    }
+    const viewerUrl = `/pdfjs/web/viewer.html?file=${encodeURIComponent(streamUrl)}`;
 
-    try {
-      const loadingTask = pdfjsLib.getDocument(streamUrl);
-      currentPdfDoc = await loadingTask.promise;
-
-      const firstPage = await currentPdfDoc.getPage(1);
-      const unscaledViewport = firstPage.getViewport({ scale: 1.0 });
-
-      const availableWidth = container.clientWidth > 40 ? (container.clientWidth - 32) : window.innerWidth;
-      defaultFitScale = parseFloat((availableWidth / unscaledViewport.width).toFixed(2));
-      currentPdfScale = defaultFitScale;
-
-      await renderPdfPages(currentPdfScale, id);
-
-    } catch(err) {
-      container.style.justifyContent = "center";
-      container.innerHTML = `
-        <div class="text-center p-8 bg-slate-900 rounded-2xl border border-slate-800">
-          <p class="text-xs text-rose-400 mb-3">Unable to preview PDF directly.</p>
-          <button onclick="downloadActivePreviewFile()" class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl text-xs font-semibold inline-flex items-center gap-2">
-            <i class="fa-solid fa-download"></i> Download PDF
-          </button>
-        </div>
-      `;
-    }
+    container.style.justifyContent = "center";
+    container.innerHTML = `
+      <div class="w-full h-full" style="height: 85vh;">
+        <iframe 
+          src="${viewerUrl}" 
+          class="w-full h-full rounded-lg border-0 shadow-xl"
+          allowfullscreen>
+        </iframe>
+      </div>
+    `;
   }
   else {
     const isPptx = lower.endsWith('.pptx') || lower.endsWith('.ppt');
@@ -1663,112 +1637,10 @@ async function openPreview(name, id) {
   }
 }
 
-async function renderPdfPages(scale, cacheId = null) {
-  if (!currentPdfDoc) return;
-  const container = document.getElementById("previewContainer");
-  const pageIndicator = document.getElementById("pdfPageIndicator");
-
-  container.innerHTML = "";
-  pageIndicator.innerText = `Page 1 of ${currentPdfDoc.numPages}`;
-  pageIndicator.classList.remove("hidden");
-
-  const dpr = window.devicePixelRatio || 1;
-  const totalPages = currentPdfDoc.numPages;
-  const renderedPages = new Set();
-  const pageWrappers = [];
-
-  // Create placeholder divs for all pages first
-  const firstPage = await currentPdfDoc.getPage(1);
-  const firstViewport = firstPage.getViewport({ scale: scale * dpr });
-  const pageWidth = firstViewport.width / dpr;
-  const pageHeight = firstViewport.height / dpr;
-
-  for (let i = 1; i <= totalPages; i++) {
-    const wrapper = document.createElement("div");
-    wrapper.className = "pdf-page-canvas";
-    wrapper.setAttribute("data-page-number", i);
-    wrapper.style.width = pageWidth + "px";
-    wrapper.style.height = pageHeight + "px";
-    wrapper.style.backgroundColor = "#fff";
-    wrapper.style.marginBottom = "16px";
-    wrapper.style.borderRadius = "6px";
-    wrapper.style.boxShadow = "0 4px 14px rgba(0,0,0,0.2)";
-    wrapper.style.display = "flex";
-    wrapper.style.alignItems = "center";
-    wrapper.style.justifyContent = "center";
-    wrapper.innerHTML = `<span style="color:#94a3b8;font-size:11px;">Page ${i}</span>`;
-    container.appendChild(wrapper);
-    pageWrappers.push(wrapper);
-  }
-
-  // Function to render a single page
-  async function renderPage(pageNum) {
-    if (renderedPages.has(pageNum)) return;
-    renderedPages.add(pageNum);
-
-    const wrapper = pageWrappers[pageNum - 1];
-    const page = await currentPdfDoc.getPage(pageNum);
-    const viewport = page.getViewport({ scale: scale * dpr });
-
-    const canvas = document.createElement("canvas");
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    canvas.style.width = (viewport.width / dpr) + "px";
-    canvas.style.height = (viewport.height / dpr) + "px";
-    canvas.style.display = "block";
-
-    wrapper.innerHTML = "";
-    wrapper.style.height = "auto";
-    wrapper.appendChild(canvas);
-
-    await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
-    await new Promise(resolve => setTimeout(resolve, 0));
-  }
-
-  // Render first 3 pages immediately
-  for (let i = 1; i <= Math.min(3, totalPages); i++) {
-    await renderPage(i);
-  }
-
-  container.scrollTop = 0;
-
-  // Render nearby pages on scroll
-  container.onscroll = () => {
-    const containerTop = container.getBoundingClientRect().top;
-    const containerHeight = container.clientHeight;
-
-    for (let wrapper of pageWrappers) {
-      const rect = wrapper.getBoundingClientRect();
-      const pageNum = parseInt(wrapper.getAttribute("data-page-number"));
-
-      // Render pages that are visible or nearby
-      if (rect.top < containerTop + containerHeight + 1000 && rect.bottom > containerTop - 500) {
-        renderPage(pageNum);
-
-        // Update page indicator
-        if (rect.top - containerTop <= 160 && rect.bottom - containerTop > 40) {
-          pageIndicator.innerText = `Page ${pageNum} of ${totalPages}`;
-        }
-      }
-    }
-  };
-
-  // Save to cache immediately so reopen works
-  if (cacheId) {
-    pdfCache[cacheId] = pageWrappers;
-  }
-
-  // When modal reopens, resume rendering unrendered pages
-  document.getElementById("previewModal").addEventListener("modalResumed", () => {
-    container.onscroll();
-  }, { once: true });
-}
-
 function closePreview() {
   hideAnimatedModal("previewModal");
   document.getElementById("previewContainer").innerHTML = "";
   document.getElementById("pdfPageIndicator").classList.add("hidden");
-  currentPdfDoc = null;
   activePreviewItem = null;
 }
 
