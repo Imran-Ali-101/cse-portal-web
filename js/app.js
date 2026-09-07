@@ -972,7 +972,7 @@ async function downloadDirectFile(messageId, fileName) {
     setTimeout(() => URL.revokeObjectURL(url), 2000);
     showToast("Download completed!", "success");
   } catch(err) {
-    showToast("Error downloading file (Unauthorized)", "error");
+    showToast(`Error: ${err.message}`, "error");
   }
 }
 
