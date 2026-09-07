@@ -551,6 +551,8 @@ async function uploadSelectedFiles(input) {
   showAnimatedModal("uploadProgressModal");
 
   let uploadedCount = 0;
+  let uploadedFileNames = []; // List of successfully uploaded files
+
   for (let i = 0; i < totalFiles; i++) {
     const file = filesList[i];
     progressText.innerText = `Uploading (${i + 1}/${totalFiles}): ${file.name}`;
@@ -560,6 +562,7 @@ async function uploadSelectedFiles(input) {
     formData.append("file", file);
     formData.append("folder", currentSelectedFolder);
     formData.append("uploader_name", currentUser ? currentUser.name : "Admin");
+    formData.append("skip_notice", "true"); // Skip individual notice for each file
 
     try {
       const res = await fetch(`${API_BASE}/slides/upload`, {
@@ -573,12 +576,28 @@ async function uploadSelectedFiles(input) {
           newF.folder_path = (newF.folder_path && newF.folder_path.startsWith('/')) ? newF.folder_path : '/' + (newF.folder_path || '');
           allFiles.unshift(newF);
           renderFilesTable();
+          uploadedFileNames.push(file.name); // Add the file to the uploaded list
         }
         uploadedCount++;
       }
     } catch(err) {
       console.error(err);
     }
+  }
+
+  // Send a single batch notice for all files after the loop finishes
+  if (uploadedFileNames.length > 0) {
+    try {
+      await fetch(`${API_BASE}/notices/create-batch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          file_names: uploadedFileNames,
+          folder_path: currentSelectedFolder,
+          uploader_name: currentUser ? currentUser.name : "Admin"
+        })
+      });
+    } catch(e) { console.error("Batch notice failed", e); }
   }
 
   progressBar.style.width = "100%";
@@ -1195,7 +1214,7 @@ async function loadNoticesList() {
             </div>
             <div class="truncate">
               <span class="font-bold text-slate-800 dark:text-slate-100 block truncate">${n.title}</span>
-              <span class="text-[11px] text-slate-500 font-mono truncate">${n.file_name || n.message || ''}</span>
+              <span class="text-[11px] text-slate-500 font-mono truncate">${(n.file_name || n.message || '').replace(/\n/g, ', ')}</span>
             </div>
           </div>
           <span class="text-[10px] text-slate-400 font-mono whitespace-nowrap ml-2">${timeFormatted}</span>
@@ -1265,15 +1284,16 @@ function openNoticeDetails(noticeId) {
     document.getElementById("ndCustomMsgBox").classList.add("hidden");
     document.getElementById("ndGoFolderBtn").classList.remove("hidden");
     
-    document.getElementById("ndFileName").innerText = n.file_name;
-    document.getElementById("ndFolderPath").innerText = n.folder_path;
-  } else {
-    document.getElementById("ndFileBox").classList.add("hidden");
-    document.getElementById("ndFolderBox").classList.add("hidden");
-    document.getElementById("ndCustomMsgBox").classList.remove("hidden");
-    document.getElementById("ndGoFolderBtn").classList.add("hidden");
+    // If there are multiple files, render them as a list
+    const fileNames = n.file_name.split('\n');
+    if (fileNames.length > 1) {
+      const listHtml = fileNames.map(f => `<div class="flex items-center gap-2 mt-1.5"><i class="fa-solid fa-file-lines text-blue-500"></i> <span class="break-all">${f}</span></div>`).join('');
+      document.getElementById("ndFileName").innerHTML = `<div class="mt-2 text-slate-700 dark:text-slate-300 font-medium">${listHtml}</div>`;
+    } else {
+      document.getElementById("ndFileName").innerText = n.file_name;
+    }
     
-    document.getElementById("ndCustomMsg").innerText = n.message;
+    document.getElementById("ndFolderPath").innerText = n.folder_path;
   }
 
   closeNoticeBoardModal();
