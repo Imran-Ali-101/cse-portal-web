@@ -1083,7 +1083,7 @@ async function deleteCurrentFolder() {
 
 function copyCurrentShareLink() {
   if (!activeContextItem) return;
-  const token = currentUser ? currentUser.token : '';
+  const token = isGuestMode ? guestToken : (currentUser ? currentUser.token : '');
   const link = `${API_BASE}/slides/stream/${activeContextItem.messageId}?filename=${encodeURIComponent(activeContextItem.name)}&token=${token}`;
   navigator.clipboard.writeText(link);
   showToast("Direct link copied to clipboard!", "success");
@@ -1561,7 +1561,7 @@ async function downloadSelectedZip() {
 
   showToast("Packing selected files into ZIP...", "info");
   const zip = new JSZip();
-  const token = currentUser ? currentUser.token : '';
+  const token = isGuestMode ? guestToken : (currentUser ? currentUser.token : '');
 
   for (let box of checked) {
     const id = box.getAttribute("data-id");
@@ -1581,7 +1581,7 @@ async function downloadSelectedZip() {
 async function openPreview(name, id) {
   document.getElementById("previewTitle").innerText = name;
   activePreviewItem = { name, id };
-  const token = currentUser ? currentUser.token : '';
+  const token = isGuestMode ? guestToken : (currentUser ? currentUser.token : '');
   const streamUrl = `${API_BASE}/slides/stream/${id}?filename=${encodeURIComponent(name)}&token=${token}`;
 
   const container = document.getElementById("previewContainer");
