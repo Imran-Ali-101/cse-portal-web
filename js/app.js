@@ -129,6 +129,9 @@ async function syncUserRole() {
 }
 
 async function renderPortalView() {
+  restoreFolderFromUrl();
+  if (isGuestMode) return;
+
   await syncUserRole();
 
   const guestView = document.getElementById("guestLandingView");
@@ -2089,5 +2092,3 @@ async function downloadGuestZip() {
   link.click();
   showToast("ZIP download complete!", "success");
 }
-
-renderPortalView();
