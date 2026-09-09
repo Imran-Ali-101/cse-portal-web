@@ -1008,8 +1008,6 @@ async function executeRenameItem() {
 
 async function downloadDirectFile(messageId, fileName) {
   const toastContainer = document.getElementById("toastContainer");
-  
-  // আগের download toast থাকলে সরাও
   const existing = document.getElementById("dlProgressToast");
   if (existing) existing.remove();
 
@@ -1022,10 +1020,10 @@ async function downloadDirectFile(messageId, fileName) {
         <i class="fa-solid fa-download"></i>
         <span id="dlProgressLabel" class="truncate max-w-[180px]">${fileName.length > 25 ? fileName.substring(0, 25) + '...' : fileName}</span>
       </span>
-      <span id="dlProgressPercent" class="font-mono font-bold whitespace-nowrap">0%</span>
+      <span id="dlProgressPercent" class="font-mono font-bold whitespace-nowrap">...</span>
     </div>
     <div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
-      <div id="dlProgressBar" class="bg-blue-500 h-full rounded-full transition-all duration-200" style="width: 0%"></div>
+      <div id="dlProgressBar" class="bg-blue-500 h-full rounded-full progress-bar-striped" style="width: 100%"></div>
     </div>
   `;
   toastContainer.appendChild(progressToast);
@@ -1035,31 +1033,7 @@ async function downloadDirectFile(messageId, fileName) {
     const res = await fetch(`${API_BASE}/slides/stream/${messageId}?filename=${encodeURIComponent(fileName)}&token=${token}`);
     if (!res.ok) throw new Error("Download failed or unauthorized");
 
-    const contentLength = res.headers.get('Content-Length');
-    const total = contentLength ? parseInt(contentLength, 10) : null;
-
-    const reader = res.body.getReader();
-    const chunks = [];
-    let loaded = 0;
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      chunks.push(value);
-      loaded += value.length;
-
-      if (total) {
-        const percent = Math.round((loaded / total) * 100);
-        document.getElementById("dlProgressBar").style.width = `${percent}%`;
-        document.getElementById("dlProgressPercent").innerText = `${percent}%`;
-      } else {
-        document.getElementById("dlProgressBar").style.width = `100%`;
-        document.getElementById("dlProgressBar").className = "bg-blue-500 h-full rounded-full progress-bar-striped";
-        document.getElementById("dlProgressPercent").innerText = `${(loaded / 1024 / 1024).toFixed(1)} MB`;
-      }
-    }
-
-    const blob = new Blob(chunks);
+    const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -1069,7 +1043,6 @@ async function downloadDirectFile(messageId, fileName) {
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 2000);
 
-    // সবুজ দেখাও
     document.getElementById("dlProgressBar").style.width = "100%";
     document.getElementById("dlProgressBar").className = "bg-emerald-500 h-full rounded-full transition-all duration-200";
     document.getElementById("dlProgressPercent").innerText = "✓";
