@@ -18,6 +18,22 @@ let guestFolderPath = "";
 let sharedFiles = [];
 let originalViewportContent = "";
 
+// GLOBAL API SECURITY INTERCEPTOR
+const originalFetch = window.fetch;
+window.fetch = async function(resource, config) {
+  // Add token for backend
+  if (typeof resource === 'string' && resource.startsWith(API_BASE)) {
+    config = config || {};
+    config.headers = config.headers || {};
+    
+    // add token for logged in users
+    if (currentUser && currentUser.token && !isGuestMode) {
+      config.headers['Authorization'] = `Bearer ${currentUser.token}`;
+    }
+  }
+  return originalFetch(resource, config);
+};
+
 
 // PDF Rendering Global State
 let currentPdfDoc = null;
