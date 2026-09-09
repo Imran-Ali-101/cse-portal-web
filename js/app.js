@@ -11,6 +11,11 @@ let activeContextItem = null;
 let activePreviewItem = null;
 let activeNoticeTarget = null;
 const pdfCache = {};
+let isGuestMode = false;
+let currentShareId = null;
+let guestToken = null;
+let guestFolderPath = "";
+let sharedFiles = [];
 let originalViewportContent = "";
 
 
@@ -122,6 +127,7 @@ async function renderPortalView() {
   const adminClearNotices = document.getElementById("adminClearNoticesBtn");
   const adminNoticeComposer = document.getElementById("adminNoticeComposer");
 
+  if (isGuestMode) return;
   if (currentUser) {
     guestView.classList.add("hidden");
     authView.classList.remove("hidden");
@@ -773,6 +779,8 @@ function openItemActionMenu(e, id, messageId, name, isFolder = false) {
     moveBtn.classList.add("hidden");
     trashBtn.classList.add("hidden");
     downloadFolderBtn.classList.remove("hidden");
+
+    const publicShareBtn = document.getElementById("menuPublicShareBtn");
     
     if (isPrimarySuperAdmin()) {
       folderPermBtn.classList.remove("hidden");
@@ -783,9 +791,11 @@ function openItemActionMenu(e, id, messageId, name, isFolder = false) {
     if (isAdmin()) {
       delFolderBtn.classList.remove("hidden");
       renameBtn.classList.remove("hidden");
+      publicShareBtn.classList.remove("hidden");
     } else {
       delFolderBtn.classList.add("hidden");
       renameBtn.classList.add("hidden");
+      publicShareBtn.classList.add("hidden");
     }
   } else {
     delFolderBtn.classList.add("hidden");
@@ -793,6 +803,7 @@ function openItemActionMenu(e, id, messageId, name, isFolder = false) {
     folderPermBtn.classList.add("hidden");
     downloadBtn.classList.remove("hidden");
     shareBtn.classList.remove("hidden");
+    publicShareBtn.classList.add("hidden");
 
     if (isAdmin()) {
       moveBtn.classList.remove("hidden");
@@ -979,7 +990,7 @@ async function executeRenameItem() {
 async function downloadDirectFile(messageId, fileName) {
   showToast(`Downloading ${fileName}...`, "info");
   try {
-    const token = currentUser ? currentUser.token : '';
+    const token = isGuestMode ? guestToken : (currentUser ? currentUser.token : '');
     const res = await fetch(`${API_BASE}/slides/stream/${messageId}?filename=${encodeURIComponent(fileName)}&token=${token}`);
     if (!res.ok) throw new Error("Download failed or unauthorized");
     const blob = await res.blob();
@@ -1019,7 +1030,7 @@ async function triggerDownloadTargetFolder() {
 
   showToast(`Packing full folder into ZIP...`, "info");
   const zip = new JSZip();
-  const token = currentUser ? currentUser.token : '';
+  const token = isGuestMode ? guestToken : (currentUser ? currentUser.token : '');
 
   for (let f of filesToPack) {
     try {
@@ -1817,6 +1828,13 @@ function sendLiveMessage(e) {
 
 function restoreFolderFromUrl() {
   const params = new URLSearchParams(window.location.search);
+  const shareId = params.get('share');
+  
+  if (shareId) {
+    initGuestMode(shareId);
+    return;
+  }
+  
   const folder = params.get('folder') || '/';
   currentSelectedFolder = folder;
   history.replaceState({ folder }, '', folder === '/' ? '/' : '/?folder=' + encodeURIComponent(folder));
@@ -1829,5 +1847,173 @@ window.addEventListener('popstate', (e) => {
   document.getElementById("activeFolderPathText").innerText = `Folder: ${currentSelectedFolder}`;
   renderFilesTable();
 });
+
+// PUBLIC FOLDER SHARING & GUEST MODE LOGIC
+function openCreateShareModal() {
+  if (!activeContextItem || !activeContextItem.isFolder) return;
+  document.getElementById("itemActionMenu").classList.add("hidden");
+  document.getElementById("shareTargetFolderPath").value = activeContextItem.name;
+  document.getElementById("sharePasswordInput").value = "";
+  document.getElementById("shareLinkResultContainer").classList.add("hidden");
+  showAnimatedModal("createShareModal");
+}
+
+function closeCreateShareModal() { hideAnimatedModal("createShareModal"); }
+
+async function executeCreateShareLink() {
+  const folderPath = document.getElementById("shareTargetFolderPath").value;
+  const password = document.getElementById("sharePasswordInput").value.trim();
+  
+  try {
+    const res = await fetch(`${API_BASE}/share/create`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ 
+        folder_path: folderPath, 
+        admin_id: currentUser.student_id, 
+        password: password || null 
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail);
+    
+    // Create the public share URL
+    const shareUrl = `${window.location.origin}${window.location.pathname}?share=${data.share_id}`;
+    document.getElementById("generatedShareLink").value = shareUrl;
+    document.getElementById("shareLinkResultContainer").classList.remove("hidden");
+    showToast("Share link successfully generated!", "success");
+  } catch (err) { 
+    showToast(err.message, "error"); 
+  }
+}
+
+function copyGeneratedShareLink() {
+  const input = document.getElementById("generatedShareLink");
+  input.select();
+  navigator.clipboard.writeText(input.value);
+  showToast("Link copied to clipboard! You can share it now.", "success");
+}
+
+async function initGuestMode(shareId) {
+  isGuestMode = true;
+  currentShareId = shareId;
+  
+  // Hide default portal elements
+  document.getElementById("guestLandingView").classList.add("hidden");
+  document.getElementById("sidebarToggleBtn").classList.add("hidden");
+  document.getElementById("navAuthSection").innerHTML = `<span class="bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-400 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5"><i class="fa-solid fa-earth-americas"></i> Public View</span>`;
+  
+  await verifyAndLoadSharedFolder();
+}
+
+async function verifyAndLoadSharedFolder() {
+  const passInput = document.getElementById("guestSharePassword");
+  const password = passInput ? passInput.value.trim() : null;
+
+  try {
+    const res = await fetch(`${API_BASE}/share/verify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ share_id: currentShareId, password: password || null })
+    });
+    const data = await res.json();
+    
+    if (!res.ok) {
+      if (res.status === 401) { // Password required or incorrect
+         document.getElementById("guestPasswordModal").classList.remove("hidden");
+         if(password) showToast("Incorrect Password!", "error");
+         return;
+      }
+      throw new Error(data.detail || "Invalid Share Link");
+    }
+
+    // Authentication Success
+    document.getElementById("guestPasswordModal").classList.add("hidden");
+    guestToken = data.token;
+    guestFolderPath = data.folder_path;
+    
+    // UI Adjustments for Guest
+    document.getElementById("authenticatedView").classList.remove("hidden");
+    document.getElementById("activeFolderPathText").innerText = `Shared Folder: ${guestFolderPath}`;
+    document.getElementById("adminDropzoneArea").classList.add("hidden");
+    
+    // Hide sorting and multi-selection actions from guests
+    const sortToolbar = document.querySelector(".flex.flex-wrap.items-center.justify-between.gap-3.pt-2.text-xs");
+    if(sortToolbar) sortToolbar.classList.add("hidden");
+    
+    await loadSharedFiles();
+  } catch(err) {
+    showToast(err.message, "error");
+    document.getElementById("guestLandingView").innerHTML = `<div class="p-10 text-center text-rose-500 font-bold text-lg"><i class="fa-solid fa-triangle-exclamation text-3xl mb-2 block"></i> ${err.message}. Link may be broken or expired.</div>`;
+    document.getElementById("guestLandingView").classList.remove("hidden");
+  }
+}
+
+async function loadSharedFiles() {
+  try {
+    const res = await fetch(`${API_BASE}/share/files/${currentShareId}?token=${guestToken}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error("Could not load shared files");
+    sharedFiles = data;
+    renderSharedFilesTable();
+  } catch(err) { showToast(err.message, "error"); }
+}
+
+function renderSharedFilesTable() {
+  const container = document.getElementById("fileTableContent");
+  
+  let topHtml = `
+    <div class="px-4 py-3 flex justify-between items-center bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-900/50">
+        <span class="text-xs font-bold text-blue-600 dark:text-blue-400"><i class="fa-solid fa-folder-open mr-1"></i> ${sharedFiles.length} files shared</span>
+        <button onclick="downloadGuestZip()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 shadow-sm">
+          <i class="fa-solid fa-file-zipper"></i> Download All as ZIP
+        </button>
+    </div>
+  `;
+
+  const filesMarkup = sharedFiles.map(f => `
+    <div class="grid grid-cols-12 px-4 py-3 items-center hover:bg-slate-50 dark:hover:bg-slate-800/50 transition border-b border-slate-50 dark:border-slate-800/30">
+      <div class="col-span-8 md:col-span-9 flex items-center gap-3">
+        <div class="w-8 h-8 rounded bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 shrink-0">
+          <i class="fa-solid fa-file-lines"></i>
+        </div>
+        <span onclick="openPreview('${f.file_name}', ${f.telegram_message_id})" class="cursor-pointer hover:text-blue-600 font-medium text-slate-700 dark:text-slate-200 break-all text-[11px] md:text-xs leading-snug">${f.file_name}</span>
+      </div>
+      <div class="col-span-4 md:col-span-3 flex items-center justify-end gap-3 text-slate-400 font-mono text-[10px] md:text-[11px]">
+        <span class="hidden sm:inline">${formatBytes(f.file_size)}</span>
+        <button onclick="downloadDirectFile(${f.telegram_message_id}, '${f.file_name}')" class="text-blue-600 hover:text-white bg-blue-50 hover:bg-blue-500 dark:bg-blue-900/30 dark:hover:bg-blue-600 p-2 rounded-lg transition" title="Download">
+          <i class="fa-solid fa-download"></i>
+        </button>
+      </div>
+    </div>
+  `).join('');
+
+  if (sharedFiles.length === 0) {
+    container.innerHTML = topHtml + `<div class="text-center py-12 text-slate-400">This shared folder is empty.</div>`;
+  } else {
+    container.innerHTML = topHtml + filesMarkup;
+  }
+}
+
+async function downloadGuestZip() {
+  if(sharedFiles.length === 0) return;
+  showToast("Packing full folder into ZIP...", "info");
+  const zip = new JSZip();
+  
+  for (let f of sharedFiles) {
+    try {
+      const res = await fetch(`${API_BASE}/slides/stream/${f.telegram_message_id}?filename=${encodeURIComponent(f.file_name)}&token=${guestToken}`);
+      const blob = await res.blob();
+      zip.file(f.file_name, blob);
+    } catch(e) {}
+  }
+  const zipBlob = await zip.generateAsync({ type: "blob" });
+  const folderName = guestFolderPath.split('/').filter(Boolean).pop() || "Shared_Folder";
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(zipBlob);
+  link.download = `${folderName}.zip`;
+  link.click();
+  showToast("ZIP download complete!", "success");
+}
 
 renderPortalView();
