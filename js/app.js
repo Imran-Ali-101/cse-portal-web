@@ -1018,9 +1018,9 @@ async function downloadDirectFile(messageId, fileName) {
     <div class="flex items-center justify-between gap-4">
       <span class="flex items-center gap-2">
         <i class="fa-solid fa-download"></i>
-        <span id="dlProgressLabel" class="truncate max-w-[180px]">${fileName.length > 25 ? fileName.substring(0, 25) + '...' : fileName}</span>
+        <span id="dlProgressLabel">${fileName.length > 25 ? fileName.substring(0, 25) + '...' : fileName}</span>
       </span>
-      <span id="dlProgressPercent" class="font-mono font-bold whitespace-nowrap">...</span>
+      <span id="dlProgressPercent" class="font-mono font-bold">...</span>
     </div>
     <div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
       <div id="dlProgressBar" class="bg-blue-500 h-full rounded-full progress-bar-striped" style="width: 100%"></div>
@@ -1043,7 +1043,6 @@ async function downloadDirectFile(messageId, fileName) {
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 2000);
 
-    document.getElementById("dlProgressBar").style.width = "100%";
     document.getElementById("dlProgressBar").className = "bg-emerald-500 h-full rounded-full transition-all duration-200";
     document.getElementById("dlProgressPercent").innerText = "✓";
     document.getElementById("dlProgressLabel").innerText = "Download complete!";
