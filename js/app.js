@@ -1848,16 +1848,40 @@ window.addEventListener('popstate', (e) => {
   renderFilesTable();
 });
 
-// PUBLIC FOLDER SHARING & GUEST MODE LOGIC
-function openCreateShareModal() {
+async function openCreateShareModal() {
   if (!activeContextItem || !activeContextItem.isFolder) return;
   document.getElementById("itemActionMenu").classList.add("hidden");
-  document.getElementById("shareTargetFolderPath").value = activeContextItem.name;
+  
+  const folderPath = activeContextItem.name;
+  document.getElementById("shareTargetFolderPath").value = folderPath;
   document.getElementById("sharePasswordInput").value = "";
-  document.getElementById("shareLinkResultContainer").classList.add("hidden");
+  
+  // Reset UI
+  document.getElementById("shareCreateSection").classList.add("hidden");
+  document.getElementById("shareManageSection").classList.add("hidden");
+  document.getElementById("shareModalSubtext").innerHTML = `<span class="spinner"></span> Checking link status...`;
+  
   showAnimatedModal("createShareModal");
+
+  try {
+    const res = await fetch(`${API_BASE}/share/status?folder_path=${encodeURIComponent(folderPath)}&admin_id=${currentUser.student_id}`);
+    const data = await res.json();
+    
+    if (data.is_shared) {
+      document.getElementById("shareModalSubtext").innerText = "This folder is currently shared publicly.";
+      const shareUrl = `${window.location.origin}${window.location.pathname}?share=${data.share_id}`;
+      document.getElementById("generatedShareLink").value = shareUrl;
+      document.getElementById("shareManageSection").classList.remove("hidden");
+    } else {
+      document.getElementById("shareModalSubtext").innerText = "Generate a link to share this folder.";
+      document.getElementById("shareCreateSection").classList.remove("hidden");
+    }
+  } catch(e) {
+    document.getElementById("shareModalSubtext").innerText = "Error loading link status.";
+  }
 }
 
+// এই ফাংশনটি মাঝখানেই থাকুক
 function closeCreateShareModal() { hideAnimatedModal("createShareModal"); }
 
 async function executeCreateShareLink() {
@@ -1877,13 +1901,35 @@ async function executeCreateShareLink() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail);
     
-    // Create the public share URL
-    const shareUrl = `${window.location.origin}${window.location.pathname}?share=${data.share_id}`;
-    document.getElementById("generatedShareLink").value = shareUrl;
-    document.getElementById("shareLinkResultContainer").classList.remove("hidden");
     showToast("Share link successfully generated!", "success");
+    // Reload modal to show the newly created link
+    closeCreateShareModal();
+    setTimeout(openCreateShareModal, 300);
   } catch (err) { 
     showToast(err.message, "error"); 
+  }
+}
+
+async function executeRevokeShareLink() {
+  const folderPath = document.getElementById("shareTargetFolderPath").value;
+  
+  if (!confirm("Are you sure you want to disable this link? Anyone using it will immediately lose access.")) return;
+  
+  try {
+    const res = await fetch(`${API_BASE}/share/revoke`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ 
+        folder_path: folderPath, 
+        admin_id: currentUser.student_id 
+      })
+    });
+    if (!res.ok) throw new Error("Failed to disable link");
+    
+    showToast("Public link has been disabled!", "success");
+    closeCreateShareModal();
+  } catch (err) {
+    showToast(err.message, "error");
   }
 }
 
