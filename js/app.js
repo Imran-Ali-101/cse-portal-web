@@ -2153,24 +2153,84 @@ function renderSharedFilesTable() {
 }
 
 async function downloadGuestZip() {
-  if(sharedFiles.length === 0) return;
-  showToast("Packing full folder into ZIP...", "info");
+  if (sharedFiles.length === 0) return;
+
+  // Progress toast create করো
+  const toastContainer = document.getElementById("toastContainer");
+  const progressToast = document.createElement("div");
+  progressToast.id = "zipProgressToast";
+  progressToast.className = "flex flex-col gap-2 px-4 py-3 rounded-xl border border-blue-500 bg-white dark:bg-slate-900 shadow-xl text-xs font-medium text-blue-500 pointer-events-auto";
+  progressToast.innerHTML = `
+    <div class="flex items-center justify-between gap-4">
+      <span class="flex items-center gap-2">
+        <i class="fa-solid fa-file-zipper"></i>
+        <span id="zipProgressLabel">Preparing ZIP...</span>
+      </span>
+      <span id="zipProgressPercent" class="font-mono font-bold">0%</span>
+    </div>
+    <div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
+      <div id="zipProgressBar" class="bg-blue-500 h-full rounded-full transition-all duration-200" style="width: 0%"></div>
+    </div>
+  `;
+  toastContainer.appendChild(progressToast);
+
   const zip = new JSZip();
-  
-  for (let f of sharedFiles) {
+  const total = sharedFiles.length;
+
+  for (let i = 0; i < total; i++) {
+    const f = sharedFiles[i];
+    const percent = Math.round(((i) / total) * 90); // 90% পর্যন্ত download phase
+
+    document.getElementById("zipProgressLabel").innerText = `Downloading (${i + 1}/${total}): ${f.file_name.length > 25 ? f.file_name.substring(0, 25) + '...' : f.file_name}`;
+    document.getElementById("zipProgressPercent").innerText = `${percent}%`;
+    document.getElementById("zipProgressBar").style.width = `${percent}%`;
+
     try {
       const res = await fetch(`${API_BASE}/slides/stream/${f.telegram_message_id}?filename=${encodeURIComponent(f.file_name)}&token=${guestToken}`);
       const blob = await res.blob();
-      zip.file(f.file_name, blob);
-    } catch(e) {}
+
+      // Folder structure maintain করো ZIP এ
+      const relativePath = f.folder_path.replace(guestFolderPath, '').replace(/^\//, '');
+      if (relativePath) {
+        zip.folder(relativePath).file(f.file_name, blob);
+      } else {
+        zip.file(f.file_name, blob);
+      }
+    } catch (e) {
+      console.error(`Failed: ${f.file_name}`, e);
+    }
   }
-  const zipBlob = await zip.generateAsync({ type: "blob" });
+
+  // Zipping phase
+  document.getElementById("zipProgressLabel").innerText = "Creating ZIP file...";
+  document.getElementById("zipProgressPercent").innerText = "90%";
+  document.getElementById("zipProgressBar").style.width = "90%";
+
+  const zipBlob = await zip.generateAsync(
+    { type: "blob" },
+    (metadata) => {
+      const zipPercent = 90 + Math.round(metadata.percent * 0.1); // 90-100%
+      document.getElementById("zipProgressPercent").innerText = `${zipPercent}%`;
+      document.getElementById("zipProgressBar").style.width = `${zipPercent}%`;
+    }
+  );
+
+  // Done!
+  document.getElementById("zipProgressLabel").innerText = "Download starting...";
+  document.getElementById("zipProgressPercent").innerText = "100%";
+  document.getElementById("zipProgressBar").style.width = "100%";
+  document.getElementById("zipProgressBar").className = "bg-emerald-500 h-full rounded-full transition-all duration-200";
+
   const folderName = guestFolderPath.split('/').filter(Boolean).pop() || "Shared_Folder";
   const link = document.createElement("a");
   link.href = URL.createObjectURL(zipBlob);
   link.download = `${folderName}.zip`;
   link.click();
-  showToast("ZIP download complete!", "success");
+
+  // 3 সেকেন্ড পর toast সরাও
+  setTimeout(() => {
+    progressToast.remove();
+  }, 3000);
 }
 
 
