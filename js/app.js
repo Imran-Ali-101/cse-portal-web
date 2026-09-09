@@ -1007,31 +1007,34 @@ async function executeRenameItem() {
 }
 
 async function downloadDirectFile(messageId, fileName) {
-  // Progress toast তৈরি করো
   const toastContainer = document.getElementById("toastContainer");
+  const uid = Date.now(); // unique ID প্রতিটা download এর জন্য
   const progressToast = document.createElement("div");
   progressToast.className = "flex flex-col gap-2 px-4 py-3 rounded-xl border border-blue-500 bg-white dark:bg-slate-900 shadow-xl text-xs font-medium text-blue-500 pointer-events-auto";
   progressToast.innerHTML = `
     <div class="flex items-center justify-between gap-4">
       <span class="flex items-center gap-2">
         <i class="fa-solid fa-download"></i>
-        <span id="dlProgressLabel" class="truncate max-w-[180px]">${fileName.length > 25 ? fileName.substring(0, 25) + '...' : fileName}</span>
+        <span id="dlLabel_${uid}" class="truncate max-w-[180px]">${fileName.length > 25 ? fileName.substring(0, 25) + '...' : fileName}</span>
       </span>
-      <span id="dlProgressPercent" class="font-mono font-bold whitespace-nowrap">0%</span>
+      <span id="dlPercent_${uid}" class="font-mono font-bold whitespace-nowrap">0%</span>
     </div>
     <div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
-      <div id="dlProgressBar" class="bg-blue-500 h-full rounded-full transition-all duration-200" style="width: 0%"></div>
+      <div id="dlBar_${uid}" class="bg-blue-500 h-full rounded-full transition-all duration-200" style="width: 0%"></div>
     </div>
   `;
   toastContainer.appendChild(progressToast);
 
+  // helper shortcuts
+  const bar = () => document.getElementById(`dlBar_${uid}`);
+  const pct = () => document.getElementById(`dlPercent_${uid}`);
+  const lbl = () => document.getElementById(`dlLabel_${uid}`);
+
   try {
     const token = isGuestMode ? guestToken : (currentUser ? currentUser.token : '');
     const res = await fetch(`${API_BASE}/slides/stream/${messageId}?filename=${encodeURIComponent(fileName)}&token=${token}`);
-    
     if (!res.ok) throw new Error("Download failed or unauthorized");
 
-    // Content-Length header থেকে total size নাও
     const contentLength = res.headers.get('Content-Length');
     const total = contentLength ? parseInt(contentLength, 10) : null;
 
@@ -1042,24 +1045,20 @@ async function downloadDirectFile(messageId, fileName) {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      
       chunks.push(value);
       loaded += value.length;
 
-      // Progress update করো
       if (total) {
         const percent = Math.round((loaded / total) * 100);
-        document.getElementById("dlProgressBar").style.width = `${percent}%`;
-        document.getElementById("dlProgressPercent").innerText = `${percent}%`;
+        bar().style.width = `${percent}%`;
+        pct().innerText = `${percent}%`;
       } else {
-        // Total size জানা না থাকলে animated stripes দেখাও
-        document.getElementById("dlProgressBar").style.width = `100%`;
-        document.getElementById("dlProgressBar").className = "bg-blue-500 h-full rounded-full progress-bar-striped";
-        document.getElementById("dlProgressPercent").innerText = `${(loaded / 1024 / 1024).toFixed(1)} MB`;
+        bar().style.width = `100%`;
+        bar().className = "bg-blue-500 h-full rounded-full progress-bar-striped";
+        pct().innerText = `${(loaded / 1024 / 1024).toFixed(1)} MB`;
       }
     }
 
-    // সব chunks একত্রে Blob বানাও
     const blob = new Blob(chunks);
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -1070,18 +1069,16 @@ async function downloadDirectFile(messageId, fileName) {
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 2000);
 
-    // Done! সবুজ দেখাও
-    document.getElementById("dlProgressBar").style.width = "100%";
-    document.getElementById("dlProgressBar").className = "bg-emerald-500 h-full rounded-full transition-all duration-200";
-    document.getElementById("dlProgressPercent").innerText = "100%";
-    document.getElementById("dlProgressLabel").innerText = "Download complete!";
+    bar().style.width = "100%";
+    bar().className = "bg-emerald-500 h-full rounded-full transition-all duration-200";
+    pct().innerText = "✓";
+    lbl().innerText = "Download complete!";
 
   } catch(err) {
-    document.getElementById("dlProgressBar").className = "bg-rose-500 h-full rounded-full";
-    document.getElementById("dlProgressPercent").innerText = "Error";
-    document.getElementById("dlProgressLabel").innerText = err.message;
+    bar().className = "bg-rose-500 h-full rounded-full";
+    pct().innerText = "✗";
+    lbl().innerText = err.message;
   } finally {
-    // 3 সেকেন্ড পর toast সরাও
     setTimeout(() => progressToast.remove(), 3000);
   }
 }
