@@ -2092,3 +2092,6 @@ async function downloadGuestZip() {
   link.click();
   showToast("ZIP download complete!", "success");
 }
+
+
+renderPortalView();
