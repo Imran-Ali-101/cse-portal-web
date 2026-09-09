@@ -775,7 +775,7 @@ function renderFilesTable() {
   }
 }
 
-function function openItemActionMenu(e, id, messageId, name, isFolder = false) {
+function openItemActionMenu(e, id, messageId, name, isFolder = false) {
   e.stopPropagation();
   activeContextItem = { id, messageId, name, isFolder };
   const menu = document.getElementById("itemActionMenu");
