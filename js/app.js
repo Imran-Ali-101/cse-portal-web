@@ -775,7 +775,7 @@ function renderFilesTable() {
   }
 }
 
-function openItemActionMenu(e, id, messageId, name, isFolder = false) {
+function function openItemActionMenu(e, id, messageId, name, isFolder = false) {
   e.stopPropagation();
   activeContextItem = { id, messageId, name, isFolder };
   const menu = document.getElementById("itemActionMenu");
@@ -788,6 +788,7 @@ function openItemActionMenu(e, id, messageId, name, isFolder = false) {
   const delFolderBtn = document.getElementById("menuDeleteFolderBtn");
   const downloadFolderBtn = document.getElementById("menuDownloadFolderBtn");
   const folderPermBtn = document.getElementById("menuFolderPermBtn");
+  const publicShareBtn = document.getElementById("menuPublicShareBtn"); // <--- একদম ঠিক এখানে থাকবে
 
   if (isFolder) {
     downloadBtn.classList.add("hidden");
@@ -795,8 +796,6 @@ function openItemActionMenu(e, id, messageId, name, isFolder = false) {
     moveBtn.classList.add("hidden");
     trashBtn.classList.add("hidden");
     downloadFolderBtn.classList.remove("hidden");
-
-    const publicShareBtn = document.getElementById("menuPublicShareBtn");
     
     if (isPrimarySuperAdmin()) {
       folderPermBtn.classList.remove("hidden");
@@ -819,7 +818,7 @@ function openItemActionMenu(e, id, messageId, name, isFolder = false) {
     folderPermBtn.classList.add("hidden");
     downloadBtn.classList.remove("hidden");
     shareBtn.classList.remove("hidden");
-    publicShareBtn.classList.add("hidden");
+    publicShareBtn.classList.add("hidden"); 
 
     if (isAdmin()) {
       moveBtn.classList.remove("hidden");
