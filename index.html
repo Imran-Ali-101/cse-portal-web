@@ -159,6 +159,20 @@
     </main>
   </div>
 
+  <!-- Guest Password Modal -->
+  <div id="guestPasswordModal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-sm p-6 rounded-2xl shadow-2xl">
+      <h3 class="text-sm font-bold mb-1 text-blue-600">Password Protected</h3>
+      <p class="text-xs text-slate-400 mb-4">This folder requires a password to access.</p>
+      <input id="guestSharePassword" type="password" placeholder="Enter password..." 
+             class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs mb-3">
+      <button onclick="verifyAndLoadSharedFolder()" 
+              class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-xl text-xs font-semibold">
+        Access Folder
+      </button>
+    </div>
+  </div>
+
   <footer class="text-center text-[11px] text-slate-400 py-6 mt-auto">
     Copyright © Algorus - 33
   </footer>
