@@ -17,6 +17,7 @@ let guestToken = null;
 let guestFolderPath = "";
 let sharedFiles = [];
 let originalViewportContent = "";
+let guestCurrentPath = "";
 
 // GLOBAL API SECURITY INTERCEPTOR
 const originalFetch = window.fetch;
@@ -2008,6 +2009,7 @@ async function verifyAndLoadSharedFolder() {
     document.getElementById("guestPasswordModal").classList.add("hidden");
     guestToken = data.token;
     guestFolderPath = data.folder_path;
+    guestCurrentPath = data.folder_path; 
     
     // UI Adjustments for Guest
     document.getElementById("authenticatedView").classList.remove("hidden");
@@ -2041,35 +2043,113 @@ function renderSharedFilesTable() {
   
   let topHtml = `
     <div class="px-4 py-3 flex justify-between items-center bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-900/50">
-        <span class="text-xs font-bold text-blue-600 dark:text-blue-400"><i class="fa-solid fa-folder-open mr-1"></i> ${sharedFiles.length} files shared</span>
+        <span class="text-xs font-bold text-blue-600 dark:text-blue-400">
+          <i class="fa-solid fa-folder-open mr-1"></i> ${sharedFiles.length} files shared
+        </span>
         <button onclick="downloadGuestZip()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 shadow-sm">
           <i class="fa-solid fa-file-zipper"></i> Download All as ZIP
         </button>
     </div>
   `;
 
-  const filesMarkup = sharedFiles.map(f => `
-    <div class="grid grid-cols-12 px-4 py-3 items-center hover:bg-slate-50 dark:hover:bg-slate-800/50 transition border-b border-slate-50 dark:border-slate-800/30">
-      <div class="col-span-8 md:col-span-9 flex items-center gap-3">
-        <div class="w-8 h-8 rounded bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 shrink-0">
-          <i class="fa-solid fa-file-lines"></i>
-        </div>
-        <span onclick="openPreview('${f.file_name}', ${f.telegram_message_id})" class="cursor-pointer hover:text-blue-600 font-medium text-slate-700 dark:text-slate-200 break-all text-[11px] md:text-xs leading-snug">${f.file_name}</span>
-      </div>
-      <div class="col-span-4 md:col-span-3 flex items-center justify-end gap-3 text-slate-400 font-mono text-[10px] md:text-[11px]">
-        <span class="hidden sm:inline">${formatBytes(f.file_size)}</span>
-        <button onclick="downloadDirectFile(${f.telegram_message_id}, '${f.file_name}')" class="text-blue-600 hover:text-white bg-blue-50 hover:bg-blue-500 dark:bg-blue-900/30 dark:hover:bg-blue-600 p-2 rounded-lg transition" title="Download">
-          <i class="fa-solid fa-download"></i>
-        </button>
-      </div>
-    </div>
-  `).join('');
-
   if (sharedFiles.length === 0) {
     container.innerHTML = topHtml + `<div class="text-center py-12 text-slate-400">This shared folder is empty.</div>`;
-  } else {
-    container.innerHTML = topHtml + filesMarkup;
+    return;
   }
+
+  // Current path track করার জন্য
+  // sharedFiles এ সব subfolders বের করো
+  const allPaths = [...new Set(sharedFiles.map(f => f.folder_path))];
+  
+  // guestFolderPath এর direct child folders বের করো
+  function getChildFolders(parentPath) {
+    const prefix = parentPath === '/' ? '/' : parentPath + '/';
+    const children = new Set();
+    allPaths.forEach(p => {
+      if (p === parentPath) return;
+      if (!p.startsWith(prefix)) return;
+      const remainder = p.slice(prefix.length);
+      if (!remainder.includes('/')) {
+        children.add(prefix + remainder);
+      } else {
+        children.add(prefix + remainder.split('/')[0]);
+      }
+    });
+    return [...children];
+  }
+
+  // Current guest folder এর direct files
+  function getFilesInFolder(folderPath) {
+    return sharedFiles.filter(f => f.folder_path === folderPath);
+  }
+
+  // Render করো
+  function renderGuestFolder(folderPath) {
+    const childFolders = getChildFolders(folderPath);
+    const filesHere = getFilesInFolder(folderPath);
+
+    let html = '';
+
+    // Parent directory button (root এ নয়)
+    if (folderPath !== guestFolderPath) {
+      const parts = folderPath.split('/').filter(Boolean);
+      parts.pop();
+      const parent = parts.length === 0 ? guestFolderPath : '/' + parts.join('/');
+      html += `
+        <div onclick="guestCurrentPath='${parent}'; renderSharedFilesTable();" 
+             class="grid grid-cols-12 px-4 py-3 items-center hover:bg-slate-100 dark:hover:bg-slate-800/80 cursor-pointer transition border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40">
+          <div class="col-span-8 md:col-span-9 flex items-center gap-3">
+            <i class="fa-solid fa-arrow-turn-up rotate-90 text-blue-600 font-bold text-sm"></i>
+            <span class="font-bold text-sm text-slate-800 dark:text-slate-100">..</span>
+            <span class="text-[11px] text-slate-400">(Parent directory)</span>
+          </div>
+          <div class="col-span-4 md:col-span-3 flex justify-end text-slate-400 font-mono text-[11px]">Up</div>
+        </div>
+      `;
+    }
+
+    // Folders
+    childFolders.forEach(fp => {
+      const displayName = fp.split('/').filter(Boolean).pop();
+      html += `
+        <div onclick="guestCurrentPath='${fp}'; renderSharedFilesTable();"
+             class="grid grid-cols-12 px-4 py-3 items-center hover:bg-slate-50 dark:hover:bg-slate-800/60 transition border-b border-slate-100 dark:border-slate-800 cursor-pointer">
+          <div class="col-span-8 md:col-span-9 flex items-center gap-3">
+            <i class="fa-solid fa-folder text-amber-500 text-base"></i>
+            <span class="font-medium text-slate-800 dark:text-slate-200 hover:text-blue-600">${displayName}</span>
+          </div>
+          <div class="col-span-4 md:col-span-3 flex justify-end text-slate-400 font-mono text-[11px]">Folder</div>
+        </div>
+      `;
+    });
+
+    // Files
+    filesHere.forEach(f => {
+      html += `
+        <div class="grid grid-cols-12 px-4 py-3 items-center hover:bg-slate-50 dark:hover:bg-slate-800/50 transition border-b border-slate-50 dark:border-slate-800/30">
+          <div class="col-span-8 md:col-span-9 flex items-center gap-3">
+            <i class="fa-solid fa-file-lines text-slate-400 text-sm"></i>
+            <span onclick="openPreview('${f.file_name}', ${f.telegram_message_id})" 
+                  class="cursor-pointer hover:text-blue-600 font-medium text-slate-700 dark:text-slate-200 break-all text-[11px] md:text-xs">${f.file_name}</span>
+          </div>
+          <div class="col-span-4 md:col-span-3 flex items-center justify-end gap-3 text-slate-400 font-mono text-[10px] md:text-[11px]">
+            <span class="hidden sm:inline">${formatBytes(f.file_size)}</span>
+            <button onclick="downloadDirectFile(${f.telegram_message_id}, '${f.file_name}')" 
+                    class="text-blue-600 hover:text-white bg-blue-50 hover:bg-blue-500 dark:bg-blue-900/30 dark:hover:bg-blue-600 p-2 rounded-lg transition" title="Download">
+              <i class="fa-solid fa-download"></i>
+            </button>
+          </div>
+        </div>
+      `;
+    });
+
+    return html;
+  }
+
+  // Path badge update করো
+  document.getElementById("activeFolderPathText").innerText = `Shared Folder: ${guestCurrentPath}`;
+
+  container.innerHTML = topHtml + renderGuestFolder(guestCurrentPath);
 }
 
 async function downloadGuestZip() {
