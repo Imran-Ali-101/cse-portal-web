@@ -1007,26 +1007,27 @@ async function executeRenameItem() {
 }
 
 async function downloadDirectFile(messageId, fileName) {
-  const toastContainer = document.getElementById("toastContainer");
-  const existing = document.getElementById("dlProgressToast");
-  if (existing) existing.remove();
+  // Remove any existing download strip
+  document.getElementById("dlStrip")?.remove();
 
-  const progressToast = document.createElement("div");
-  progressToast.id = "dlProgressToast";
-  progressToast.className = "flex flex-col gap-2 px-4 py-3 rounded-xl border border-blue-500 bg-white dark:bg-slate-900 shadow-xl text-xs font-medium text-blue-500 pointer-events-auto";
-  progressToast.innerHTML = `
-    <div class="flex items-center justify-between gap-4">
-      <span class="flex items-center gap-2">
-        <i class="fa-solid fa-download"></i>
-        <span id="dlProgressLabel">${fileName.length > 25 ? fileName.substring(0, 25) + '...' : fileName}</span>
-      </span>
-      <span id="dlProgressPercent" class="font-mono font-bold">...</span>
+  // Create a fixed bottom download strip
+  const strip = document.createElement("div");
+  strip.id = "dlStrip";
+  strip.className = "fixed bottom-0 left-0 right-0 z-[998] bg-slate-900 border-t border-slate-700 px-4 py-3 flex items-center gap-4 shadow-2xl";
+  strip.innerHTML = `
+    <div class="flex items-center gap-2 text-blue-400 shrink-0">
+      <i class="fa-solid fa-download text-sm animate-bounce"></i>
+      <span class="text-xs font-semibold text-slate-200 truncate max-w-[180px] sm:max-w-xs" id="dlStripName">${fileName}</span>
     </div>
-    <div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
-      <div id="dlProgressBar" class="bg-blue-500 h-full rounded-full progress-bar-striped" style="width: 100%"></div>
+    <div class="flex-1 bg-slate-700 rounded-full h-2 overflow-hidden">
+      <div id="dlStripBar" class="bg-blue-500 h-full rounded-full progress-bar-striped" style="width: 100%"></div>
     </div>
+    <span id="dlStripStatus" class="text-[11px] font-mono text-slate-400 shrink-0">Downloading...</span>
+    <button onclick="document.getElementById('dlStrip')?.remove()" class="text-slate-500 hover:text-slate-300 shrink-0 pl-1">
+      <i class="fa-solid fa-xmark text-sm"></i>
+    </button>
   `;
-  toastContainer.appendChild(progressToast);
+  document.body.appendChild(strip);
 
   try {
     const token = isGuestMode ? guestToken : (currentUser ? currentUser.token : '');
@@ -1043,16 +1044,19 @@ async function downloadDirectFile(messageId, fileName) {
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 2000);
 
-    document.getElementById("dlProgressBar").className = "bg-emerald-500 h-full rounded-full transition-all duration-200";
-    document.getElementById("dlProgressPercent").innerText = "✓";
-    document.getElementById("dlProgressLabel").innerText = "Download complete!";
+    // Success state
+    document.getElementById("dlStripBar").className = "bg-emerald-500 h-full rounded-full transition-all duration-300";
+    document.getElementById("dlStripBar").style.width = "100%";
+    document.getElementById("dlStripStatus").innerText = "✓ Done!";
+    document.getElementById("dlStripStatus").className = "text-[11px] font-mono text-emerald-400 shrink-0";
 
-  } catch(err) {
-    document.getElementById("dlProgressBar").className = "bg-rose-500 h-full rounded-full";
-    document.getElementById("dlProgressPercent").innerText = "✗";
-    document.getElementById("dlProgressLabel").innerText = err.message;
+  } catch (err) {
+    document.getElementById("dlStripBar").className = "bg-rose-500 h-full rounded-full";
+    document.getElementById("dlStripStatus").innerText = "✗ Failed";
+    document.getElementById("dlStripStatus").className = "text-[11px] font-mono text-rose-400 shrink-0";
+    document.getElementById("dlStripName").innerText = err.message;
   } finally {
-    setTimeout(() => progressToast.remove(), 3000);
+    setTimeout(() => document.getElementById("dlStrip")?.remove(), 3500);
   }
 }
 
