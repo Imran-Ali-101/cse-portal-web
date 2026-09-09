@@ -1784,16 +1784,24 @@ async function confirmClearChat() {
 }
 
 function initWebSocket() {
+  // Only load chat history if user is logged in
+  if (!currentUser || !currentUser.token) return;
+
   fetch(`${API_BASE}/chat/history`)
     .then(res => res.json())
     .then(msgs => {
       const box = document.getElementById("chatMessages");
       box.innerHTML = "";
-      msgs.forEach(appendMessage);
-    });
+      if (Array.isArray(msgs)) {
+        msgs.forEach(appendMessage);
+      }
+    }).catch(err => console.error("Chat history load failed", err));
 
   if (!ws) {
-    const wsUrl = API_BASE.replace("https://", "wss://").replace("http://", "ws://") + "/ws/chat";
+    // Append the JWT token to the websocket URL for authentication
+    const token = currentUser.token;
+    const wsUrl = API_BASE.replace("https://", "wss://").replace("http://", "ws://") + `/ws/chat?token=${token}`;
+    
     ws = new WebSocket(wsUrl);
     ws.onmessage = async (e) => {
       const data = JSON.parse(e.data);
@@ -1813,6 +1821,11 @@ function initWebSocket() {
       } else {
         appendMessage(data);
       }
+    };
+    
+    ws.onclose = () => {
+      console.log("WebSocket disconnected.");
+      ws = null; // Allow reconnecting if needed
     };
   }
 }
