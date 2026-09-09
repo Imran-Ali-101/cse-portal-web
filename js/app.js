@@ -1080,15 +1080,42 @@ async function triggerDownloadTargetFolder() {
 
   if (filesToPack.length === 0) return showToast("This folder is empty, nothing to download", "error");
 
-  showToast(`Packing full folder into ZIP...`, "info");
+  // Create fixed bottom strip (same as guest)
+  document.getElementById("dlStrip")?.remove();
+  const strip = document.createElement("div");
+  strip.id = "dlStrip";
+  strip.className = "fixed bottom-0 left-0 right-0 z-[998] bg-slate-900 border-t border-slate-700 px-4 py-3 flex items-center gap-4 shadow-2xl";
+  strip.innerHTML = `
+    <div class="flex items-center gap-2 shrink-0">
+      <i class="fa-solid fa-file-zipper text-blue-400 text-sm"></i>
+      <span class="text-xs font-semibold text-slate-200 truncate max-w-[180px] sm:max-w-xs" id="dlStripName">Preparing ZIP...</span>
+    </div>
+    <div class="flex-1 bg-slate-700 rounded-full h-2 overflow-hidden">
+      <div id="dlStripBar" class="bg-blue-500 h-full rounded-full progress-bar-striped transition-all duration-200" style="width: 0%"></div>
+    </div>
+    <span id="dlStripStatus" class="text-[11px] font-mono text-slate-400 shrink-0">0%</span>
+    <button onclick="document.getElementById('dlStrip')?.remove()" class="text-slate-500 hover:text-slate-300 shrink-0 pl-1">
+      <i class="fa-solid fa-xmark text-sm"></i>
+    </button>
+  `;
+  document.body.appendChild(strip);
+
   const zip = new JSZip();
   const token = isGuestMode ? guestToken : (currentUser ? currentUser.token : '');
+  const total = filesToPack.length;
 
-  for (let f of filesToPack) {
+  for (let i = 0; i < total; i++) {
+    const f = filesToPack[i];
+    const percent = Math.round(((i) / total) * 90);
+    const shortName = f.file_name.length > 30 ? f.file_name.substring(0, 30) + '...' : f.file_name;
+    document.getElementById("dlStripName").innerText = `(${i + 1}/${total}) ${shortName}`;
+    document.getElementById("dlStripBar").style.width = `${percent}%`;
+    document.getElementById("dlStripStatus").innerText = `${percent}%`;
+
     try {
       const res = await fetch(`${API_BASE}/slides/stream/${f.telegram_message_id}?filename=${encodeURIComponent(f.file_name)}&token=${token}`);
       const blob = await res.blob();
-      
+
       let relative = f.folder_path.replace(targetPath, '').replace(/^\/+/, '');
       if (relative) {
         zip.folder(relative).file(f.file_name, blob);
@@ -1100,13 +1127,30 @@ async function triggerDownloadTargetFolder() {
     }
   }
 
-  const zipBlob = await zip.generateAsync({ type: "blob" });
+  document.getElementById("dlStripName").innerText = "Creating ZIP file...";
+  document.getElementById("dlStripBar").style.width = "90%";
+  document.getElementById("dlStripStatus").innerText = "90%";
+
   const folderName = targetPath.split('/').filter(Boolean).pop() || "Folder";
+  const zipBlob = await zip.generateAsync({ type: "blob" }, (metadata) => {
+    const zipPercent = 90 + Math.round(metadata.percent * 0.1);
+    document.getElementById("dlStripBar").style.width = `${zipPercent}%`;
+    document.getElementById("dlStripStatus").innerText = `${zipPercent}%`;
+  });
+
+  // Success
+  document.getElementById("dlStripName").innerText = `${folderName}.zip — Ready!`;
+  document.getElementById("dlStripBar").className = "bg-emerald-500 h-full rounded-full transition-all duration-300";
+  document.getElementById("dlStripBar").style.width = "100%";
+  document.getElementById("dlStripStatus").innerText = "✓ Done!";
+  document.getElementById("dlStripStatus").className = "text-[11px] font-mono text-emerald-400 shrink-0";
+
   const link = document.createElement("a");
   link.href = URL.createObjectURL(zipBlob);
   link.download = `${folderName}.zip`;
   link.click();
-  showToast(`Folder ${folderName}.zip download complete!`, "success");
+
+  setTimeout(() => document.getElementById("dlStrip")?.remove(), 3500);
 }
 
 async function deleteCurrentFolder() {
