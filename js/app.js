@@ -35,6 +35,106 @@ window.fetch = async function(resource, config) {
   return originalFetch(resource, config);
 };
 
+let presenceData = [];
+let currentPresenceTab = 'online';
+
+function getOnlineStatus(last_seen) {
+  if (!last_seen) return { online: false, label: "Never seen" };
+  const diff = (Date.now() - new Date(last_seen)) / 1000 / 60; // minutes
+  if (diff <= 5) return { online: true, label: "Online now" };
+  return { online: false, label: formatLastSeen(last_seen) };
+}
+
+function formatLastSeen(ts) {
+  const diff = Math.floor((Date.now() - new Date(ts)) / 1000);
+  if (diff < 60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
+  return `${Math.floor(diff/86400)}d ago`;
+}
+
+async function openOnlineUsersModal() {
+  showAnimatedModal("onlineUsersModal");
+  await refreshPresenceData();
+}
+
+async function refreshPresenceData() {
+  try {
+    const res = await fetch(`${API_BASE}/presence/list`);
+    presenceData = await res.json();
+    renderPresenceList();
+    
+    const onlineCount = presenceData.filter(u => getOnlineStatus(u.last_seen).online).length;
+    document.getElementById("onlineCountBadge").innerText = onlineCount;
+    document.getElementById("onlineTabCount").innerText = onlineCount;
+  } catch(e) {}
+}
+
+function switchPresenceTab(tab) {
+  currentPresenceTab = tab;
+  const onlineBtn = document.getElementById("tabOnlineBtn");
+  const lastSeenBtn = document.getElementById("tabLastSeenBtn");
+  
+  if (tab === 'online') {
+    onlineBtn.className = "flex-1 py-2.5 font-semibold text-emerald-600 border-b-2 border-emerald-500";
+    lastSeenBtn.className = "flex-1 py-2.5 text-slate-400 hover:text-slate-600";
+  } else {
+    lastSeenBtn.className = "flex-1 py-2.5 font-semibold text-blue-600 border-b-2 border-blue-500";
+    onlineBtn.className = "flex-1 py-2.5 text-slate-400 hover:text-slate-600";
+  }
+  renderPresenceList();
+}
+
+function renderPresenceList() {
+  const container = document.getElementById("onlineUsersContainer");
+  
+  let users = presenceData.map(u => ({
+    ...u,
+    status: getOnlineStatus(u.last_seen)
+  }));
+
+  if (currentPresenceTab === 'online') {
+    users = users.filter(u => u.status.online);
+    if (users.length === 0) {
+      container.innerHTML = `<div class="text-center py-10 text-slate-400">No one is online right now.</div>`;
+      return;
+    }
+  } else {
+    users = users.filter(u => !u.status.online).sort((a, b) => {
+      if (!a.last_seen) return 1;
+      if (!b.last_seen) return -1;
+      return new Date(b.last_seen) - new Date(a.last_seen);
+    });
+    if (users.length === 0) {
+      container.innerHTML = `<div class="text-center py-10 text-slate-400">No offline users.</div>`;
+      return;
+    }
+  }
+
+  container.innerHTML = users.map(u => {
+    const isMe = currentUser && u.student_id === currentUser.student_id;
+    return `
+      <div class="flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold
+            ${u.status.online ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-600' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}">
+            ${u.name.charAt(0).toUpperCase()}
+          </div>
+          <div>
+            <div class="font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+              ${u.name} ${isMe ? '<span class="text-[9px] bg-blue-100 dark:bg-blue-900 text-blue-600 px-1.5 rounded font-bold">You</span>' : ''}
+            </div>
+            <div class="text-[10px] text-slate-400 font-mono">${u.student_id}</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-1.5 shrink-0">
+          <span class="h-2 w-2 rounded-full ${u.status.online ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300 dark:bg-slate-600'}"></span>
+          <span class="text-[10px] font-mono ${u.status.online ? 'text-emerald-500' : 'text-slate-400'}">${u.status.label}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
 
 // PDF Rendering Global State
 let currentPdfDoc = null;
@@ -129,6 +229,20 @@ async function syncUserRole() {
   } catch(e) {}
 }
 
+
+function startPresenceHeartbeat() {
+  if (!currentUser) return;
+  
+  async function ping() {
+    try {
+      await fetch(`${API_BASE}/presence/heartbeat`, { method: "POST" });
+    } catch(e) {}
+  }
+  
+  ping(); // তাৎক্ষণিক একবার
+  setInterval(ping, 2 * 60 * 1000); // প্রতি 2 মিনিটে
+}
+
 async function renderPortalView() {
   restoreFolderFromUrl();
   if (isGuestMode) return;
@@ -187,6 +301,7 @@ async function renderPortalView() {
     restoreFolderFromUrl();
     sortFiles(currentSortMode);
     initWebSocket();
+    startPresenceHeartbeat();
     checkUnseenNotices();
     loadDynamicTools();
   } else {
@@ -1908,6 +2023,12 @@ function initWebSocket() {
       ws = null; // Allow reconnecting if needed
     };
   }
+  setInterval(() => {
+    const modal = document.getElementById("onlineUsersModal");
+    if (modal && !modal.classList.contains("modal-hidden")) {
+      refreshPresenceData();
+    }
+  }, 30 * 1000);
 }
 
 function appendMessage(msg) {
