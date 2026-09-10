@@ -194,6 +194,10 @@
           <a href="#" onclick="selectFolder('/'); toggleSidebar(false);" class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 font-semibold">
             <i class="fa-solid fa-hard-drive"></i> Storage Drive
           </a>
+
+          <button onclick="openRoutineModal(); toggleSidebar(false);" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300">
+            <span class="flex items-center gap-3"><i class="fa-solid fa-calendar-days text-blue-500"></i> Class Routine</span>
+          </button>
           
           <button onclick="openNoticeBoardModal(); toggleSidebar(false);" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300">
             <span class="flex items-center gap-3"><i class="fa-solid fa-bullhorn text-amber-500"></i> Notice Board</span>
@@ -485,6 +489,119 @@
     </div>
   </div>
 
+  <!-- Class Routine Main Modal -->
+<div id="routineModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs modal-hidden modal-backdrop z-50 flex items-center justify-center p-3 md:p-6">
+  <div class="modal-box bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col overflow-hidden" style="max-height:90vh">
+    <div class="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950 shrink-0">
+      <div class="flex items-center gap-2">
+        <i class="fa-solid fa-calendar-days text-blue-500"></i>
+        <span class="font-bold text-sm">Class Routine</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span id="routineLastEdited" class="text-[10px] text-slate-400 font-mono hidden"></span>
+        <button id="routineEditBtn" onclick="openEditRoutineModal()" class="hidden px-2.5 py-1 text-[11px] font-semibold bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 rounded-lg border border-blue-200 dark:border-blue-900">
+          <i class="fa-solid fa-pen-to-square mr-1"></i> Edit Routine
+        </button>
+        <button id="routineSettingsBtn" onclick="openRoutineSettingsModal()" class="hidden px-2.5 py-1 text-[11px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300 rounded-lg border border-slate-200 dark:border-slate-700">
+          <i class="fa-solid fa-gear mr-1"></i> Settings
+        </button>
+        <button onclick="closeRoutineModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+    </div>
+
+    <div class="flex-1 overflow-y-auto">
+      <!-- Routine Image -->
+      <div id="routineImageSection" class="hidden p-4 border-b border-slate-100 dark:border-slate-800">
+        <img id="routineImage" src="" alt="Class Routine" class="w-full rounded-xl object-contain max-h-64 cursor-pointer border border-slate-200 dark:border-slate-700" onclick="openRoutineImagePreview()">
+      </div>
+
+      <!-- Tomorrow's Schedule -->
+      <div id="tomorrowScheduleSection" class="hidden p-4 border-b border-slate-100 dark:border-slate-800">
+        <div class="flex items-center gap-2 mb-3">
+          <i class="fa-solid fa-clock text-amber-500 text-xs"></i>
+          <span class="text-xs font-bold text-slate-700 dark:text-slate-200">Tomorrow's Classes</span>
+          <span id="tomorrowDateLabel" class="text-[10px] text-slate-400 font-mono"></span>
+        </div>
+        <div id="tomorrowClassList" class="space-y-2"></div>
+      </div>
+
+      <!-- All Courses List -->
+      <div class="p-4">
+        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">All Subjects</p>
+        <div id="routineCourseList" class="space-y-2 text-xs">
+          <p class="text-center py-8 text-slate-400">Loading routine...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Routine Settings Modal -->
+<div id="routineSettingsModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs modal-hidden modal-backdrop z-[60] flex items-center justify-center p-3 md:p-6">
+  <div class="modal-box bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-lg rounded-2xl shadow-2xl flex flex-col overflow-hidden" style="max-height:90vh">
+    <div class="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
+      <span class="font-bold text-sm flex items-center gap-2"><i class="fa-solid fa-gear text-slate-500"></i> Routine Settings</span>
+      <button onclick="closeRoutineSettingsModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+    </div>
+    <div class="flex-1 overflow-y-auto p-4 space-y-5">
+
+      <!-- Image Upload -->
+      <div>
+        <p class="text-xs font-bold text-slate-600 dark:text-slate-300 mb-2">Default Routine Image</p>
+        <div id="currentRoutineImageThumb" class="hidden mb-2">
+          <img id="routineThumbImg" src="" class="h-24 rounded-lg object-contain border border-slate-200 dark:border-slate-700">
+        </div>
+        <input type="file" id="routineImageFileInput" accept="image/*" class="hidden" onchange="previewRoutineImageUpload(this)">
+        <div id="routineImagePreviewNew" class="hidden mb-2">
+          <img id="routineNewThumb" src="" class="h-24 rounded-lg object-contain border border-blue-300">
+          <p class="text-[10px] text-blue-500 mt-1">New image selected (not saved yet)</p>
+        </div>
+        <button onclick="document.getElementById('routineImageFileInput').click()" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5">
+          <i class="fa-solid fa-image"></i> Upload / Change Image
+        </button>
+      </div>
+
+      <!-- Courses List -->
+      <div>
+        <p class="text-xs font-bold text-slate-600 dark:text-slate-300 mb-2">Courses</p>
+        <div id="settingsCourseList" class="space-y-2 mb-3"></div>
+        <div class="border border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-3 space-y-2">
+          <p class="text-[10px] text-slate-400 font-semibold uppercase">Add New Course</p>
+          <input id="newCourseCode" type="text" placeholder="Course Code (e.g. CSE-301)" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-2 text-xs">
+          <input id="newCourseName" type="text" placeholder="Course Name (e.g. Data Structures)" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-2 text-xs">
+          <input id="newCourseTeacher" type="text" placeholder="Teacher Name (optional)" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-2 text-xs">
+          <button onclick="addNewCourse()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1">
+            <i class="fa-solid fa-plus"></i> Add Course
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="p-4 border-t border-slate-200 dark:border-slate-800 shrink-0">
+      <button onclick="saveRoutineSettings()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2.5 rounded-xl text-xs font-semibold">Save Settings</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Tomorrow's Routine Modal -->
+<div id="editRoutineModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs modal-hidden modal-backdrop z-[60] flex items-center justify-center p-3 md:p-6">
+  <div class="modal-box bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-lg rounded-2xl shadow-2xl flex flex-col overflow-hidden" style="max-height:90vh">
+    <div class="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
+      <div>
+        <span class="font-bold text-sm flex items-center gap-2"><i class="fa-solid fa-pen-to-square text-blue-500"></i> Edit Tomorrow's Classes</span>
+        <p id="editRoutineDateLabel" class="text-[10px] text-slate-400 font-mono mt-0.5"></p>
+      </div>
+      <button onclick="closeEditRoutineModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+    </div>
+    <div class="flex-1 overflow-y-auto p-4">
+      <p class="text-[10px] text-slate-400 mb-3">Select which classes will be held tomorrow and set their time and location.</p>
+      <div id="editCourseCheckboxList" class="space-y-3 text-xs"></div>
+    </div>
+    <div class="p-4 border-t border-slate-200 dark:border-slate-800 shrink-0">
+      <button onclick="saveEditedRoutine()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2.5 rounded-xl text-xs font-semibold">Save Tomorrow's Schedule</button>
+    </div>
+  </div>
+</div>
+  
   <!-- Admin Trash Modal Window -->
   <div id="adminTrashModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs modal-hidden modal-backdrop z-50 flex items-center justify-center p-3 md:p-6">
     <div class="modal-box bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-2xl h-[550px] rounded-2xl shadow-2xl flex flex-col overflow-hidden relative">
