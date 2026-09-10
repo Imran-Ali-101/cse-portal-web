@@ -2483,7 +2483,29 @@ function getTomorrowDateLabel() {
   return tomorrow.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
 }
 
+function switchRoutineTab(tab) {
+  const scheduleTab = document.getElementById("routineTabSchedule");
+  const imageTab = document.getElementById("routineTabImage");
+  const scheduleBtn = document.getElementById("routineTabScheduleBtn");
+  const imageBtn = document.getElementById("routineTabImageBtn");
+
+  if (tab === 'schedule') {
+    scheduleTab.classList.remove("hidden");
+    imageTab.classList.add("hidden");
+    scheduleBtn.className = "flex-1 py-2.5 font-semibold text-blue-600 border-b-2 border-blue-500";
+    imageBtn.className = "flex-1 py-2.5 text-slate-400 hover:text-slate-600";
+  } else {
+    scheduleTab.classList.add("hidden");
+    imageTab.classList.remove("hidden");
+    imageBtn.className = "flex-1 py-2.5 font-semibold text-blue-600 border-b-2 border-blue-500";
+    scheduleBtn.className = "flex-1 py-2.5 text-slate-400 hover:text-slate-600";
+  }
+}
+
 function renderRoutineModal() {
+  // Reset to schedule tab
+  switchRoutineTab('schedule');
+
   // Last edited time
   const lastEditedEl = document.getElementById("routineLastEdited");
   if (routineData.last_edited_at) {
@@ -2491,14 +2513,19 @@ function renderRoutineModal() {
     lastEditedEl.classList.remove("hidden");
   }
 
-  // Routine image
+  // Routine image tab
   if (routineData.routine_image_message_id && routineData.routine_image_filename) {
     const token = currentUser ? currentUser.token : '';
     const imgUrl = `${API_BASE}/slides/stream/${routineData.routine_image_message_id}?filename=${encodeURIComponent(routineData.routine_image_filename)}&token=${token}`;
-    document.getElementById("routineImage").src = imgUrl;
+    const imgEl = document.getElementById("routineImage");
+    imgEl.src = imgUrl;
+    imgEl.classList.remove("hidden");
+    document.getElementById("routineImageError").classList.add("hidden");
     document.getElementById("routineImageSection").classList.remove("hidden");
+    document.getElementById("routineNoImage").classList.add("hidden");
   } else {
     document.getElementById("routineImageSection").classList.add("hidden");
+    document.getElementById("routineNoImage").classList.remove("hidden");
   }
 
   // Tomorrow's schedule
