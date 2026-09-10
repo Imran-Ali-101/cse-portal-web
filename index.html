@@ -510,26 +510,51 @@
     </div>
 
     <div class="flex-1 overflow-y-auto">
-      <!-- Routine Image -->
-      <div id="routineImageSection" class="hidden p-4 border-b border-slate-100 dark:border-slate-800">
-        <img id="routineImage" src="" alt="Class Routine" class="w-full rounded-xl object-contain max-h-64 cursor-pointer border border-slate-200 dark:border-slate-700" onclick="openRoutineImagePreview()">
+      <!-- Tabs -->
+      <div id="routineTabBar" class="flex border-b border-slate-200 dark:border-slate-800 text-xs shrink-0">
+        <button id="routineTabScheduleBtn" onclick="switchRoutineTab('schedule')" 
+                class="flex-1 py-2.5 font-semibold text-blue-600 border-b-2 border-blue-500">
+          📅 Schedule
+        </button>
+        <button id="routineTabImageBtn" onclick="switchRoutineTab('image')" 
+                class="flex-1 py-2.5 text-slate-400 hover:text-slate-600">
+          🖼️ Routine Image
+        </button>
       </div>
-
-      <!-- Tomorrow's Schedule -->
-      <div id="tomorrowScheduleSection" class="hidden p-4 border-b border-slate-100 dark:border-slate-800">
-        <div class="flex items-center gap-2 mb-3">
-          <i class="fa-solid fa-clock text-amber-500 text-xs"></i>
-          <span class="text-xs font-bold text-slate-700 dark:text-slate-200">Tomorrow's Classes</span>
-          <span id="tomorrowDateLabel" class="text-[10px] text-slate-400 font-mono"></span>
+      
+      <!-- Tab: Schedule -->
+      <div id="routineTabSchedule" class="flex-1 overflow-y-auto">
+        <!-- Tomorrow's Schedule -->
+        <div id="tomorrowScheduleSection" class="hidden p-4 border-b border-slate-100 dark:border-slate-800">
+          <div class="flex items-center gap-2 mb-3">
+            <i class="fa-solid fa-clock text-amber-500 text-xs"></i>
+            <span class="text-xs font-bold text-slate-700 dark:text-slate-200">Tomorrow's Classes</span>
+            <span id="tomorrowDateLabel" class="text-[10px] text-slate-400 font-mono"></span>
+          </div>
+          <div id="tomorrowClassList" class="space-y-2"></div>
         </div>
-        <div id="tomorrowClassList" class="space-y-2"></div>
+        <!-- All Courses List -->
+        <div class="p-4">
+          <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">All Subjects</p>
+          <div id="routineCourseList" class="space-y-2 text-xs">
+            <p class="text-center py-8 text-slate-400">Loading routine...</p>
+          </div>
+        </div>
       </div>
-
-      <!-- All Courses List -->
-      <div class="p-4">
-        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">All Subjects</p>
-        <div id="routineCourseList" class="space-y-2 text-xs">
-          <p class="text-center py-8 text-slate-400">Loading routine...</p>
+      
+      <!-- Tab: Image -->
+      <div id="routineTabImage" class="hidden flex-1 overflow-y-auto p-4">
+        <div id="routineImageSection" class="hidden">
+          <img id="routineImage" src="" alt="Class Routine" 
+               class="w-full rounded-xl object-contain cursor-pointer border border-slate-200 dark:border-slate-700" 
+               onclick="openRoutineImagePreview()"
+               onerror="document.getElementById('routineImageError').classList.remove('hidden'); this.classList.add('hidden')">
+          <p id="routineImageError" class="hidden text-center text-xs text-rose-400 mt-2">Image load failed. Try again.</p>
+          <p class="text-[10px] text-slate-400 text-center mt-2">Click image to expand</p>
+        </div>
+        <div id="routineNoImage" class="text-center py-12 text-slate-400">
+          <i class="fa-solid fa-image text-3xl mb-2 block text-slate-300"></i>
+          No routine image uploaded yet.
         </div>
       </div>
     </div>
