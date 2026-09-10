@@ -2432,4 +2432,308 @@ async function downloadGuestZip() {
 }
 
 
+// ==========================================
+// CLASS ROUTINE SYSTEM
+// ==========================================
+let routineData = { courses: [], routine_image_message_id: null, routine_image_filename: null, last_edited_by: null, last_edited_at: null };
+let tempNewRoutineImageFile = null;
+
+async function openRoutineModal() {
+  showAnimatedModal("routineModal");
+  if (isAdmin()) {
+    document.getElementById("routineEditBtn").classList.remove("hidden");
+    document.getElementById("routineSettingsBtn").classList.remove("hidden");
+  }
+  await loadRoutineData();
+}
+
+function closeRoutineModal() { hideAnimatedModal("routineModal"); }
+
+async function loadRoutineData() {
+  try {
+    const res = await fetch(`${API_BASE}/routine/get`);
+    routineData = await res.json();
+    renderRoutineModal();
+  } catch(e) {
+    document.getElementById("routineCourseList").innerHTML = `<p class="text-center py-8 text-rose-400">Failed to load routine.</p>`;
+  }
+}
+
+function formatRoutineEditTime(isoString) {
+  if (!isoString) return "";
+  const date = new Date(isoString);
+  const now = new Date();
+  const diffMs = now - date;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+
+  const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  const isToday = date.toDateString() === now.toDateString();
+  const yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1);
+  const isYesterday = date.toDateString() === yesterday.toDateString();
+
+  if (isToday) return `Last edited at ${timeStr}`;
+  if (isYesterday) return `Last edited Yesterday at ${timeStr}`;
+  return `Last edited ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} at ${timeStr}`;
+}
+
+function getTomorrowDateLabel() {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return tomorrow.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+}
+
+function renderRoutineModal() {
+  // Last edited time
+  const lastEditedEl = document.getElementById("routineLastEdited");
+  if (routineData.last_edited_at) {
+    lastEditedEl.innerText = formatRoutineEditTime(routineData.last_edited_at);
+    lastEditedEl.classList.remove("hidden");
+  }
+
+  // Routine image
+  if (routineData.routine_image_message_id && routineData.routine_image_filename) {
+    const token = currentUser ? currentUser.token : '';
+    const imgUrl = `${API_BASE}/slides/stream/${routineData.routine_image_message_id}?filename=${encodeURIComponent(routineData.routine_image_filename)}&token=${token}`;
+    document.getElementById("routineImage").src = imgUrl;
+    document.getElementById("routineImageSection").classList.remove("hidden");
+  } else {
+    document.getElementById("routineImageSection").classList.add("hidden");
+  }
+
+  // Tomorrow's schedule
+  const tomorrowClasses = (routineData.courses || []).filter(c => c.tomorrow_selected);
+  const tomorrowSection = document.getElementById("tomorrowScheduleSection");
+  if (tomorrowClasses.length > 0) {
+    document.getElementById("tomorrowDateLabel").innerText = getTomorrowDateLabel();
+    document.getElementById("tomorrowClassList").innerHTML = tomorrowClasses.map(c => `
+      <div class="flex items-center justify-between bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-xl px-3 py-2.5">
+        <div>
+          <span class="font-bold text-slate-800 dark:text-slate-100">${c.code}</span>
+          <span class="text-slate-500 dark:text-slate-400 ml-1">${c.name}</span>
+          ${c.teacher ? `<p class="text-[10px] text-slate-400 mt-0.5">${c.teacher}</p>` : ''}
+        </div>
+        <div class="text-right shrink-0">
+          ${c.tomorrow_time ? `<span class="text-xs font-mono text-amber-700 dark:text-amber-400 font-semibold block">${c.tomorrow_time}</span>` : ''}
+          ${c.tomorrow_place ? `<span class="text-[10px] text-slate-500">${c.tomorrow_place}</span>` : ''}
+        </div>
+      </div>
+    `).join('');
+    tomorrowSection.classList.remove("hidden");
+  } else {
+    tomorrowSection.classList.add("hidden");
+  }
+
+  // All courses
+  const courseList = document.getElementById("routineCourseList");
+  if (!routineData.courses || routineData.courses.length === 0) {
+    courseList.innerHTML = `<p class="text-center py-8 text-slate-400">No courses added yet.</p>`;
+    return;
+  }
+  courseList.innerHTML = routineData.courses.map(c => `
+    <div class="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5">
+      <div>
+        <span class="font-bold text-slate-800 dark:text-slate-100 text-xs">${c.code}</span>
+        <span class="text-slate-500 dark:text-slate-400 text-xs ml-1">${c.name}</span>
+        ${c.teacher ? `<p class="text-[10px] text-slate-400 mt-0.5">${c.teacher}</p>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+function openRoutineImagePreview() {
+  if (!routineData.routine_image_message_id) return;
+  const token = currentUser ? currentUser.token : '';
+  const imgUrl = `${API_BASE}/slides/stream/${routineData.routine_image_message_id}?filename=${encodeURIComponent(routineData.routine_image_filename)}&token=${token}`;
+  openPreview(routineData.routine_image_filename, routineData.routine_image_message_id);
+}
+
+// ---- Settings Modal ----
+function openRoutineSettingsModal() {
+  if (!isAdmin()) return;
+  tempNewRoutineImageFile = null;
+  document.getElementById("routineImagePreviewNew").classList.add("hidden");
+  document.getElementById("routineImageFileInput").value = "";
+
+  // Show existing image thumb
+  if (routineData.routine_image_message_id && routineData.routine_image_filename) {
+    const token = currentUser ? currentUser.token : '';
+    const imgUrl = `${API_BASE}/slides/stream/${routineData.routine_image_message_id}?filename=${encodeURIComponent(routineData.routine_image_filename)}&token=${token}`;
+    document.getElementById("routineThumbImg").src = imgUrl;
+    document.getElementById("currentRoutineImageThumb").classList.remove("hidden");
+  } else {
+    document.getElementById("currentRoutineImageThumb").classList.add("hidden");
+  }
+
+  renderSettingsCourseList();
+  showAnimatedModal("routineSettingsModal");
+}
+
+function closeRoutineSettingsModal() { hideAnimatedModal("routineSettingsModal"); }
+
+function renderSettingsCourseList() {
+  const container = document.getElementById("settingsCourseList");
+  if (!routineData.courses || routineData.courses.length === 0) {
+    container.innerHTML = `<p class="text-xs text-slate-400 text-center py-3">No courses yet.</p>`;
+    return;
+  }
+  container.innerHTML = routineData.courses.map((c, i) => `
+    <div class="flex items-center justify-between bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2">
+      <div class="text-xs">
+        <span class="font-bold text-slate-800 dark:text-slate-100">${c.code}</span>
+        <span class="text-slate-500 ml-1">${c.name}</span>
+        ${c.teacher ? `<span class="text-[10px] text-slate-400 ml-1">• ${c.teacher}</span>` : ''}
+      </div>
+      <button onclick="removeCourse(${i})" class="text-rose-400 hover:text-rose-600 p-1 ml-2 shrink-0">
+        <i class="fa-solid fa-trash-can text-xs"></i>
+      </button>
+    </div>
+  `).join('');
+}
+
+function previewRoutineImageUpload(input) {
+  if (!input.files || !input.files[0]) return;
+  tempNewRoutineImageFile = input.files[0];
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    document.getElementById("routineNewThumb").src = e.target.result;
+    document.getElementById("routineImagePreviewNew").classList.remove("hidden");
+  };
+  reader.readAsDataURL(tempNewRoutineImageFile);
+}
+
+function addNewCourse() {
+  const code = document.getElementById("newCourseCode").value.trim();
+  const name = document.getElementById("newCourseName").value.trim();
+  const teacher = document.getElementById("newCourseTeacher").value.trim();
+  if (!code || !name) return showToast("Course code and name are required", "error");
+
+  if (!routineData.courses) routineData.courses = [];
+  routineData.courses.push({ code, name, teacher, tomorrow_selected: false, tomorrow_time: "", tomorrow_place: "" });
+
+  document.getElementById("newCourseCode").value = "";
+  document.getElementById("newCourseName").value = "";
+  document.getElementById("newCourseTeacher").value = "";
+  renderSettingsCourseList();
+  showToast("Course added!", "success");
+}
+
+function removeCourse(index) {
+  routineData.courses.splice(index, 1);
+  renderSettingsCourseList();
+}
+
+async function saveRoutineSettings() {
+  // Upload new image if selected
+  if (tempNewRoutineImageFile) {
+    showToast("Uploading routine image...", "info");
+    const formData = new FormData();
+    formData.append("file", tempNewRoutineImageFile);
+    formData.append("folder", "/");
+    formData.append("uploader_name", currentUser ? currentUser.name : "Admin");
+    formData.append("skip_notice", "true");
+
+    try {
+      const res = await fetch(`${API_BASE}/slides/upload`, { method: "POST", body: formData });
+      if (!res.ok) throw new Error("Image upload failed");
+      const data = await res.json();
+      routineData.routine_image_message_id = data.file.telegram_message_id;
+      routineData.routine_image_filename = data.file.file_name;
+      tempNewRoutineImageFile = null;
+    } catch(err) {
+      return showToast(err.message, "error");
+    }
+  }
+
+  try {
+    const res = await fetch(`${API_BASE}/routine/save`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(routineData)
+    });
+    if (!res.ok) throw new Error("Failed to save routine");
+    showToast("Routine settings saved!", "success");
+    closeRoutineSettingsModal();
+    await loadRoutineData();
+  } catch(err) {
+    showToast(err.message, "error");
+  }
+}
+
+// ---- Edit Tomorrow's Routine ----
+function openEditRoutineModal() {
+  if (!isAdmin()) return;
+  const tomorrow = getTomorrowDateLabel();
+  document.getElementById("editRoutineDateLabel").innerText = tomorrow;
+
+  const container = document.getElementById("editCourseCheckboxList");
+  if (!routineData.courses || routineData.courses.length === 0) {
+    container.innerHTML = `<p class="text-center py-6 text-slate-400">No courses in settings yet.</p>`;
+    showAnimatedModal("editRoutineModal");
+    return;
+  }
+
+  container.innerHTML = routineData.courses.map((c, i) => `
+    <div class="border border-slate-200 dark:border-slate-700 rounded-xl p-3 space-y-2 transition" id="editCourseRow_${i}">
+      <label class="flex items-center gap-3 cursor-pointer">
+        <input type="checkbox" class="edit-course-check rounded border-slate-300 w-4 h-4" 
+               data-index="${i}" ${c.tomorrow_selected ? 'checked' : ''}
+               onchange="toggleEditCourseRow(${i}, this.checked)">
+        <div>
+          <span class="font-bold text-slate-800 dark:text-slate-100">${c.code}</span>
+          <span class="text-slate-500 dark:text-slate-400 ml-1">${c.name}</span>
+          ${c.teacher ? `<p class="text-[10px] text-slate-400">${c.teacher}</p>` : ''}
+        </div>
+      </label>
+      <div id="editCourseDetails_${i}" class="${c.tomorrow_selected ? '' : 'hidden'} grid grid-cols-2 gap-2 pt-1">
+        <input type="text" placeholder="Time (e.g. 10:00 AM)" value="${c.tomorrow_time || ''}"
+               class="edit-time-input bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs"
+               data-index="${i}">
+        <input type="text" placeholder="Place (e.g. Room 301)" value="${c.tomorrow_place || ''}"
+               class="edit-place-input bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-xs"
+               data-index="${i}">
+      </div>
+    </div>
+  `).join('');
+
+  showAnimatedModal("editRoutineModal");
+}
+
+function toggleEditCourseRow(index, checked) {
+  const details = document.getElementById(`editCourseDetails_${index}`);
+  details.classList.toggle("hidden", !checked);
+}
+
+function closeEditRoutineModal() { hideAnimatedModal("editRoutineModal"); }
+
+async function saveEditedRoutine() {
+  // Collect all checkbox values
+  document.querySelectorAll(".edit-course-check").forEach(cb => {
+    const i = parseInt(cb.getAttribute("data-index"));
+    routineData.courses[i].tomorrow_selected = cb.checked;
+  });
+  document.querySelectorAll(".edit-time-input").forEach(inp => {
+    const i = parseInt(inp.getAttribute("data-index"));
+    routineData.courses[i].tomorrow_time = inp.value.trim();
+  });
+  document.querySelectorAll(".edit-place-input").forEach(inp => {
+    const i = parseInt(inp.getAttribute("data-index"));
+    routineData.courses[i].tomorrow_place = inp.value.trim();
+  });
+
+  try {
+    const res = await fetch(`${API_BASE}/routine/save`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(routineData)
+    });
+    if (!res.ok) throw new Error("Failed to save");
+    showToast("Tomorrow's routine updated!", "success");
+    closeEditRoutineModal();
+    await loadRoutineData();
+  } catch(err) {
+    showToast(err.message, "error");
+  }
+}
+
 renderPortalView();
