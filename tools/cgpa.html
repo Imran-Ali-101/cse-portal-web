@@ -1,91 +1,480 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GPA & CGPA Suite | CSE Tools</title>
+  <title>CGPA Calculator</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="../css/style.css">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-</head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
+  <style>
+    * { -webkit-tap-highlight-color: transparent; }
 
-  <header class="glass-panel sticky top-0 z-40 px-6 py-3.5 flex justify-between items-center border-b border-slate-800">
-    <a href="../index.html" class="flex items-center space-x-2 text-indigo-400 hover:text-indigo-300 text-sm font-medium">
-      <i class="fa-solid fa-arrow-left"></i> <span>Back to Main Portal</span>
+    body { background: #f0f2f5; font-family: 'Segoe UI', system-ui, sans-serif; }
+
+    .glass-header {
+      background: #fff;
+      border-bottom: 1px solid #e2e6ea;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      border: 1px solid #e2e6ea;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+    }
+
+    .input-field {
+      background: #f7f8fa;
+      border: 1.5px solid #e2e6ea;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 13px;
+      color: #1a1d23;
+      width: 100%;
+      transition: border-color 0.15s;
+      outline: none;
+    }
+    .input-field:focus { border-color: #4f6ef7; background: #fff; }
+    .input-field::placeholder { color: #a0a9b8; }
+
+    .btn-primary {
+      background: #1a2340;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 10px 20px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .btn-primary:hover { background: #2b3a63; }
+
+    .btn-secondary {
+      background: #fff;
+      color: #4a5568;
+      border: 1.5px solid #dde1e9;
+      border-radius: 10px;
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .btn-secondary:hover { background: #f0f2f5; }
+
+    .btn-danger {
+      background: transparent;
+      border: none;
+      color: #c0c8d8;
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: color 0.15s;
+      flex-shrink: 0;
+    }
+    .btn-danger:hover { color: #e05252; background: #fff1f1; }
+
+    .result-card {
+      background: #f0f3ff;
+      border: 1.5px solid #c7d0f8;
+      border-radius: 14px;
+      padding: 16px 20px;
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.15s;
+      color: #8492a6;
+      background: transparent;
+    }
+    .tab-btn.active {
+      background: #1a2340;
+      color: #fff;
+      box-shadow: 0 2px 6px rgba(26,35,64,0.2);
+    }
+
+    .badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 20px;
+      background: #e8eaf6;
+      color: #4f6ef7;
+      letter-spacing: 0.02em;
+    }
+
+    .semester-block {
+      border: 1.5px solid #e2e6ea;
+      border-radius: 14px;
+      overflow: hidden;
+      background: #f7f8fa;
+    }
+    .semester-header {
+      background: #fff;
+      padding: 12px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #e2e6ea;
+    }
+
+    .gpa-ring {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .gpa-ring svg { transform: rotate(-90deg); }
+    .gpa-ring .center-text {
+      position: absolute;
+      text-align: center;
+    }
+
+    @media (max-width: 480px) {
+      .course-grid { grid-template-columns: 1fr 1fr; }
+      .course-grid .name-col { grid-column: 1 / -1; }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="glass-header sticky top-0 z-40 px-4 py-3 flex justify-between items-center">
+    <a href="../index.html" class="flex items-center gap-2 text-sm font-semibold text-gray-700 hover:text-indigo-600 transition">
+      <i class="fa-solid fa-arrow-left text-xs"></i>
+      <span>CSE Portal</span>
     </a>
-    <span class="text-xs text-slate-400 font-mono">Public Tool</span>
+    <span class="badge">Public Tool</span>
   </header>
 
-  <main class="flex-1 max-w-4xl w-full mx-auto p-4 md:p-8 space-y-6">
-    <div class="text-center space-y-1">
-      <h1 class="text-2xl font-bold bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">Academic GPA Calculator</h1>
-      <p class="text-xs text-slate-400">Calculate Semester GPA (sGPA), Yearly GPA (yGPA), and Cumulative CGPA instantly.</p>
+  <main class="flex-1 max-w-2xl w-full mx-auto p-4 pb-10 space-y-4">
+
+    <!-- Title -->
+    <div class="pt-2 pb-1">
+      <h1 class="text-xl font-bold text-gray-900">GPA Calculator</h1>
+      <p class="text-sm text-gray-500 mt-0.5">Semester GPA · Yearly GPA · CGPA</p>
     </div>
 
-    <div class="glass-panel rounded-2xl p-5 custom-shadow space-y-4">
-      <div id="courseRows" class="space-y-3">
-        <div class="grid grid-cols-3 gap-3 course-row">
-          <input type="text" placeholder="Course Name (e.g. Data Structures)" class="bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200">
-          <input type="number" step="0.5" placeholder="Credit (e.g. 3.0)" class="credit-input bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200">
-          <input type="number" step="0.01" placeholder="Grade Point (e.g. 3.75)" class="gpa-input bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200">
-        </div>
-      </div>
+    <!-- Mode Tabs -->
+    <div class="card p-1.5 flex gap-1">
+      <button class="tab-btn active" onclick="switchMode('sgpa', this)">
+        <i class="fa-solid fa-graduation-cap mr-1"></i> Semester GPA
+      </button>
+      <button class="tab-btn" onclick="switchMode('cgpa', this)">
+        <i class="fa-solid fa-chart-line mr-1"></i> CGPA (Multi-Semester)
+      </button>
+    </div>
 
-      <div class="flex flex-wrap gap-2 pt-2">
-        <button onclick="addRow()" class="text-xs bg-slate-800 hover:bg-slate-700 px-3.5 py-2 rounded-xl border border-slate-700 transition">
-          <i class="fa-solid fa-plus mr-1"></i> Add Course
-        </button>
-        <button onclick="calculateGpa()" class="text-xs bg-indigo-600 hover:bg-indigo-500 font-semibold px-5 py-2 rounded-xl transition shadow-lg shadow-indigo-600/20">
-          Calculate sGPA / CGPA
-        </button>
-      </div>
+    <!-- ── SGPA MODE ── -->
+    <div id="mode-sgpa">
+      <div class="card p-4 space-y-4">
 
-      <div id="resultCard" class="hidden mt-4 p-4 rounded-xl bg-indigo-950/40 border border-indigo-800/60 flex justify-between items-center">
-        <div>
-          <span class="text-xs text-indigo-300 font-medium block">Calculated Result:</span>
-          <span id="resGpa" class="text-2xl font-bold text-white font-mono">0.00</span>
+        <!-- Semester Label -->
+        <div class="flex items-center justify-between">
+          <span class="text-sm font-semibold text-gray-700">Course List</span>
+          <span id="sgpa-count" class="text-xs text-gray-400">1 course</span>
         </div>
-        <span id="resCredits" class="text-xs text-slate-400 font-mono"></span>
+
+        <!-- Column Headers -->
+        <div class="grid gap-2" style="grid-template-columns: 1fr 80px 80px 32px;">
+          <span class="text-xs font-semibold text-gray-400 px-1">Course Name</span>
+          <span class="text-xs font-semibold text-gray-400 text-center">Credit</span>
+          <span class="text-xs font-semibold text-gray-400 text-center">Grade Pt.</span>
+          <span></span>
+        </div>
+
+        <!-- Rows -->
+        <div id="sgpa-rows" class="space-y-2"></div>
+
+        <!-- Actions -->
+        <div class="flex flex-wrap gap-2 pt-1">
+          <button class="btn-secondary" onclick="addSgpaRow()">
+            <i class="fa-solid fa-plus text-xs"></i> Add Course
+          </button>
+          <button class="btn-primary" onclick="calculateSgpa()">
+            <i class="fa-solid fa-calculator text-xs"></i> Calculate GPA
+          </button>
+          <button class="btn-secondary" onclick="clearSgpa()" title="Clear all">
+            <i class="fa-solid fa-rotate-left text-xs"></i>
+          </button>
+        </div>
+
+        <!-- Result -->
+        <div id="sgpa-result" class="hidden result-card">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-xs text-indigo-500 font-semibold mb-1">Semester GPA</div>
+              <div class="flex items-end gap-2">
+                <span id="sgpa-val" class="text-3xl font-bold text-gray-900 font-mono">0.00</span>
+                <span class="text-sm text-gray-400 mb-1">/ 4.00</span>
+              </div>
+            </div>
+            <div class="text-right">
+              <div id="sgpa-credits" class="text-xs text-gray-500"></div>
+              <div id="sgpa-quality" class="text-xs text-gray-400 mt-0.5"></div>
+            </div>
+          </div>
+          <!-- Progress bar -->
+          <div class="mt-3 bg-white rounded-full h-2 overflow-hidden border border-indigo-100">
+            <div id="sgpa-bar" class="h-full rounded-full transition-all duration-500" style="background: linear-gradient(90deg, #4f6ef7, #7c9ff8); width: 0%"></div>
+          </div>
+        </div>
       </div>
     </div>
+
+    <!-- ── CGPA MODE ── -->
+    <div id="mode-cgpa" class="hidden space-y-3">
+
+      <div id="cgpa-semesters" class="space-y-3"></div>
+
+      <!-- Add Semester -->
+      <button class="btn-secondary w-full justify-center" onclick="addSemester()">
+        <i class="fa-solid fa-plus text-xs"></i> Add Semester
+      </button>
+
+      <!-- Calculate -->
+      <button class="btn-primary w-full justify-center" onclick="calculateCgpa()">
+        <i class="fa-solid fa-calculator text-xs"></i> Calculate CGPA
+      </button>
+
+      <!-- CGPA Result -->
+      <div id="cgpa-result" class="hidden card p-5">
+        <div class="text-xs font-semibold text-indigo-500 mb-3">Cumulative GPA (CGPA)</div>
+        <div class="flex items-center justify-between">
+          <div>
+            <span id="cgpa-val" class="text-4xl font-bold text-gray-900 font-mono">0.00</span>
+            <span class="text-base text-gray-400"> / 4.00</span>
+          </div>
+          <div class="text-right space-y-1">
+            <div id="cgpa-sems" class="text-xs text-gray-500"></div>
+            <div id="cgpa-credits" class="text-xs text-gray-500"></div>
+          </div>
+        </div>
+        <div class="mt-3 bg-gray-100 rounded-full h-2.5 overflow-hidden">
+          <div id="cgpa-bar" class="h-full rounded-full transition-all duration-700" style="background: linear-gradient(90deg, #1a2340, #4f6ef7); width: 0%"></div>
+        </div>
+        <!-- Semester Breakdown -->
+        <div id="cgpa-breakdown" class="mt-4 space-y-2"></div>
+      </div>
+    </div>
+
   </main>
 
   <script>
-    function addRow() {
-      const container = document.getElementById("courseRows");
-      const div = document.createElement("div");
-      div.className = "grid grid-cols-3 gap-3 course-row";
+    // ──────────────────────────────────────────────
+    //  SGPA
+    // ──────────────────────────────────────────────
+    let sgpaRowCount = 0;
+
+    function addSgpaRow(name = '', credit = '', gp = '') {
+      sgpaRowCount++;
+      const id = 'r' + Date.now() + sgpaRowCount;
+      const div = document.createElement('div');
+      div.id = id;
+      div.className = 'grid gap-2 items-center';
+      div.style.gridTemplateColumns = '1fr 80px 80px 32px';
       div.innerHTML = `
-        <input type="text" placeholder="Course Name" class="bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200">
-        <input type="number" step="0.5" placeholder="Credit" class="credit-input bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200">
-        <input type="number" step="0.01" placeholder="Grade Point" class="gpa-input bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200">
+        <input type="text" value="${name}" placeholder="e.g. Data Structures"
+          class="input-field" oninput="updateSgpaCount()">
+        <input type="number" value="${credit}" step="0.5" min="0.5" max="6" placeholder="3.0"
+          class="input-field text-center credit-in" oninput="updateSgpaCount()">
+        <input type="number" value="${gp}" step="0.01" min="0" max="4" placeholder="3.75"
+          class="input-field text-center gp-in">
+        <button class="btn-danger" onclick="removeRow('${id}', 'sgpa-rows')">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
       `;
-      container.appendChild(div);
+      document.getElementById('sgpa-rows').appendChild(div);
+      updateSgpaCount();
     }
 
-    function calculateGpa() {
-      const credits = document.querySelectorAll(".credit-input");
-      const gpas = document.querySelectorAll(".gpa-input");
-      let totalQualityPoints = 0;
-      let totalCredits = 0;
+    function updateSgpaCount() {
+      const n = document.querySelectorAll('#sgpa-rows .credit-in').length;
+      document.getElementById('sgpa-count').textContent = n + (n === 1 ? ' course' : ' courses');
+    }
+
+    function removeRow(id, container) {
+      const el = document.getElementById(id);
+      if (el) { el.remove(); updateSgpaCount(); }
+    }
+
+    function calculateSgpa() {
+      const credits = document.querySelectorAll('#sgpa-rows .credit-in');
+      const gps = document.querySelectorAll('#sgpa-rows .gp-in');
+      let totalQP = 0, totalC = 0;
 
       for (let i = 0; i < credits.length; i++) {
         const c = parseFloat(credits[i].value);
-        const g = parseFloat(gpas[i].value);
-        if (!isNaN(c) && !isNaN(g)) {
-          totalQualityPoints += c * g;
-          totalCredits += c;
+        const g = parseFloat(gps[i].value);
+        if (!isNaN(c) && !isNaN(g) && c > 0 && g >= 0) {
+          totalQP += c * g;
+          totalC += c;
         }
       }
 
-      if (totalCredits > 0) {
-        const finalGpa = (totalQualityPoints / totalCredits).toFixed(2);
-        document.getElementById("resGpa").innerText = `${finalGpa} / 4.00`;
-        document.getElementById("resCredits").innerText = `Total Credits: ${totalCredits}`;
-        document.getElementById("resultCard").classList.remove("hidden");
-      }
+      if (totalC === 0) { alert('Please enter at least one course with valid credit and grade point.'); return; }
+
+      const gpa = (totalQP / totalC).toFixed(2);
+      document.getElementById('sgpa-val').textContent = gpa;
+      document.getElementById('sgpa-credits').textContent = `Total Credits: ${totalC}`;
+      document.getElementById('sgpa-quality').textContent = `Quality Points: ${totalQP.toFixed(2)}`;
+      document.getElementById('sgpa-bar').style.width = ((parseFloat(gpa) / 4) * 100) + '%';
+
+      const res = document.getElementById('sgpa-result');
+      res.classList.remove('hidden');
+      res.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
+
+    function clearSgpa() {
+      document.getElementById('sgpa-rows').innerHTML = '';
+      document.getElementById('sgpa-result').classList.add('hidden');
+      sgpaRowCount = 0;
+      addSgpaRow();
+    }
+
+    // ──────────────────────────────────────────────
+    //  CGPA
+    // ──────────────────────────────────────────────
+    let semCount = 0;
+
+    function addSemester() {
+      semCount++;
+      const sId = 'sem' + semCount;
+      const div = document.createElement('div');
+      div.id = sId;
+      div.className = 'semester-block';
+      div.innerHTML = `
+        <div class="semester-header">
+          <div class="flex items-center gap-2">
+            <span class="text-sm font-semibold text-gray-700">Semester ${semCount}</span>
+            <span class="badge">Yr ${Math.ceil(semCount / 2)}-${semCount % 2 === 1 ? 1 : 2}</span>
+          </div>
+          <button class="btn-danger" onclick="removeSemester('${sId}')">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+        <div class="p-3 space-y-2">
+          <div class="grid gap-2" style="grid-template-columns: 1fr 76px 76px 28px;">
+            <span class="text-xs text-gray-400 px-1">Course</span>
+            <span class="text-xs text-gray-400 text-center">Credit</span>
+            <span class="text-xs text-gray-400 text-center">Grade Pt.</span>
+            <span></span>
+          </div>
+          <div class="sem-rows space-y-2" id="${sId}-rows"></div>
+          <button class="btn-secondary text-xs mt-1" style="padding:7px 12px" onclick="addCgpaRow('${sId}')">
+            <i class="fa-solid fa-plus" style="font-size:10px"></i> Add Course
+          </button>
+        </div>
+      `;
+      document.getElementById('cgpa-semesters').appendChild(div);
+      addCgpaRow(sId); // default one row
+    }
+
+    function removeSemester(id) {
+      const el = document.getElementById(id);
+      if (el) el.remove();
+    }
+
+    function addCgpaRow(sId) {
+      const rowId = sId + '-r' + Date.now();
+      const div = document.createElement('div');
+      div.id = rowId;
+      div.className = 'grid gap-2 items-center';
+      div.style.gridTemplateColumns = '1fr 76px 76px 28px';
+      div.innerHTML = `
+        <input type="text" placeholder="Course name" class="input-field" style="font-size:12px; padding:8px 10px">
+        <input type="number" step="0.5" min="0.5" max="6" placeholder="3.0" class="input-field text-center c-credit" style="font-size:12px; padding:8px 6px">
+        <input type="number" step="0.01" min="0" max="4" placeholder="3.75" class="input-field text-center c-gp" style="font-size:12px; padding:8px 6px">
+        <button class="btn-danger" style="font-size:12px;padding:5px" onclick="document.getElementById('${rowId}').remove()">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      `;
+      document.getElementById(sId + '-rows').appendChild(div);
+    }
+
+    function calculateCgpa() {
+      const sems = document.querySelectorAll('.semester-block');
+      if (sems.length === 0) { alert('Please add at least one semester.'); return; }
+
+      let grandQP = 0, grandC = 0;
+      const semResults = [];
+
+      sems.forEach((sem, idx) => {
+        const credits = sem.querySelectorAll('.c-credit');
+        const gps = sem.querySelectorAll('.c-gp');
+        let qp = 0, c = 0;
+
+        for (let i = 0; i < credits.length; i++) {
+          const cv = parseFloat(credits[i].value);
+          const gv = parseFloat(gps[i].value);
+          if (!isNaN(cv) && !isNaN(gv) && cv > 0 && gv >= 0) {
+            qp += cv * gv;
+            c += cv;
+          }
+        }
+
+        if (c > 0) {
+          const sgpa = (qp / c).toFixed(2);
+          semResults.push({ n: idx + 1, sgpa, credits: c });
+          grandQP += qp;
+          grandC += c;
+        }
+      });
+
+      if (grandC === 0) { alert('No valid course data found.'); return; }
+
+      const cgpa = (grandQP / grandC).toFixed(2);
+      document.getElementById('cgpa-val').textContent = cgpa;
+      document.getElementById('cgpa-sems').textContent = `${semResults.length} semester${semResults.length !== 1 ? 's' : ''}`;
+      document.getElementById('cgpa-credits').textContent = `Total Credits: ${grandC}`;
+      document.getElementById('cgpa-bar').style.width = ((parseFloat(cgpa) / 4) * 100) + '%';
+
+      // Breakdown
+      const bd = document.getElementById('cgpa-breakdown');
+      bd.innerHTML = '<div class="text-xs font-semibold text-gray-400 mb-2">Per-Semester Breakdown</div>';
+      semResults.forEach(s => {
+        const pct = (parseFloat(s.sgpa) / 4 * 100).toFixed(0);
+        const color = parseFloat(s.sgpa) >= 3.5 ? '#22c55e' : parseFloat(s.sgpa) >= 2.5 ? '#4f6ef7' : '#f59e0b';
+        bd.innerHTML += `
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-gray-500 w-20 shrink-0">Semester ${s.n}</span>
+            <div class="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
+              <div class="h-full rounded-full" style="width:${pct}%; background:${color}; transition: width 0.5s"></div>
+            </div>
+            <span class="text-xs font-mono font-bold text-gray-700 w-10 text-right">${s.sgpa}</span>
+          </div>`;
+      });
+
+      const res = document.getElementById('cgpa-result');
+      res.classList.remove('hidden');
+      res.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    // ──────────────────────────────────────────────
+    //  Mode Switch
+    // ──────────────────────────────────────────────
+    function switchMode(mode, btn) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('mode-sgpa').classList.toggle('hidden', mode !== 'sgpa');
+      document.getElementById('mode-cgpa').classList.toggle('hidden', mode !== 'cgpa');
+    }
+
+    // ──── Init ────
+    addSgpaRow('Data Structures', '3', '');
+    addSemester();
   </script>
 </body>
 </html>
