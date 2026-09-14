@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RU Result Portal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <style>
+    body { background: #f0f2f5; font-family: 'Segoe UI', system-ui, sans-serif; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+  <header class="bg-white border-b border-gray-200 px-4 py-3 flex justify-between items-center sticky top-0 z-40">
+    <a href="../index.html" class="flex items-center gap-2 text-sm font-semibold text-gray-700 hover:text-indigo-600 transition">
+      <i class="fa-solid fa-arrow-left text-xs"></i>
+      <span>CSE Portal</span>
+    </a>
+    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-600">Official Exam Portal Sync</span>
+  </header>
+
+  <main class="flex-1 max-w-2xl w-full mx-auto p-4 space-y-4">
+    <div class="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-3">
+      <div>
+        <h2 class="text-base font-bold text-gray-900 flex items-center gap-2">
+          <i class="fa-solid fa-university text-indigo-600"></i> Fetch RU Semester Result
+        </h2>
+        <p class="text-xs text-gray-500 mt-0.5">Enter your RU Exam Portal credentials to view published marks & grades.</p>
+      </div>
+
+      <div class="space-y-2 pt-2">
+        <input id="ruRoll" type="text" placeholder="Roll / Student ID (e.g. 2510376101)" 
+               class="w-full bg-slate-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs outline-none focus:border-indigo-500 focus:bg-white transition">
+        <input id="ruPass" type="password" placeholder="RU Portal Password" 
+               class="w-full bg-slate-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs outline-none focus:border-indigo-500 focus:bg-white transition">
+      </div>
+
+      <button id="fetchBtn" onclick="loadRuResult()" class="w-full bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold py-2.5 rounded-xl transition flex justify-center items-center gap-2">
+        <i class="fa-solid fa-cloud-arrow-down"></i> Fetch Result
+      </button>
+      <div id="loader" class="hidden text-center text-xs text-indigo-600 font-medium py-2">
+        <i class="fa-solid fa-circle-notch fa-spin mr-1"></i> Contacting RU Exam Portal...
+      </div>
+    </div>
+
+    <div id="resultsContainer" class="space-y-4"></div>
+  </main>
+
+  <script>
+    const API_BASE = "https://varsity-portal-api.onrender.com";
+
+    async function loadRuResult() {
+      const username = document.getElementById("ruRoll").value.trim();
+      const password = document.getElementById("ruPass").value.trim();
+      const user = JSON.parse(localStorage.getItem("user") || "null");
+
+      if (!user || !user.token) {
+        alert("Please login to CSE Portal first!");
+        window.location.href = "../index.html";
+        return;
+      }
+
+      if (!username || !password) {
+        alert("Please enter both Roll and Password");
+        return;
+      }
+
+      const btn = document.getElementById("fetchBtn");
+      const loader = document.getElementById("loader");
+      const container = document.getElementById("resultsContainer");
+
+      btn.classList.add("hidden");
+      loader.classList.remove("hidden");
+      container.innerHTML = "";
+
+      try {
+        const res = await fetch(`${API_BASE}/academic/ru-result`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${user.token}`
+          },
+          body: JSON.stringify({ username, password })
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Failed to load result");
+
+        renderResults(data.data, data.student_name);
+      } catch (err) {
+        alert(err.message);
+      } finally {
+        btn.classList.remove("hidden");
+        loader.classList.add("hidden");
+      }
+    }
+
+    function renderResults(semesters, studentName) {
+      const container = document.getElementById("resultsContainer");
+
+      if (!semesters || semesters.length === 0) {
+        container.innerHTML = `<div class="p-6 bg-white rounded-2xl border text-center text-xs text-gray-500">No published results found.</div>`;
+        return;
+      }
+
+      container.innerHTML = `<div class="text-xs font-bold text-gray-500 uppercase px-1">Results for: <span class="text-indigo-600">${studentName}</span></div>`;
+
+      semesters.forEach(sem => {
+        const m = sem.master;
+        const details = sem.detailsList || [];
+
+        let rowsHtml = details.map(c => `
+          <tr class="border-b border-gray-100 text-xs">
+            <td class="py-2.5 px-3 font-semibold text-gray-800">${c.courseCode}</td>
+            <td class="py-2.5 px-3 text-gray-600">${c.courseName}</td>
+            <td class="py-2.5 px-3 text-center text-gray-500">${c.courseCredit}</td>
+            <td class="py-2.5 px-3 text-center font-bold text-indigo-600">${c.gradePoint.toFixed(2)}</td>
+            <td class="py-2.5 px-3 text-center font-bold">${c.gradeName}</td>
+          </tr>
+        `).join('');
+
+        container.innerHTML += `
+          <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+            <div class="p-4 bg-slate-50 border-b border-gray-200 flex justify-between items-center">
+              <div>
+                <h3 class="text-sm font-bold text-gray-800">${m.yearAndSemester}</h3>
+                <span class="text-[11px] text-gray-500 font-mono">Session: ${m.sessionName}</span>
+              </div>
+              <div class="text-right">
+                <span class="text-xs text-gray-400 block font-medium">Semester GPA</span>
+                <span class="text-lg font-bold text-indigo-600 font-mono">${m.gradePoint.toFixed(2)}</span>
+              </div>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse">
+                <thead>
+                  <tr class="bg-gray-50/50 text-[11px] text-gray-400 border-b border-gray-100">
+                    <th class="py-2 px-3">Code</th>
+                    <th class="py-2 px-3">Course Title</th>
+                    <th class="py-2 px-3 text-center">Credit</th>
+                    <th class="py-2 px-3 text-center">GP</th>
+                    <th class="py-2 px-3 text-center">Grade</th>
+                  </tr>
+                </thead>
+                <tbody>${rowsHtml}</tbody>
+              </table>
+            </div>
+          </div>
+        `;
+      });
+    }
+  </script>
+</body>
+</html>
