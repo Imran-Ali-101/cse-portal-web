@@ -19,6 +19,51 @@ let sharedFiles = [];
 let originalViewportContent = "";
 let guestCurrentPath = "";
 
+// ==========================================
+// PWA INSTALL LOGIC
+// ==========================================
+let deferredInstallPrompt = null;
+
+// Standalone mode এ চললে button লুকিয়ে রাখো
+function isRunningAsPwa() {
+  return window.matchMedia('(display-mode: standalone)').matches 
+      || window.navigator.standalone === true;
+}
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  
+  // PWA হিসেবে চলছে না → button দেখাও
+  if (!isRunningAsPwa()) {
+    const btn = document.getElementById('pwaInstallBtn');
+    if (btn) btn.classList.remove('hidden');
+    if (btn) btn.classList.add('flex');
+  }
+});
+
+function triggerPwaInstall() {
+  if (!deferredInstallPrompt) {
+    showToast('Install option not available on this browser', 'info');
+    return;
+  }
+  deferredInstallPrompt.prompt();
+  deferredInstallPrompt.userChoice.then((result) => {
+    if (result.outcome === 'accepted') {
+      showToast('App installed successfully! 🎉', 'success');
+      document.getElementById('pwaInstallBtn').classList.add('hidden');
+    }
+    deferredInstallPrompt = null;
+  });
+}
+
+// App installed হলে button লুকাও
+window.addEventListener('appinstalled', () => {
+  const btn = document.getElementById('pwaInstallBtn');
+  if (btn) btn.classList.add('hidden');
+  deferredInstallPrompt = null;
+});
+
 // GLOBAL API SECURITY INTERCEPTOR
 const originalFetch = window.fetch;
 window.fetch = async function(resource, config) {
