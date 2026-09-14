@@ -620,7 +620,8 @@ window.addEventListener('click', (e) => {
 async function loadDynamicTools() {
   const container = document.getElementById("dynamicToolsContainer");
   const defaultTools = [
-    { file: "cgpa.html", defaultTitle: "CGPA / GPA Suite" }
+    { file: "cgpa.html", defaultTitle: "CGPA / GPA Suite" },
+    { file: "ru-result.html", defaultTitle: "RU Result Portal" }
   ];
 
   container.innerHTML = `<span class="text-[10px] font-bold text-indigo-500 uppercase tracking-wider block mb-1">Academic Tools</span>`;
