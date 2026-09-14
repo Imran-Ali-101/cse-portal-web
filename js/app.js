@@ -1561,6 +1561,12 @@ function openNoticeDetails(noticeId) {
     }
     
     document.getElementById("ndFolderPath").innerText = n.folder_path;
+  } else {
+    document.getElementById("ndFileBox").classList.add("hidden");
+    document.getElementById("ndFolderBox").classList.add("hidden");
+    document.getElementById("ndGoFolderBtn").classList.add("hidden");
+    document.getElementById("ndCustomMsgBox").classList.remove("hidden");
+    document.getElementById("ndCustomMsg").innerText = n.message || "";
   }
 
   closeNoticeBoardModal();
