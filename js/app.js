@@ -2900,4 +2900,78 @@ if (!navigator.onLine && currentUser) {
   allFolders = getFromLocalStorage("cached_folders");
 }
 
+// ==========================================
+// STORAGE MANAGER LOGIC
+// ==========================================
+
+// Get real storage estimation from browser API
+async function getStorageInfo() {
+  if (navigator.storage && navigator.storage.estimate) {
+    const estimate = await navigator.storage.estimate();
+    return {
+      usage: estimate.usage || 0,
+      quota: estimate.quota || 0
+    };
+  }
+  return { usage: 0, quota: 500 * 1024 * 1024 }; // Fallback to 500MB if API not supported
+}
+
+async function openStorageManager() {
+  showAnimatedModal("storageManagerModal");
+  
+  document.getElementById("storageUsedText").innerText = `... MB`;
+  
+  const info = await getStorageInfo();
+  
+  const usedMB = (info.usage / (1024 * 1024)).toFixed(2);
+  const quotaMB = (info.quota / (1024 * 1024)).toFixed(0); // Total allowed by browser
+  
+  // Browsers sometimes give massive quotas (e.g., 50GB). 
+  // For a progressive web app, visual quota capped at 1GB looks better for the progress bar.
+  const visualQuotaMB = Math.min(quotaMB, 1024); 
+  const percent = visualQuotaMB > 0 ? Math.min((usedMB / visualQuotaMB) * 100, 100).toFixed(1) : 0;
+
+  document.getElementById("storageUsedText").innerText = `${usedMB} MB`;
+  document.getElementById("storageTotalText").innerText = `${quotaMB} MB Limit`;
+  document.getElementById("storagePercentText").innerText = `${percent}%`;
+  
+  // Set progress bar width and change color if getting full
+  const bar = document.getElementById("storageProgressBar");
+  bar.style.width = `${percent}%`;
+  
+  if (percent > 80) {
+    bar.className = "bg-rose-500 h-full rounded-full transition-all duration-500";
+  } else if (percent > 50) {
+    bar.className = "bg-amber-500 h-full rounded-full transition-all duration-500";
+  } else {
+    bar.className = "bg-indigo-500 h-full rounded-full transition-all duration-500";
+  }
+}
+
+function closeStorageManager() {
+  hideAnimatedModal("storageManagerModal");
+}
+
+async function clearOfflineStorage() {
+  if (!confirm("Are you sure you want to delete all downloaded files? You will need an internet connection to view them again.")) return;
+
+  try {
+    // 1. Clear file cache (PDFs, Images)
+    if ('caches' in window) {
+      await caches.delete('portal-offline-files-v1'); 
+    }
+    
+    // 2. Clear localStorage fallback data
+    localStorage.removeItem("cached_files");
+    localStorage.removeItem("cached_folders");
+    
+    showToast("Offline storage cleared successfully!", "success");
+    
+    // Refresh modal UI
+    openStorageManager(); 
+  } catch (err) {
+    showToast("Failed to clear storage.", "error");
+  }
+}
+
 renderPortalView();
