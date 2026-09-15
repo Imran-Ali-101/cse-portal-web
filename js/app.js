@@ -2924,15 +2924,15 @@ async function openStorageManager() {
   const info = await getStorageInfo();
   
   const usedMB = (info.usage / (1024 * 1024)).toFixed(2);
-  const quotaMB = (info.quota / (1024 * 1024)).toFixed(0); // Total allowed by browser
   
-  // Browsers sometimes give massive quotas (e.g., 50GB). 
-  // For a progressive web app, visual quota capped at 1GB looks better for the progress bar.
-  const visualQuotaMB = Math.min(quotaMB, 1024); 
-  const percent = visualQuotaMB > 0 ? Math.min((usedMB / visualQuotaMB) * 100, 100).toFixed(1) : 0;
+  // Set fixed 1 GB (1024 MB) limit as requested
+  const MAX_LIMIT_MB = 1024; 
+  
+  // Calculate the used percentage based on the 1 GB limit
+  const percent = Math.min((usedMB / MAX_LIMIT_MB) * 100, 100).toFixed(1);
 
   document.getElementById("storageUsedText").innerText = `${usedMB} MB`;
-  document.getElementById("storageTotalText").innerText = `${quotaMB} MB Limit`;
+  document.getElementById("storageTotalText").innerText = `${MAX_LIMIT_MB} MB Limit (1 GB)`;
   document.getElementById("storagePercentText").innerText = `${percent}%`;
   
   // Set progress bar width and change color if getting full
