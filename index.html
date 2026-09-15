@@ -235,6 +235,12 @@
             <i class="fa-solid fa-gear text-slate-500"></i> Settings & Security
           </button>
 
+          <!-- Storage Manager Button for Sidebar -->
+          <button onclick="openStorageManager()" class="flex items-center gap-3 px-3 py-2 w-full text-left rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition">
+            <i class="fa-solid fa-hard-drive text-indigo-500"></i>
+            <span class="font-medium text-sm">Local Storage Manager</span>
+          </button>
+
           <div id="dynamicToolsContainer" class="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1">
             <span class="text-[10px] font-bold text-indigo-500 uppercase tracking-wider block mb-1">Academic Tools</span>
           </div>
@@ -252,11 +258,6 @@
       </div>
 
       <div class="border-t border-slate-200 dark:border-slate-800 pt-3 flex items-center justify-between text-[11px] text-slate-400">
-        <!-- Storage Manager Button for Sidebar -->
-        <button onclick="openStorageManager()" class="flex items-center gap-3 px-3 py-2 w-full text-left rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition">
-          <i class="fa-solid fa-hard-drive text-indigo-500"></i>
-          <span class="font-medium text-sm">Local Storage Manager</span>
-        </button>
         <span>Telegram API Storage</span>
         <span class="font-mono text-emerald-500">Online</span>
       </div>
