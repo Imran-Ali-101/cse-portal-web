@@ -1,5 +1,11 @@
-const CACHE_NAME = 'cse-portal-v1';
-const STATIC_ASSETS = ['/', '/index.html', 'js/app.js', 'js/tailwind.js'];
+const CACHE_NAME = 'cse-portal-v2';
+const STATIC_ASSETS = [
+  '/',
+  '/index.html',
+  '/js/app.js',
+  '/js/tailwind.js',
+  '/css/style.css'
+];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
@@ -18,11 +24,19 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
-  // API calls always network-first
-  if (e.request.url.includes('varsity-portal-api')) {
+  // API calls — skip SW entirely
+  if (e.request.url.includes('varsity-portal-api')) return;
+
+  // Navigation requests (page load/refresh) — always serve index.html from cache if offline
+  if (e.request.mode === 'navigate') {
+    e.respondWith(
+      fetch(e.request).catch(() => caches.match('/index.html'))
+    );
     return;
   }
+
+  // Static assets — cache first, then network
   e.respondWith(
-    fetch(e.request).catch(() => caches.match(e.request))
+    caches.match(e.request).then(cached => cached || fetch(e.request))
   );
 });
