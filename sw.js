@@ -4,7 +4,9 @@ const STATIC_ASSETS = [
   '/index.html',
   '/js/app.js',
   '/js/tailwind.js',
-  '/css/style.css'
+  '/css/style.css',
+  'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
+  'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'
 ];
 
 self.addEventListener('install', (e) => {
