@@ -1875,39 +1875,62 @@ async function downloadSelectedZip() {
 }
 
 async function openPreview(name, id) {
-  // --- OFFLINE CHECK START ---
-  if (!navigator.onLine) {
-    showAnimatedModal("previewModal");
-    const container = document.getElementById("previewContainer");
-    const topBar = document.getElementById("previewTopBar");
-    if(topBar) topBar.classList.remove("hidden");
-    
-    container.style.justifyContent = "center";
-    container.innerHTML = `
-      <div class="text-center p-8 bg-slate-900 border border-slate-800 rounded-2xl max-w-sm">
-        <i class="fa-solid fa-wifi text-rose-500 text-4xl mb-3 block"></i>
-        <h4 class="text-sm font-semibold text-slate-200 mb-1">Not found in local storage</h4>
-        <p class="text-xs text-slate-400">Please turn on your internet connection to view or download this file.</p>
-      </div>
-    `;
-    return; // Stop execution here if offline
-  }
-  
   document.getElementById("previewTitle").innerText = name;
   activePreviewItem = { name, id };
   const token = isGuestMode ? guestToken : (currentUser ? currentUser.token : '');
-  const streamUrl = `${API_BASE}/slides/stream/${id}?filename=${encodeURIComponent(name)}&token=${token}`;
+  const originalStreamUrl = `${API_BASE}/slides/stream/${id}?filename=${encodeURIComponent(name)}&token=${token}`;
+
+  let finalUrlToRender = originalStreamUrl;
+  const FILE_CACHE_NAME = 'portal-offline-files-v1';
+
+  // --- SMART CACHING & OFFLINE LOGIC START ---
+  if ('caches' in window) {
+    try {
+      const cache = await caches.open(FILE_CACHE_NAME);
+      const matched = await cache.match(originalStreamUrl);
+      
+      if (matched) {
+        // ফাইল আগে থেকেই ক্যাশে আছে! API রিকোয়েস্ট ছাড়াই লোকাল ফাইল ওপেন হবে
+        const cachedBlob = await matched.blob();
+        finalUrlToRender = URL.createObjectURL(cachedBlob); 
+      } else if (!navigator.onLine) {
+        // ফাইল ক্যাশে নেই এবং ইন্টারনেটও বন্ধ
+        showAnimatedModal("previewModal");
+        const container = document.getElementById("previewContainer");
+        const topBar = document.getElementById("previewTopBar");
+        if(topBar) topBar.classList.remove("hidden");
+        
+        container.style.justifyContent = "center";
+        container.innerHTML = `
+          <div class="text-center p-8 bg-slate-900 border border-slate-800 rounded-2xl max-w-sm">
+            <i class="fa-solid fa-wifi text-rose-500 text-4xl mb-3 block"></i>
+            <h4 class="text-sm font-semibold text-slate-200 mb-1">Not found in local storage</h4>
+            <p class="text-xs text-slate-400">Please turn on your internet connection to view this file.</p>
+          </div>
+        `;
+        return; // এখানেই থেমে যাবে
+      } else {
+        // ফাইল ক্যাশে নেই, কিন্তু ইন্টারনেট আছে। তাই ব্যাকগ্রাউন্ডে সেভ করবে (প্রিভিউ স্লো করবে না)
+        fetch(originalStreamUrl)
+          .then(res => res.blob())
+          .then(blob => cache.put(originalStreamUrl, new Response(blob)))
+          .catch(e => console.warn("Background cache failed"));
+      }
+    } catch (e) {
+      console.warn("Caching error", e);
+    }
+  }
+  // --- SMART CACHING & OFFLINE LOGIC END ---
 
   const container = document.getElementById("previewContainer");
   const pageIndicator = document.getElementById("pdfPageIndicator");
   const topBar = document.getElementById("previewTopBar");
   
-  pageIndicator.classList.add("hidden");
+  if (pageIndicator) pageIndicator.classList.add("hidden");
   container.scrollTop = 0;
   container.style.justifyContent = "flex-start";
-  container.style.padding = "16px"; // Default padding
+  container.style.padding = "16px"; 
   
-  // Show top bar by default for other files
   if(topBar) topBar.classList.remove("hidden");
 
   container.innerHTML = `<div class="m-auto text-center text-slate-400 py-20 flex flex-col items-center gap-2"><span class="spinner"></span><span>Loading preview...</span></div>`;
@@ -1920,7 +1943,7 @@ async function openPreview(name, id) {
     container.innerHTML = `
       <div class="w-full max-w-4xl max-h-[85vh] flex items-center justify-center">
         <video controls autoplay playsinline class="w-full max-h-[80vh] rounded-xl shadow-2xl bg-black">
-          <source src="${streamUrl}" type="video/mp4">
+          <source src="${finalUrlToRender}" type="video/mp4">
           Your browser does not support the video tag.
         </video>
       </div>
@@ -1935,45 +1958,26 @@ async function openPreview(name, id) {
         </div>
         <span class="text-sm font-semibold text-slate-200 break-all">${name}</span>
         <audio controls autoplay class="w-72 md:w-96">
-          <source src="${streamUrl}">
-          Your browser does not support the audio tag.
+          <source src="${finalUrlToRender}">
         </audio>
       </div>
     `;
   }
-  else if (lower.endsWith('.txt') || lower.endsWith('.json') || lower.endsWith('.csv') || lower.endsWith('.log') || lower.endsWith('.py') || lower.endsWith('.js') || lower.endsWith('.html')) {
-    try {
-      const res = await fetch(streamUrl);
-      const textContent = await res.text();
-      container.innerHTML = `
-        <div class="w-full max-w-4xl bg-slate-900 border border-slate-800 rounded-xl p-4 text-left my-2">
-          <pre class="text-xs text-slate-200 font-mono whitespace-pre-wrap break-all">${textContent.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>
-        </div>
-      `;
-      container.scrollTop = 0;
-    } catch (e) {
-      container.innerHTML = `<p class="m-auto text-xs text-rose-400">Failed to render text content.</p>`;
-    }
-  }
   else if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.webp') || lower.endsWith('.gif') || lower.endsWith('.svg')) {
     container.style.justifyContent = "center";
-    container.innerHTML = `<img src="${streamUrl}" alt="${name}" class="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl">`;
+    container.innerHTML = `<img src="${finalUrlToRender}" alt="${name}" class="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl">`;
   }
   else if (lower.endsWith('.pdf')) {
-    // Set viewport desktop on mobile
     const viewportMeta = document.querySelector('meta[name="viewport"]');
     if (viewportMeta) {
       originalViewportContent = viewportMeta.getAttribute("content");
       viewportMeta.setAttribute("content", "width=1024");
     }
     
-    // Hide our custom outer toolbar because PDF.js has its own
     if(topBar) topBar.classList.add("hidden");
-    
-    // Remove container padding so PDF.js fits edge-to-edge
     container.style.padding = "0";
 
-    const viewerUrl = `/pdfjs/web/viewer.html?file=${encodeURIComponent(streamUrl)}#zoom=page-width`;
+    const viewerUrl = `/pdfjs/web/viewer.html?file=${encodeURIComponent(finalUrlToRender)}#zoom=page-width`;
 
     container.style.justifyContent = "center";
     container.innerHTML = `
@@ -1985,17 +1989,13 @@ async function openPreview(name, id) {
       </iframe>
     `;
 
-    // Inject Custom Title & Close Button directly into PDF.js Toolbar
     const iframe = document.getElementById("pdfIframe");
     iframe.onload = () => {
       try {
         const doc = iframe.contentDocument || iframe.contentWindow.document;
-        
-        // Hide default "Open File" button to keep it clean
         const openFileBtn = doc.getElementById('openFile');
         if (openFileBtn) openFileBtn.style.display = 'none';
 
-        // Add File Name Title in the left of PDF.js toolbar
         const toolbarLeft = doc.getElementById('toolbarViewerLeft');
         if (toolbarLeft) {
            const titleEl = doc.createElement('div');
@@ -2004,7 +2004,6 @@ async function openPreview(name, id) {
            toolbarLeft.appendChild(titleEl); 
         }
 
-        // Add Close Button on the right side of PDF.js toolbar
         const toolbarRight = doc.getElementById('toolbarViewerRight');
         if (toolbarRight) {
           const closeBtn = doc.createElement('button');
@@ -2013,9 +2012,7 @@ async function openPreview(name, id) {
           closeBtn.onclick = () => window.parent.closePreview();
           toolbarRight.insertBefore(closeBtn, toolbarRight.firstChild);
         }
-      } catch(e) {
-        console.error("Iframe injection failed", e);
-      }
+      } catch(e) {}
     };
   }
   else {
