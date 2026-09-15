@@ -81,35 +81,29 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const url = e.request.url;
 
-  // API calls — SW bypass করো সবসময়
+  // Always bypass Service Worker for API calls
   if (url.includes('varsity-portal-api')) return;
 
-  // GET ছাড়া অন্য method — bypass
+  // Bypass non-GET requests (like POST, PUT, DELETE)
   if (e.request.method !== 'GET') return;
 
-  // Page navigation — offline হলে cached index.html দাও
-  if (e.request.mode === 'navigate') {
-    e.respondWith(
-      fetch(e.request).catch(() => caches.match('/index.html'))
-    );
-    return;
-  }
-
-  // বাকি সব — Cache First, তারপর Network
+  // Magic Fix: Added ignoreSearch: true to handle URL query parameters
   e.respondWith(
-    caches.match(e.request).then(cached => {
+    caches.match(e.request, { ignoreSearch: true }).then(cached => {
+      // Return cached response if found (ignoreSearch allows matching URLs with ?file=...)
       if (cached) return cached;
 
+      // Fetch from network if not found in cache
       return fetch(e.request).then(response => {
-        // Successful response হলে cache-এ রাখো (dynamic caching)
+        // Save to cache on successful response (dynamic caching)
         if (response.ok) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
         }
         return response;
       }).catch(() => {
-        // HTML request fail হলে index.html দাও
-        if (e.request.headers.get('Accept')?.includes('text/html')) {
+        // Fallback to index.html if HTML/Iframe request fails offline
+        if (e.request.mode === 'navigate' || (e.request.headers.get('Accept') && e.request.headers.get('Accept').includes('text/html'))) {
           return caches.match('/index.html');
         }
       });
