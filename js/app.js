@@ -668,6 +668,7 @@ async function loadFolders() {
     });
 
     // Save to local storage for offline use
+    saveToLocalStorage("cached_folders_time", Date.now());
     saveToLocalStorage("cached_folders", allFolders);
 
     const moveSelect = document.getElementById("moveFolderSelect");
@@ -833,6 +834,7 @@ async function loadFiles() {
     });
 
     // Save to local storage for offline use
+    saveToLocalStorage("cached_files_time", Date.now());
     saveToLocalStorage("cached_files", allFiles);
 
   } catch(e) { 
@@ -2892,5 +2894,10 @@ window.addEventListener('offline', () => {
   showToast("You are offline. Showing cached data.", "info");
 });
 
+// Offline এ cached data দিয়ে render করো
+if (!navigator.onLine && currentUser) {
+  allFiles = getFromLocalStorage("cached_files");
+  allFolders = getFromLocalStorage("cached_folders");
+}
 
 renderPortalView();
