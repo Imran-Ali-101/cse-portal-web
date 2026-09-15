@@ -1,5 +1,5 @@
 const CACHE_NAME = 'cse-portal-v1';
-const STATIC_ASSETS = ['/', '/index.html'];
+const STATIC_ASSETS = ['/', '/index.html', 'js/app.js', 'js/tailwind.js'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
