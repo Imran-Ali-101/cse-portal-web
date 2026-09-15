@@ -650,6 +650,13 @@ async function loadDynamicTools() {
 
 async function loadFolders() {
   if (!currentUser) return;
+
+  // Check if offline, load from local storage
+  if (!navigator.onLine) {
+    allFolders = getFromLocalStorage("cached_folders");
+    return;
+  }
+
   try {
     const res = await fetch(`${API_BASE}/folders/list?t=${Date.now()}`);
     allFolders = await res.json();
@@ -660,15 +667,25 @@ async function loadFolders() {
       return { ...f, folder_name: n };
     });
 
+    // Save to local storage for offline use
+    saveToLocalStorage("cached_folders", allFolders);
+
     const moveSelect = document.getElementById("moveFolderSelect");
-    moveSelect.innerHTML = `<option value="/">Home (/)</option>`;
-    allFolders.forEach(f => {
-      if (f.folder_name !== '/') {
-        moveSelect.innerHTML += `<option value="${f.folder_name}">${f.folder_name}</option>`;
-      }
-    });
-  } catch(e) { console.error(e); }
+    if(moveSelect) {
+      moveSelect.innerHTML = `<option value="/">Home (/)</option>`;
+      allFolders.forEach(f => {
+        if (f.folder_name !== '/') {
+          moveSelect.innerHTML += `<option value="${f.folder_name}">${f.folder_name}</option>`;
+        }
+      });
+    }
+  } catch(e) { 
+    console.error(e);
+    // Fallback to local storage if API fails
+    allFolders = getFromLocalStorage("cached_folders");
+  }
 }
+
 
 function selectFolder(path) {
   const target = path.startsWith('/') ? path : '/' + path;
@@ -798,6 +815,13 @@ async function uploadSelectedFiles(input) {
 
 async function loadFiles() {
   if (!currentUser) return;
+
+  // Check if offline, load from local storage
+  if (!navigator.onLine) {
+    allFiles = getFromLocalStorage("cached_files");
+    return;
+  }
+
   try {
     const res = await fetch(`${API_BASE}/slides/list?t=${Date.now()}`);
     const data = await res.json();
@@ -807,8 +831,17 @@ async function loadFiles() {
       if (!p.startsWith('/')) p = '/' + p;
       return { ...f, folder_path: p };
     });
-  } catch(e) { console.error(e); }
+
+    // Save to local storage for offline use
+    saveToLocalStorage("cached_files", allFiles);
+
+  } catch(e) { 
+    console.error(e);
+    // Fallback to local storage if API fails
+    allFiles = getFromLocalStorage("cached_files");
+  }
 }
+
 
 function sortFiles(type) {
   currentSortMode = type;
@@ -1842,6 +1875,24 @@ async function downloadSelectedZip() {
 }
 
 async function openPreview(name, id) {
+  // --- OFFLINE CHECK START ---
+  if (!navigator.onLine) {
+    showAnimatedModal("previewModal");
+    const container = document.getElementById("previewContainer");
+    const topBar = document.getElementById("previewTopBar");
+    if(topBar) topBar.classList.remove("hidden");
+    
+    container.style.justifyContent = "center";
+    container.innerHTML = `
+      <div class="text-center p-8 bg-slate-900 border border-slate-800 rounded-2xl max-w-sm">
+        <i class="fa-solid fa-wifi text-rose-500 text-4xl mb-3 block"></i>
+        <h4 class="text-sm font-semibold text-slate-200 mb-1">Not found in local storage</h4>
+        <p class="text-xs text-slate-400">Please turn on your internet connection to view or download this file.</p>
+      </div>
+    `;
+    return; // Stop execution here if offline
+  }
+  
   document.getElementById("previewTitle").innerText = name;
   activePreviewItem = { name, id };
   const token = isGuestMode ? guestToken : (currentUser ? currentUser.token : '');
@@ -2814,5 +2865,35 @@ async function saveEditedRoutine() {
     showToast(err.message, "error");
   }
 }
+
+// ==========================================
+// OFFLINE CACHING UTILITIES
+// ==========================================
+
+// Helper to save data to local storage
+function saveToLocalStorage(key, data) {
+  try { localStorage.setItem(key, JSON.stringify(data)); } catch(e) { console.error("Storage full"); }
+}
+
+// Helper to get data from local storage
+function getFromLocalStorage(key) {
+  try { return JSON.parse(localStorage.getItem(key) || "[]"); } catch(e) { return []; }
+}
+
+// Listen for internet connection return
+window.addEventListener('online', async () => {
+  showToast("Internet connected! Updating data...", "success");
+  if(currentUser) {
+    await loadFolders();
+    await loadFiles();
+    sortFiles(currentSortMode);
+  }
+});
+
+// Listen for internet connection loss
+window.addEventListener('offline', () => {
+  showToast("You are offline. Showing cached data.", "info");
+});
+
 
 renderPortalView();
