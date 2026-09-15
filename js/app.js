@@ -1889,7 +1889,7 @@ async function openPreview(name, id) {
   if ('caches' in window) {
     try {
       const cache = await caches.open(FILE_CACHE_NAME);
-      const matched = await cache.match(originalStreamUrl);
+      const matched = await cache.match(originalStreamUrl, { ignoreSearch: true });
       
       if (matched) {
         // ফাইল আগে থেকেই ক্যাশে আছে! API রিকোয়েস্ট ছাড়াই লোকাল ফাইল ওপেন হবে
