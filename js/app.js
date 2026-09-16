@@ -20,6 +20,55 @@ let originalViewportContent = "";
 let guestCurrentPath = "";
 
 // ==========================================
+// PUSH NOTIFICATION LOGIC
+// ==========================================
+const PUBLIC_VAPID_KEY = "BJhUzk2pp7yNt3hHstUpVexeHM-eetODhaCwh7GROqamfIcxbEIXWDVRvPgNpIzhO8OrsXOz4jKP-gWmTqq-PZE";
+
+// Convert VAPID key for subscription
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+// Ask for permission and subscribe
+async function subscribeToPush() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  
+  if (Notification.permission !== "granted") {
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") return;
+  }
+
+  const registration = await navigator.serviceWorker.ready;
+  try {
+    const subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(PUBLIC_VAPID_KEY)
+    });
+    
+    // Send subscription to backend
+    await fetch(`${API_BASE}/push/subscribe`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${currentUser.token}`
+      },
+      body: JSON.stringify(subscription)
+    });
+    console.log("Push Notification Subscribed!");
+  } catch (e) {
+    console.error("Push subscription failed", e);
+  }
+}
+
+
+// ==========================================
 // PWA INSTALL LOGIC
 // ==========================================
 let deferredInstallPrompt = null;
@@ -539,6 +588,8 @@ async function handleLogin() {
     toggleAuthModal(false);
     showToast(`Welcome back, ${data.name}!`, "success");
     renderPortalView();
+    // Subscribe to push notifications after successful login
+    subscribeToPush();
   } catch(err) {
     showToast(err.message, "error");
   } finally {
