@@ -3,7 +3,7 @@
   "short_name": "CSE Portal",
   "description": "Private slide repository and academic resources",
   "start_url": "/",
-  "display": "standalone",
+  "display": "minimal-ui",
   "background_color": "#f8fafc",
   "theme_color": "#2563eb",
   "orientation": "portrait",
