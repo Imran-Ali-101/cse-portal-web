@@ -398,6 +398,8 @@ async function renderPortalView() {
     startPresenceHeartbeat();
     checkUnseenNotices();
     loadDynamicTools();
+    // Subscribe to push notifications
+    subscribeToPush();
   } else {
     guestView.classList.remove("hidden");
     authView.classList.add("hidden");
@@ -588,8 +590,6 @@ async function handleLogin() {
     toggleAuthModal(false);
     showToast(`Welcome back, ${data.name}!`, "success");
     renderPortalView();
-    // Subscribe to push notifications after successful login
-    subscribeToPush();
   } catch(err) {
     showToast(err.message, "error");
   } finally {
