@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cse-portal-v5';
+const CACHE_NAME = 'cse-portal-v6';
 
 // Critical local files — এগুলো না থাকলে app চলবে না
 const LOCAL_ASSETS = [
@@ -108,5 +108,45 @@ self.addEventListener('fetch', (e) => {
         }
       });
     })
+  );
+});
+
+
+// ==========================================
+// PUSH NOTIFICATION EVENTS
+// ==========================================
+
+// Handle incoming push notifications
+self.addEventListener('push', function(e) {
+  let data = { title: "New Notice", body: "Check the portal for updates." };
+  
+  if (e.data) {
+    try {
+      data = e.data.json();
+    } catch (err) {
+      data.body = e.data.text();
+    }
+  }
+
+  const options = {
+    body: data.body,
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    data: { url: '/' }, // URL to open when clicked
+    vibrate: [200, 100, 200]
+  };
+
+  e.waitUntil(
+    self.registration.showNotification(data.title, options)
+  );
+});
+
+// Handle click on notification
+self.addEventListener('notificationclick', function(e) {
+  e.notification.close(); // Close the notification
+  
+  // Open the portal when clicked
+  e.waitUntil(
+    clients.openWindow(e.notification.data.url)
   );
 });
