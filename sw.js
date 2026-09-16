@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cse-portal-v4';
+const CACHE_NAME = 'cse-portal-v5';
 
 // Critical local files — এগুলো না থাকলে app চলবে না
 const LOCAL_ASSETS = [
