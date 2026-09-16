@@ -1892,11 +1892,11 @@ async function openPreview(name, id) {
       const matched = await cache.match(originalStreamUrl, { ignoreSearch: true });
       
       if (matched) {
-        // ফাইল আগে থেকেই ক্যাশে আছে! API রিকোয়েস্ট ছাড়াই লোকাল ফাইল ওপেন হবে
+        // File is already cached! Open locally without API request
         const cachedBlob = await matched.blob();
         finalUrlToRender = URL.createObjectURL(cachedBlob); 
       } else if (!navigator.onLine) {
-        // ফাইল ক্যাশে নেই এবং ইন্টারনেটও বন্ধ
+        // File not cached and internet is off
         showAnimatedModal("previewModal");
         const container = document.getElementById("previewContainer");
         const topBar = document.getElementById("previewTopBar");
@@ -1910,9 +1910,9 @@ async function openPreview(name, id) {
             <p class="text-xs text-slate-400">Please turn on your internet connection to view this file.</p>
           </div>
         `;
-        return; // এখানেই থেমে যাবে
+        return; 
       } else {
-        // ফাইল ক্যাশে নেই, কিন্তু ইন্টারনেট আছে। তাই ব্যাকগ্রাউন্ডে সেভ করবে (প্রিভিউ স্লো করবে না)
+        // File not cached, but internet is on. Save in background (won't slow down preview)
         fetch(originalStreamUrl)
           .then(res => res.blob())
           .then(blob => cache.put(originalStreamUrl, new Response(blob)))
@@ -1939,6 +1939,10 @@ async function openPreview(name, id) {
   showAnimatedModal("previewModal");
 
   const lower = name.toLowerCase();
+
+  // Common text and programming file extensions list
+  const textExtensions = ['.txt', '.v', '.sv', '.c', '.cpp', '.h', '.py', '.java', '.html', '.css', '.js', '.json', '.xml', '.md', '.csv', '.sql', '.sh', '.bat', '.log'];
+  const isTextFile = textExtensions.some(ext => lower.endsWith(ext));
 
   if (lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.endsWith('.ogg') || lower.endsWith('.mkv') || lower.endsWith('.mov')) {
     container.style.justifyContent = "center";
@@ -2017,22 +2021,55 @@ async function openPreview(name, id) {
       } catch(e) {}
     };
   }
+  // --- NEW TEXT/CODE READER LOGIC ---
+  else if (isTextFile) {
+    container.style.justifyContent = "flex-start";
+    container.innerHTML = `
+      <div class="w-full max-w-4xl max-h-[85vh] bg-slate-950 border border-slate-800 rounded-xl overflow-hidden flex flex-col shadow-2xl">
+        <div class="bg-slate-900 px-4 py-2 border-b border-slate-800 flex justify-between items-center shrink-0">
+           <span class="text-xs font-mono text-slate-400"><i class="fa-solid fa-code mr-2"></i>Text Viewer</span>
+           <button onclick="downloadActivePreviewFile()" class="text-blue-400 hover:text-blue-300 text-xs font-semibold px-2 py-1"><i class="fa-solid fa-download"></i> Download</button>
+        </div>
+        <div class="p-4 overflow-auto flex-1 text-left">
+           <pre><code id="textPreviewCode" class="text-[13px] font-mono text-slate-300 break-words whitespace-pre-wrap">Loading content...</code></pre>
+        </div>
+      </div>
+    `;
+    
+    fetch(finalUrlToRender)
+      .then(res => res.text())
+      .then(text => {
+         // textContent automatically escapes HTML tags, making it XSS secure
+         document.getElementById("textPreviewCode").textContent = text;
+      })
+      .catch(err => {
+         document.getElementById("textPreviewCode").textContent = "Error loading text content.";
+      });
+  }
+  // --- FALLBACK LOGIC (With "Read as Text" button for unknown files) ---
   else {
     const isPptx = lower.endsWith('.pptx') || lower.endsWith('.ppt');
     container.style.justifyContent = "center";
     container.innerHTML = `
-      <div class="text-center p-8 bg-slate-900 border border-slate-800 rounded-2xl max-w-sm">
+      <div class="text-center p-8 bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full">
         <i class="fa-solid ${isPptx ? 'fa-file-powerpoint text-amber-500' : 'fa-file-lines text-slate-500'} text-4xl mb-3 block"></i>
         <h4 class="text-sm font-semibold text-slate-200 mb-1 break-all">${name}</h4>
-        <p class="text-xs text-slate-400 mb-4">${isPptx ? 'PowerPoint Presentation' : 'Document File'}</p>
-        <button onclick="downloadActivePreviewFile()" class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl text-xs font-semibold inline-flex items-center gap-2">
-          <i class="fa-solid fa-download"></i> Download File
-        </button>
+        <p class="text-xs text-slate-400 mb-5">${isPptx ? 'PowerPoint Presentation' : 'Unknown File Format'}</p>
+        
+        <div class="flex flex-col gap-2.5">
+          <button onclick="downloadActivePreviewFile()" class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition shadow-sm">
+            <i class="fa-solid fa-download"></i> Download File
+          </button>
+          
+          <button onclick="forceLoadAsText('${finalUrlToRender}')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-5 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition">
+            <i class="fa-solid fa-code"></i> Read as Text
+          </button>
+        </div>
       </div>
     `;
   }
 }
-
+ 
 function closePreview() {
   hideAnimatedModal("previewModal");
   document.getElementById("previewContainer").innerHTML = "";
@@ -2973,5 +3010,36 @@ async function clearOfflineStorage() {
     showToast("Failed to clear storage.", "error");
   }
 }
+
+// ==========================================
+// FORCE TEXT VIEWER LOGIC
+// ==========================================
+window.forceLoadAsText = function(url) {
+  const container = document.getElementById("previewContainer");
+  container.style.justifyContent = "flex-start";
+  container.innerHTML = `
+    <div class="w-full max-w-4xl max-h-[85vh] bg-slate-950 border border-slate-800 rounded-xl overflow-hidden flex flex-col shadow-2xl">
+      <div class="bg-slate-900 px-4 py-2 border-b border-slate-800 flex justify-between items-center shrink-0">
+         <span class="text-xs font-mono text-slate-400">
+           <i class="fa-solid fa-triangle-exclamation text-amber-500 mr-2"></i> Forced Text View
+         </span>
+         <button onclick="downloadActivePreviewFile()" class="text-blue-400 hover:text-blue-300 text-xs font-semibold px-2 py-1"><i class="fa-solid fa-download"></i> Download</button>
+      </div>
+      <div class="p-4 overflow-auto flex-1 text-left">
+         <pre><code id="textPreviewCode" class="text-[13px] font-mono text-slate-300 break-words whitespace-pre-wrap">Forcing text read...</code></pre>
+      </div>
+    </div>
+  `;
+  
+  fetch(url)
+    .then(res => res.text())
+    .then(text => {
+       document.getElementById("textPreviewCode").textContent = text;
+    })
+    .catch(err => {
+       document.getElementById("textPreviewCode").textContent = "Error: Could not read file as text. It might be a binary file.";
+    });
+};
+
 
 renderPortalView();
