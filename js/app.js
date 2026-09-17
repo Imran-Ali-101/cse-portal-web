@@ -22,7 +22,7 @@ let guestCurrentPath = "";
 // ==========================================
 // PUSH NOTIFICATION LOGIC
 // ==========================================
-const PUBLIC_VAPID_KEY = "BJhUzk2pp7yNt3hHstUpVexeHM-eetODhaCwh7GROqamfIcxbEIXWDVRvPgNpIzhO8OrsXOz4jKP-gWmTqq-PZE";
+const PUBLIC_VAPID_KEY = "BFxR3WqfhTrn0OlGxYolBvLimkLGZEPjFRO6Ve71QqkC3CT_leszW3ADP2QosgzPSPVPN6W1SQgeLsc762EDU7g";
 
 // Convert VAPID key for subscription
 function urlBase64ToUint8Array(base64String) {
