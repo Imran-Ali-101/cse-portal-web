@@ -106,7 +106,7 @@
           </p>
           
           <div class="flex flex-wrap items-center justify-center gap-2 mt-2">
-            <input type="file" id="directFileInput" multiple onchange="uploadSelectedFiles(this)" class="hidden">
+            <input type="file" id="directFileInput" multiple onchange="handleZipExtract(this)" class="hidden">
             <button onclick="document.getElementById('directFileInput').click()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm">
               <i class="fa-solid fa-file-circle-plus"></i> Upload Files
             </button>
