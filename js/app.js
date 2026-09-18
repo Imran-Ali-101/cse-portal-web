@@ -3106,7 +3106,8 @@ async function handleZipExtract(input) {
   }
 
   if (!confirm(`Extract "${file.name}" and upload all files to current folder?`)) {
-    return uploadSelectedFiles(input);
+    input.value = "";
+    return;
   }
 
   showAnimatedModal("uploadProgressModal");
@@ -3122,35 +3123,71 @@ async function handleZipExtract(input) {
     let done = 0;
     let uploadedNames = [];
 
+    // ZIP file এর নাম থেকে main folder name বানাও
+    const zipBaseName = file.name.replace(/\.zip$/i, '');
+    const mainFolder = currentSelectedFolder === '/'
+      ? `/${zipBaseName}`
+      : `${currentSelectedFolder}/${zipBaseName}`;
+
+    // Main folder create করো
+    progressText.innerText = `Creating folder: ${zipBaseName}`;
+    const existingMain = allFolders.find(f => f.folder_name === mainFolder);
+    if (!existingMain) {
+      try {
+        const fd = new FormData();
+        fd.append("folder_name", mainFolder);
+        const fr = await fetch(`${API_BASE}/folders/create`, { method: "POST", body: fd });
+        if (fr.ok) {
+          const fd2 = await fr.json();
+          allFolders.push({ ...fd2.data, folder_name: mainFolder });
+        }
+      } catch(e) { console.error("Main folder create failed", e); }
+    }
+
+    // Track কোন folders already create হয়েছে
+    const createdFolders = new Set([mainFolder]);
+
     for (const entry of entries) {
       progressText.innerText = `Extracting (${done + 1}/${total}): ${entry.name}`;
       progressBar.style.width = `${Math.round((done / total) * 100)}%`;
 
       const blob = await entry.async("blob");
-      const fileName = entry.name.split('/').pop();
-      const subFolder = entry.name.includes('/')
-        ? currentSelectedFolder + '/' + entry.name.substring(0, entry.name.lastIndexOf('/'))
-        : currentSelectedFolder;
+      const parts = entry.name.split('/').filter(Boolean);
+      const fileName = parts.pop(); // Last part = file name
+      
+      // Target folder = mainFolder + entry এর subfolder path
+      let targetFolder = mainFolder;
+      if (parts.length > 0) {
+        targetFolder = mainFolder + '/' + parts.join('/');
+      }
 
-      // Create folder if it doesn't exist
-      if (subFolder !== currentSelectedFolder) {
-        const folderExists = allFolders.find(f => f.folder_name === subFolder);
-        if (!folderExists) {
-          try {
-            const fd = new FormData();
-            fd.append("folder_name", subFolder);
-            const fr = await fetch(`${API_BASE}/folders/create`, { method: "POST", body: fd });
-            if (fr.ok) {
-              const folderData = await fr.json();
-              allFolders.push({ ...folderData.data, folder_name: subFolder });
+      // Subfolder গুলো create করো (যদি না থাকে)
+      if (targetFolder !== mainFolder) {
+        let buildPath = mainFolder;
+        for (const part of parts) {
+          buildPath = buildPath + '/' + part;
+          if (!createdFolders.has(buildPath)) {
+            const existingSub = allFolders.find(f => f.folder_name === buildPath);
+            if (!existingSub) {
+              try {
+                const fd = new FormData();
+                fd.append("folder_name", buildPath);
+                const fr = await fetch(`${API_BASE}/folders/create`, { method: "POST", body: fd });
+                if (fr.ok) {
+                  const fdata = await fr.json();
+                  allFolders.push({ ...fdata.data, folder_name: buildPath });
+                }
+              } catch(e) { console.error("Subfolder create failed", e); }
             }
-          } catch(e) { console.error("Folder create failed", e); }
+            createdFolders.add(buildPath);
+          }
         }
       }
 
+      // File upload করো
       const formData = new FormData();
       formData.append("file", new File([blob], fileName));
-      formData.append("folder", subFolder);
+      formData.append("folder", targetFolder);
       formData.append("uploader_name", currentUser ? currentUser.name : "Admin");
       formData.append("skip_notice", "true");
 
@@ -3178,7 +3215,7 @@ async function handleZipExtract(input) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             file_names: uploadedNames,
-            folder_path: currentSelectedFolder,
+            folder_path: mainFolder,
             uploader_name: currentUser ? currentUser.name : "Admin"
           })
         });
@@ -3188,7 +3225,7 @@ async function handleZipExtract(input) {
     progressBar.style.width = "100%";
     hideAnimatedModal("uploadProgressModal");
     input.value = "";
-    showToast(`Extracted & uploaded ${done} files!`, "success");
+    showToast(`Extracted & uploaded ${done} files into "${zipBaseName}"!`, "success");
     await loadFolders();
     await loadFiles();
     sortFiles(currentSortMode);
