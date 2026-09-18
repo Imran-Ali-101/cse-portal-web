@@ -3093,4 +3093,92 @@ window.forceLoadAsText = function(url) {
 };
 
 
+// ==========================================
+// ZIP EXTRACTOR & UPLOAD
+// ==========================================
+async function handleZipExtract(input) {
+  if (!isAdmin()) return showToast("Only Admin can upload files", "error");
+  if (!input.files || input.files.length === 0) return;
+
+  const file = input.files[0];
+  if (!file.name.toLowerCase().endsWith('.zip')) {
+    return uploadSelectedFiles(input);
+  }
+
+  if (!confirm(`Extract "${file.name}" and upload all files to current folder?`)) {
+    return uploadSelectedFiles(input);
+  }
+
+  showAnimatedModal("uploadProgressModal");
+  const progressBar = document.getElementById("uploadProgressBar");
+  const progressText = document.getElementById("uploadProgressText");
+  progressText.innerText = "Reading ZIP file...";
+
+  try {
+    const zip = new JSZip();
+    const loaded = await zip.loadAsync(file);
+    const entries = Object.values(loaded.files).filter(f => !f.dir);
+    const total = entries.length;
+    let done = 0;
+    let uploadedNames = [];
+
+    for (const entry of entries) {
+      progressText.innerText = `Extracting (${done + 1}/${total}): ${entry.name}`;
+      progressBar.style.width = `${Math.round((done / total) * 100)}%`;
+
+      const blob = await entry.async("blob");
+      const fileName = entry.name.split('/').pop();
+      const subFolder = entry.name.includes('/')
+        ? currentSelectedFolder + '/' + entry.name.substring(0, entry.name.lastIndexOf('/'))
+        : currentSelectedFolder;
+
+      const formData = new FormData();
+      formData.append("file", new File([blob], fileName));
+      formData.append("folder", subFolder);
+      formData.append("uploader_name", currentUser ? currentUser.name : "Admin");
+      formData.append("skip_notice", "true");
+
+      try {
+        const res = await fetch(`${API_BASE}/slides/upload`, { method: "POST", body: formData });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.file) {
+            const newF = data.file;
+            newF.folder_path = newF.folder_path.startsWith('/') ? newF.folder_path : '/' + newF.folder_path;
+            allFiles.unshift(newF);
+          }
+          uploadedNames.push(fileName);
+        }
+      } catch(e) { console.error(e); }
+
+      done++;
+    }
+
+    // Batch notice
+    if (uploadedNames.length > 0) {
+      try {
+        await fetch(`${API_BASE}/notices/create-batch`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            file_names: uploadedNames,
+            folder_path: currentSelectedFolder,
+            uploader_name: currentUser ? currentUser.name : "Admin"
+          })
+        });
+      } catch(e) {}
+    }
+
+    progressBar.style.width = "100%";
+    hideAnimatedModal("uploadProgressModal");
+    input.value = "";
+    showToast(`Extracted & uploaded ${done} files!`, "success");
+    renderFilesTable();
+
+  } catch(err) {
+    hideAnimatedModal("uploadProgressModal");
+    showToast("ZIP extraction failed: " + err.message, "error");
+  }
+}
+
 renderPortalView();
