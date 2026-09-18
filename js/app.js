@@ -1720,7 +1720,7 @@ function openNoticeDetails(noticeId) {
     const fileNames = n.file_name.split('\n');
     if (fileNames.length > 1) {
       const listHtml = fileNames.map(f => `<div class="flex items-center gap-2 mt-1.5"><i class="fa-solid fa-file-lines text-blue-500"></i> <span class="break-all">${f}</span></div>`).join('');
-      document.getElementById("ndFileName").innerHTML = `<div class="mt-2 text-slate-700 dark:text-slate-300 font-medium max-h-[90vh] overflow-y-auto">${listHtml}</div>`;
+      document.getElementById("ndFileName").innerHTML = `<div class="mt-2 text-slate-700 dark:text-slate-300 font-medium max-h-48 overflow-y-auto">${listHtml}</div>`;
     } else {
       document.getElementById("ndFileName").innerText = n.file_name;
     }
