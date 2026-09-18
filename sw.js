@@ -1,6 +1,6 @@
-const CACHE_NAME = 'cse-portal-v6';
+const CACHE_NAME = 'cse-portal-v7';
 
-// Critical local files — এগুলো না থাকলে app চলবে না
+// Critical local files to load in offline
 const LOCAL_ASSETS = [
   '/',
   '/index.html',
@@ -12,7 +12,7 @@ const LOCAL_ASSETS = [
   '/icon-512.png',
 ];
 
-// pdfjs — offline PDF preview-এর জন্য আবশ্যক
+// pdfjs — offline PDF preview
 const PDFJS_ASSETS = [
   '/pdfjs/web/viewer.html',
   '/pdfjs/web/viewer.css',
@@ -22,7 +22,7 @@ const PDFJS_ASSETS = [
   '/pdfjs/build/pdf.sandbox.mjs',
 ];
 
-// CDN assets — font icon সহ
+// CDN assets — font icon
 const CDN_ASSETS = [
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/webfonts/fa-solid-900.woff2',
@@ -31,7 +31,7 @@ const CDN_ASSETS = [
   'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
 ];
 
-// একটা resource cache করতে ব্যর্থ হলেও বাকিগুলো চলবে
+// Continue if one resource cannot cache
 async function cacheIndividually(cache, urls) {
   for (const url of urls) {
     try {
@@ -48,15 +48,15 @@ self.addEventListener('install', (e) => {
     (async () => {
       const cache = await caches.open(CACHE_NAME);
 
-      // Step 1: Local assets — এগুলো অবশ্যই cache হতে হবে
+      // Step 1: Local assets
       await cache.addAll(LOCAL_ASSETS);
       console.log('[SW] Local assets cached.');
 
-      // Step 2: pdfjs — fail হলেও চলবে
+      // Step 2: pdfjs — fail
       await cacheIndividually(cache, PDFJS_ASSETS);
       console.log('[SW] pdfjs assets cached.');
 
-      // Step 3: CDN assets — প্রতিটা আলাদাভাবে, fail হলেও চলবে
+      // Step 3: CDN assets
       await cacheIndividually(cache, CDN_ASSETS);
       console.log('[SW] CDN assets cached.');
     })()
