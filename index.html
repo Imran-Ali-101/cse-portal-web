@@ -41,6 +41,24 @@
   <!-- Toast Notification Container -->
   <div id="toastContainer" class="fixed bottom-5 right-5 z-[999] flex flex-col gap-2 pointer-events-none"></div>
 
+    <!-- PWA Install Popup (First Time Only) -->
+    <div id="pwaInstallPopup" class="hidden fixed bottom-5 left-4 right-4 md:left-auto md:right-5 md:w-[340px] bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-900/50 shadow-2xl rounded-2xl p-4 z-[999]">
+      <div class="flex items-start gap-3.5">
+        <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-xl flex items-center justify-center shrink-0 shadow-md">
+          <i class="fa-solid fa-mobile-screen-button text-lg"></i>
+        </div>
+        <div class="flex-1">
+          <h4 class="text-sm font-bold text-slate-800 dark:text-slate-100">Install CSE Portal</h4>
+          <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">Add to home screen for faster access, offline mode & better experience.</p>
+          <div class="flex items-center gap-2 mt-3">
+            <button onclick="triggerPwaInstall()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-1.5 rounded-lg shadow-sm transition">Install App</button>
+            <button onclick="dismissPwaPopup()" class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold px-4 py-1.5 rounded-lg transition">Later</button>
+          </div>
+        </div>
+        <button onclick="dismissPwaPopup()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1 shrink-0"><i class="fa-solid fa-xmark text-sm"></i></button>
+      </div>
+    </div>
+
   <!-- Header -->
   <header class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 md:px-8 py-3 flex justify-between items-center sticky top-0 z-30 shadow-xs">
     <div class="flex items-center space-x-4">
@@ -189,7 +207,7 @@
   </div>
 
   <footer class="text-center text-[11px] text-slate-400 py-6 mt-auto">
-    Copyright © Algorus - 33
+    ​© 2026 Algorus - 33 | Developed by Md. Imran Ali
   </footer>
 
   <!-- Sidebar Drawer -->
