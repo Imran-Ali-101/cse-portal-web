@@ -1045,8 +1045,8 @@ function openItemActionMenu(e, id, messageId, name, isFolder = false) {
     downloadBtn.classList.add("hidden");
     shareBtn.classList.add("hidden");
     moveBtn.classList.add("hidden");
-    trashBtn.classList.add("hidden");
     downloadFolderBtn.classList.remove("hidden");
+    trashBtn.classList.add("hidden");
     
     if (isPrimarySuperAdmin()) {
       folderPermBtn.classList.remove("hidden");
@@ -1058,6 +1058,7 @@ function openItemActionMenu(e, id, messageId, name, isFolder = false) {
       delFolderBtn.classList.remove("hidden");
       renameBtn.classList.remove("hidden");
       publicShareBtn.classList.remove("hidden");
+      moveBtn.classList.remove("hidden");
     } else {
       delFolderBtn.classList.add("hidden");
       renameBtn.classList.add("hidden");
@@ -1403,7 +1404,7 @@ async function triggerDownloadTargetFolder() {
 async function deleteCurrentFolder() {
   if (!activeContextItem || !activeContextItem.isFolder) return;
   document.getElementById("itemActionMenu").classList.add("hidden");
-  if (!confirm(`Delete "${activeContextItem.name}"? Files inside will be moved to Trash.`)) return;
+  if (!confirm(`Move "${activeContextItem.name}" to Trash? Files inside will also be trashed.`)) return;
 
   try {
     const res = await fetch(`${API_BASE}/folders/delete`, {
@@ -1414,8 +1415,8 @@ async function deleteCurrentFolder() {
         folder_name: activeContextItem.name 
       })
     });
-    if (!res.ok) throw new Error("Could not delete folder");
-    showToast("Folder deleted and files moved to Trash", "success");
+    if (!res.ok) throw new Error("Could not trash folder");
+    showToast("Folder moved to Trash", "success");
     await loadFolders();
     await loadFiles();
     sortFiles(currentSortMode);
@@ -1436,6 +1437,8 @@ function copyCurrentShareLink() {
 function openMoveModalForCurrentItem() {
   if (!activeContextItem) return;
   document.getElementById("moveTargetFileId").value = activeContextItem.id;
+  document.getElementById("moveTargetIsFolder").value = activeContextItem.isFolder ? "true" : "false";
+  document.getElementById("moveTargetFolderName").value = activeContextItem.name;
   document.getElementById("itemActionMenu").classList.add("hidden");
   document.getElementById("folderSearchInput").value = "";
   document.getElementById("selectedFolderDisplay").classList.add("hidden");
@@ -1499,16 +1502,36 @@ function closeMoveModal() { hideAnimatedModal("moveModal"); }
 
 async function executeMoveFile() {
   const fileId = document.getElementById("moveTargetFileId").value;
+  const isFolder = document.getElementById("moveTargetIsFolder").value === "true";
+  const folderName = document.getElementById("moveTargetFolderName").value;
   const target = window._selectedMoveFolder || '/';
+
   try {
-    const res = await fetch(`${API_BASE}/slides/move`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ file_id: fileId, target_folder: target })
-    });
-    if (!res.ok) throw new Error("Move failed");
-    showToast(`Moved to ${target}`, "success");
+    if (isFolder) {
+      const res = await fetch(`${API_BASE}/folders/move`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          item_id: fileId,
+          is_folder: true,
+          old_name: folderName,
+          new_name: target
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Move failed");
+      showToast(`Folder moved to ${target}`, "success");
+    } else {
+      const res = await fetch(`${API_BASE}/slides/move`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ file_id: fileId, target_folder: target })
+      });
+      if (!res.ok) throw new Error("Move failed");
+      showToast(`Moved to ${target}`, "success");
+    }
     closeMoveModal();
+    await loadFolders();
     await loadFiles();
     sortFiles(currentSortMode);
   } catch(err) {
@@ -1904,28 +1927,76 @@ function closeAdminTrashModal() { hideAnimatedModal("adminTrashModal"); }
 async function loadTrashFiles() {
   const container = document.getElementById("trashListContainer");
   try {
-    const res = await fetch(`${API_BASE}/admin/trash/list`);
-    const files = await res.json();
+    const [filesRes, foldersRes] = await Promise.all([
+      fetch(`${API_BASE}/admin/trash/list`),
+      fetch(`${API_BASE}/admin/trash/folders`)
+    ]);
+    const files = await filesRes.json();
+    const folders = await foldersRes.json();
 
-    if (files.length === 0) {
+    if (files.length === 0 && folders.length === 0) {
       container.innerHTML = `<p class="text-center py-10 text-slate-400">Trash is completely empty.</p>`;
       return;
     }
 
-    container.innerHTML = files.map(f => `
-      <div class="flex items-center justify-between py-3">
+    const foldersHtml = folders.map(f => `
+      <div class="flex items-center justify-between py-3 border-b border-slate-100 dark:border-slate-800">
+        <div class="flex items-center gap-2 truncate">
+          <i class="fa-solid fa-folder text-amber-400"></i>
+          <span class="truncate font-medium">${f.folder_name}</span>
+          <span class="text-[10px] bg-amber-100 text-amber-600 px-1.5 rounded">Folder</span>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <button onclick="restoreTrashFolder('${f.folder_name}')" class="px-2.5 py-1 rounded bg-emerald-50 text-emerald-600 hover:bg-emerald-100 font-medium text-xs">Restore</button>
+          <button onclick="permanentlyDeleteFolder('${f.folder_name}')" class="px-2.5 py-1 rounded bg-rose-50 text-rose-600 hover:bg-rose-100 font-medium text-xs">Delete Forever</button>
+        </div>
+      </div>
+    `).join('');
+
+    const filesHtml = files.map(f => `
+      <div class="flex items-center justify-between py-3 border-b border-slate-100 dark:border-slate-800">
         <div class="flex items-center gap-2 truncate">
           <i class="fa-solid fa-file text-rose-400"></i>
           <span class="truncate font-medium">${f.file_name}</span>
           <span class="text-[10px] text-slate-400 font-mono">(${formatBytes(f.file_size)})</span>
         </div>
-        <div class="flex items-center gap-2">
-          <button onclick="restoreTrashFile('${f.id}')" class="px-2.5 py-1 rounded bg-emerald-50 text-emerald-600 hover:bg-emerald-100 font-medium">Restore</button>
-          <button onclick="permanentlyDeleteFile('${f.id}')" class="px-2.5 py-1 rounded bg-rose-50 text-rose-600 hover:bg-rose-100 font-medium">Delete Forever</button>
+        <div class="flex items-center gap-2 shrink-0">
+          <button onclick="restoreTrashFile('${f.id}')" class="px-2.5 py-1 rounded bg-emerald-50 text-emerald-600 hover:bg-emerald-100 font-medium text-xs">Restore</button>
+          <button onclick="permanentlyDeleteFile('${f.id}')" class="px-2.5 py-1 rounded bg-rose-50 text-rose-600 hover:bg-rose-100 font-medium text-xs">Delete Forever</button>
         </div>
       </div>
     `).join('');
+
+    container.innerHTML = foldersHtml + filesHtml;
   } catch(e) { console.error(e); }
+}
+
+async function restoreTrashFolder(folderName) {
+  try {
+    await fetch(`${API_BASE}/admin/trash/restore-folder`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folder_id: "", folder_name: folderName })
+    });
+    showToast("Folder restored!", "success");
+    loadTrashFiles();
+    await loadFolders();
+    await loadFiles();
+    sortFiles(currentSortMode);
+  } catch(e) { showToast("Error restoring folder", "error"); }
+}
+
+async function permanentlyDeleteFolder(folderName) {
+  if (!confirm("Delete folder permanently? All files inside will also be deleted forever.")) return;
+  try {
+    await fetch(`${API_BASE}/admin/trash/permanent-delete-folder`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folder_id: "", folder_name: folderName })
+    });
+    showToast("Folder deleted forever!", "success");
+    loadTrashFiles();
+  } catch(e) { showToast("Error deleting folder", "error"); }
 }
 
 async function restoreTrashFile(id) {
