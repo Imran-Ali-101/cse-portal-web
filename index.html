@@ -675,12 +675,29 @@
 
   <!-- Move File Modal -->
   <div id="moveModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs modal-hidden modal-backdrop z-50 flex items-center justify-center p-4">
-    <div class="modal-box bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-sm p-5 rounded-2xl shadow-2xl relative">
+    <div class="modal-box bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-sm p-5 rounded-2xl shadow-2xl relative flex flex-col" style="max-height:85vh">
       <button onclick="closeMoveModal()" class="absolute top-4 right-4 text-slate-400"><i class="fa-solid fa-xmark"></i></button>
       <h3 class="text-sm font-bold mb-3"><i class="fa-solid fa-arrows-up-down-left-right mr-1 text-blue-600"></i> Move File</h3>
       <input type="hidden" id="moveTargetFileId">
-      <p class="text-xs text-slate-500 mb-2">Select destination folder:</p>
-      <select id="moveFolderSelect" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs mb-4"></select>
+  
+      <!-- Search Box -->
+      <div class="relative mb-2">
+        <i class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+        <input id="folderSearchInput" type="text" placeholder="Search folders..." 
+               oninput="filterFolderList(this.value)"
+               class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl pl-8 pr-3 py-2 text-xs focus:outline-none focus:border-blue-500">
+      </div>
+  
+      <!-- Selected Folder Display -->
+      <div id="selectedFolderDisplay" class="text-xs text-blue-600 font-semibold mb-2 px-1 hidden">
+        <i class="fa-solid fa-folder-open mr-1"></i>
+        <span id="selectedFolderName">Home (/)</span>
+      </div>
+  
+      <!-- Folder List -->
+      <div id="folderPickerList" class="flex-1 overflow-y-auto space-y-1 mb-3 max-h-60 border border-slate-100 dark:border-slate-800 rounded-xl p-2">
+      </div>
+  
       <button onclick="executeMoveFile()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-xl text-xs font-semibold">Move Here</button>
     </div>
   </div>
