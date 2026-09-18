@@ -3173,7 +3173,9 @@ async function handleZipExtract(input) {
     hideAnimatedModal("uploadProgressModal");
     input.value = "";
     showToast(`Extracted & uploaded ${done} files!`, "success");
-    renderFilesTable();
+    await loadFolders();
+    await loadFiles();
+    sortFiles(currentSortMode);
 
   } catch(err) {
     hideAnimatedModal("uploadProgressModal");
