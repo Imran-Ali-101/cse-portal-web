@@ -3132,6 +3132,22 @@ async function handleZipExtract(input) {
         ? currentSelectedFolder + '/' + entry.name.substring(0, entry.name.lastIndexOf('/'))
         : currentSelectedFolder;
 
+      // Create folder if it doesn't exist
+      if (subFolder !== currentSelectedFolder) {
+        const folderExists = allFolders.find(f => f.folder_name === subFolder);
+        if (!folderExists) {
+          try {
+            const fd = new FormData();
+            fd.append("folder_name", subFolder);
+            const fr = await fetch(`${API_BASE}/folders/create`, { method: "POST", body: fd });
+            if (fr.ok) {
+              const folderData = await fr.json();
+              allFolders.push({ ...folderData.data, folder_name: subFolder });
+            }
+          } catch(e) { console.error("Folder create failed", e); }
+        }
+      }
+
       const formData = new FormData();
       formData.append("file", new File([blob], fileName));
       formData.append("folder", subFolder);
