@@ -3206,7 +3206,7 @@ async function handleZipExtract(input) {
     progressBar.style.width = "100%";
     hideAnimatedModal("uploadProgressModal");
     input.value = "";
-    showToast(`Extracted & uploaded ${done} files into "${zipBaseName}"!`, "success");
+    showToast(`Extracted & uploaded ${done} files successfully!`, "success");
     await loadFolders();
     await loadFiles();
     sortFiles(currentSortMode);
