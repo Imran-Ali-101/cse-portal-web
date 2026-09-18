@@ -3123,28 +3123,9 @@ async function handleZipExtract(input) {
     let done = 0;
     let uploadedNames = [];
 
-    // ZIP file এর নাম থেকে main folder name বানাও
-    const zipBaseName = file.name.replace(/\.zip$/i, '');
-    const mainFolder = currentSelectedFolder === '/'
-      ? `/${zipBaseName}`
-      : `${currentSelectedFolder}/${zipBaseName}`;
 
-    // Main folder create করো
-    progressText.innerText = `Creating folder: ${zipBaseName}`;
-    const existingMain = allFolders.find(f => f.folder_name === mainFolder);
-    if (!existingMain) {
-      try {
-        const fd = new FormData();
-        fd.append("folder_name", mainFolder);
-        const fr = await fetch(`${API_BASE}/folders/create`, { method: "POST", body: fd });
-        if (fr.ok) {
-          const fd2 = await fr.json();
-          allFolders.push({ ...fd2.data, folder_name: mainFolder });
-        }
-      } catch(e) { console.error("Main folder create failed", e); }
-    }
-
-    // Track কোন folders already create হয়েছে
+    // ZIP upload to current directory
+    const mainFolder = currentSelectedFolder;
     const createdFolders = new Set([mainFolder]);
 
     for (const entry of entries) {
