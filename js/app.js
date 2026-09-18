@@ -73,7 +73,7 @@ async function subscribeToPush() {
 // ==========================================
 let deferredInstallPrompt = null;
 
-// Standalone mode এ চললে button লুকিয়ে রাখো
+// Check if app is running in standalone mode (already installed)
 function isRunningAsPwa() {
   return window.matchMedia('(display-mode: standalone)').matches 
       || window.navigator.standalone === true;
@@ -83,19 +83,47 @@ window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   deferredInstallPrompt = e;
   
-  // PWA হিসেবে চলছে না → button দেখাও
   if (!isRunningAsPwa()) {
-    const btn = document.getElementById('pwaInstallBtn');
-    if (btn) btn.classList.remove('hidden');
-    if (btn) btn.classList.add('flex');
+    const hasSeenPopup = localStorage.getItem('pwa_popup_seen');
+    const headerBtn = document.getElementById('pwaInstallBtn');
+    const popup = document.getElementById('pwaInstallPopup');
+    
+    if (!hasSeenPopup) {
+      // Show the beautiful popup for first-time visitors
+      if (popup) popup.classList.remove('hidden');
+    } else {
+      // If popup was dismissed earlier, only show the header button
+      if (headerBtn) {
+        headerBtn.classList.remove('hidden');
+        headerBtn.classList.add('flex');
+      }
+    }
   }
 });
+
+// Hide popup and remember user choice
+function dismissPwaPopup() {
+  localStorage.setItem('pwa_popup_seen', 'true');
+  const popup = document.getElementById('pwaInstallPopup');
+  if (popup) popup.classList.add('hidden');
+  
+  // Show header button instead
+  const headerBtn = document.getElementById('pwaInstallBtn');
+  if (headerBtn) {
+    headerBtn.classList.remove('hidden');
+    headerBtn.classList.add('flex');
+  }
+}
 
 function triggerPwaInstall() {
   if (!deferredInstallPrompt) {
     showToast('Install option not available on this browser', 'info');
     return;
   }
+  
+  // Hide popup and save choice before prompting
+  dismissPwaPopup();
+  
   deferredInstallPrompt.prompt();
   deferredInstallPrompt.userChoice.then((result) => {
     if (result.outcome === 'accepted') {
@@ -106,7 +134,7 @@ function triggerPwaInstall() {
   });
 }
 
-// App installed হলে button লুকাও
+// Hide install button completely once installed
 window.addEventListener('appinstalled', () => {
   const btn = document.getElementById('pwaInstallBtn');
   if (btn) btn.classList.add('hidden');
