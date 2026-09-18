@@ -1437,14 +1437,69 @@ function openMoveModalForCurrentItem() {
   if (!activeContextItem) return;
   document.getElementById("moveTargetFileId").value = activeContextItem.id;
   document.getElementById("itemActionMenu").classList.add("hidden");
+  document.getElementById("folderSearchInput").value = "";
+  document.getElementById("selectedFolderDisplay").classList.add("hidden");
+  
+  // Default selected = current folder
+  window._selectedMoveFolder = currentSelectedFolder;
+  
+  renderFolderPickerList('');
   showAnimatedModal("moveModal");
+}
+
+function renderFolderPickerList(query) {
+  const container = document.getElementById("folderPickerList");
+  
+  const allOptions = [{ folder_name: '/', display: 'Home (/)' }, ...allFolders
+    .filter(f => f.folder_name !== '/')
+    .map(f => ({ folder_name: f.folder_name, display: f.folder_name }))
+  ];
+
+  const filtered = query
+    ? allOptions.filter(f => f.display.toLowerCase().includes(query.toLowerCase()))
+    : allOptions;
+
+  if (filtered.length === 0) {
+    container.innerHTML = `<p class="text-center py-4 text-slate-400 text-xs">No folders found</p>`;
+    return;
+  }
+
+  container.innerHTML = filtered.map(f => {
+    const isSelected = f.folder_name === window._selectedMoveFolder;
+    const depth = f.folder_name === '/' ? 0 : f.folder_name.split('/').filter(Boolean).length;
+    const displayName = f.folder_name === '/' ? 'Home (/)' : f.folder_name.split('/').filter(Boolean).pop();
+    const indent = depth > 1 ? `padding-left:${(depth - 1) * 12}px` : '';
+
+    return `
+      <div onclick="selectMoveFolder('${f.folder_name}', '${f.folder_name === '/' ? 'Home (/)' : displayName}')"
+           style="${indent}"
+           class="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer text-xs transition
+           ${isSelected ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-600 font-semibold' : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}">
+        <i class="fa-solid fa-folder ${isSelected ? 'text-blue-500' : 'text-amber-500'}"></i>
+        <span class="truncate">${displayName}</span>
+        ${isSelected ? '<i class="fa-solid fa-check ml-auto text-blue-500"></i>' : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+function selectMoveFolder(path, name) {
+  window._selectedMoveFolder = path;
+  const display = document.getElementById("selectedFolderDisplay");
+  document.getElementById("selectedFolderName").innerText = name;
+  display.classList.remove("hidden");
+  renderFolderPickerList(document.getElementById("folderSearchInput").value);
+}
+
+function filterFolderList(query) {
+  renderFolderPickerList(query);
 }
 
 function closeMoveModal() { hideAnimatedModal("moveModal"); }
 
 async function executeMoveFile() {
   const fileId = document.getElementById("moveTargetFileId").value;
-  const target = document.getElementById("moveFolderSelect").value;
+  const target = window._selectedMoveFolder || '/';
   try {
     const res = await fetch(`${API_BASE}/slides/move`, {
       method: "POST",
