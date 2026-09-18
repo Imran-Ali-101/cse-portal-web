@@ -3139,12 +3139,12 @@ async function handleZipExtract(input) {
       // Target folder = mainFolder + entry এর subfolder path
       let targetFolder = mainFolder;
       if (parts.length > 0) {
-        targetFolder = mainFolder + '/' + parts.join('/');
+        targetFolder = (mainFolder === '/' ? '' : mainFolder) + '/' + parts.join('/');
       }
 
       // Subfolder গুলো create করো (যদি না থাকে)
       if (targetFolder !== mainFolder) {
-        let buildPath = mainFolder;
+        let buildPath = mainFolder === '/' ? '' : mainFolder;
         for (const part of parts) {
           buildPath = buildPath + '/' + part;
           if (!createdFolders.has(buildPath)) {
