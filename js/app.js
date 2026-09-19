@@ -356,13 +356,18 @@ function startPresenceHeartbeat() {
   if (!currentUser) return;
   
   async function ping() {
+    // Check if user is admin and ghost mode is enabled
+    if (isAdmin() && localStorage.getItem("ghostMode") === "true") {
+      return; 
+    }
+    
     try {
       await fetch(`${API_BASE}/presence/heartbeat`, { method: "POST" });
     } catch(e) {}
   }
   
-  ping(); // তাৎক্ষণিক একবার
-  setInterval(ping, 2 * 60 * 1000); // প্রতি 2 মিনিটে
+  ping(); // Instant ping on load
+  setInterval(ping, 2 * 60 * 1000); // Ping every 2 minutes
 }
 
 async function renderPortalView() {
@@ -514,12 +519,29 @@ function openSettingsModal() {
   document.getElementById("setSecCurPass").value = "";
   document.getElementById("setNewQ").value = "";
   document.getElementById("setNewA").value = "";
+
+  const ghostContainer = document.getElementById("adminGhostModeContainer");
+  if (ghostContainer) {
+    if (isAdmin()) {
+      ghostContainer.classList.remove("hidden");
+      document.getElementById("ghostModeToggle").checked = localStorage.getItem("ghostMode") === "true";
+    } else {
+      ghostContainer.classList.add("hidden");
+    }
+  }
+  
   showAnimatedModal("settingsModal");
 }
 
 function closeSettingsModal() {
   hideAnimatedModal("settingsModal");
 }
+// Toggle Admin Ghost Mode
+function toggleGhostMode(el) {
+  localStorage.setItem("ghostMode", el.checked);
+  showToast(el.checked ? "Ghost Mode ON: You are now hidden" : "Ghost Mode OFF: You are visible", "success");
+}
+
 
 function switchSettingsTab(tab) {
   const passTab = document.getElementById("setTabPass");
@@ -2121,6 +2143,7 @@ async function openPreview(name, id) {
         fetch(originalStreamUrl)
           .then(res => res.blob())
           .then(blob => cache.put(originalStreamUrl, new Response(blob)))
+          .then(() => trimCacheIfOverLimit())
           .catch(e => console.warn("Background cache failed"));
       }
     } catch (e) {
@@ -3111,6 +3134,37 @@ async function saveEditedRoutine() {
 // OFFLINE CACHING UTILITIES
 // ==========================================
 
+// Function to automatically trim older cached files when storage exceeds 1.5 GB limit
+async function trimCacheIfOverLimit() {
+  if (!('caches' in window) || !navigator.storage || !navigator.storage.estimate) return;
+
+  const MAX_BYTES = 1536 * 1024 * 1024; // 1.5 GB in Bytes
+  const FILE_CACHE_NAME = 'portal-offline-files-v1';
+
+  try {
+    let { usage } = await navigator.storage.estimate();
+
+    // If storage usage exceeds 1.5 GB
+    if (usage && usage > MAX_BYTES) {
+      const cache = await caches.open(FILE_CACHE_NAME);
+      const requests = await cache.keys();
+
+      // Older cached files are stored first, so start deleting from the beginning
+      for (const request of requests) {
+        // Re-check storage estimate after deleting each file
+        const currentEstimate = await navigator.storage.estimate();
+        if (currentEstimate.usage <= MAX_BYTES * 0.85) { 
+          // Stop loop once usage drops to 85% (approx 870 MB)
+          break; 
+        }
+        await cache.delete(request);
+      }
+    }
+  } catch (err) {
+    console.warn("Auto cache trimming failed:", err);
+  }
+}
+
 // Helper to save data to local storage
 function saveToLocalStorage(key, data) {
   try { localStorage.setItem(key, JSON.stringify(data)); } catch(e) { console.error("Storage full"); }
@@ -3167,14 +3221,14 @@ async function openStorageManager() {
   
   const usedMB = (info.usage / (1024 * 1024)).toFixed(2);
   
-  // Set fixed 1 GB (1024 MB) limit as requested
-  const MAX_LIMIT_MB = 1024; 
+  // Set fixed 1.5 GB (1536 MB) limit as requested
+  const MAX_LIMIT_MB = 1536; 
   
-  // Calculate the used percentage based on the 1 GB limit
+  // Calculate the used percentage based on the 1.5 GB limit
   const percent = Math.min((usedMB / MAX_LIMIT_MB) * 100, 100).toFixed(1);
 
   document.getElementById("storageUsedText").innerText = `${usedMB} MB`;
-  document.getElementById("storageTotalText").innerText = `${MAX_LIMIT_MB} MB Limit (1 GB)`;
+  document.getElementById("storageTotalText").innerText = `${MAX_LIMIT_MB} MB Limit (1.5 GB)`;
   document.getElementById("storagePercentText").innerText = `${percent}%`;
   
   // Set progress bar width and change color if getting full
