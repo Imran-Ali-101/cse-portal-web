@@ -1071,7 +1071,11 @@ function renderFilesTable() {
       <div class="col-span-8 md:col-span-9 flex items-center gap-3">
         <input type="checkbox" value="${f.id}" data-id="${f.telegram_message_id}" data-name="${f.file_name}" class="file-item-check rounded border-slate-300">
         <i class="fa-solid fa-file-lines text-slate-400 text-sm"></i>
-        <span onclick="openPreview('${f.file_name}', ${f.telegram_message_id})" class="cursor-pointer hover:text-blue-600 font-medium text-slate-700 dark:text-slate-200 break-all">${f.file_name}</span>
+        <span onclick="openPreview('${f.file_name.replace(/'/g, "\\'")}', ${f.telegram_message_id})" 
+              onauxclick="handleMiddleClick(event, ${f.telegram_message_id}, '${f.file_name.replace(/'/g, "\\'")}')" 
+              class="cursor-pointer hover:text-blue-600 font-medium text-slate-700 dark:text-slate-200 break-all">
+          ${f.file_name}
+        </span>
       </div>
       <div class="col-span-4 md:col-span-3 flex items-center justify-end gap-3 text-slate-400 font-mono">
         <span>${formatBytes(f.file_size)}</span>
@@ -2730,8 +2734,11 @@ function renderSharedFilesTable() {
         <div class="grid grid-cols-12 px-4 py-3 items-center hover:bg-slate-50 dark:hover:bg-slate-800/50 transition border-b border-slate-50 dark:border-slate-800/30 no-select-callout">
           <div class="col-span-8 md:col-span-9 flex items-center gap-3">
             <i class="fa-solid fa-file-lines text-slate-400 text-sm"></i>
-            <span onclick="openPreview('${f.file_name}', ${f.telegram_message_id})" 
-                  class="cursor-pointer hover:text-blue-600 font-medium text-slate-700 dark:text-slate-200 break-all text-[11px] md:text-xs">${f.file_name}</span>
+            <span onclick="openPreview('${f.file_name.replace(/'/g, "\\'")}', ${f.telegram_message_id})" 
+                  onauxclick="handleMiddleClick(event, ${f.telegram_message_id}, '${f.file_name.replace(/'/g, "\\'")}')"
+                  class="cursor-pointer hover:text-blue-600 font-medium text-slate-700 dark:text-slate-200 break-all text-[11px] md:text-xs">
+              ${f.file_name}
+            </span>
           </div>
           <div class="col-span-4 md:col-span-3 flex items-center justify-end gap-3 text-slate-400 font-mono text-[10px] md:text-[11px]">
             <span class="hidden sm:inline">${formatBytes(f.file_size)}</span>
@@ -3571,6 +3578,20 @@ document.addEventListener('keydown', (e) => {
     }
   }
 });
+
+// Handle Middle Mouse Click (Wheel Click) for New Tab
+function handleMiddleClick(e, messageId, name) {
+  // e.button === 1 means wheel button
+  if (e.button === 1) {
+    e.preventDefault();
+    const url = new URL(window.location.origin + window.location.pathname);
+    url.searchParams.set('preview_msg_id', messageId);
+    url.searchParams.set('preview_name', name);
+    if(isGuestMode && currentShareId) url.searchParams.set('share', currentShareId);
+    
+    window.open(url.toString(), '_blank');
+  }
+}
 
 
 renderPortalView();
