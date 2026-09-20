@@ -18,6 +18,8 @@ let guestFolderPath = "";
 let sharedFiles = [];
 let originalViewportContent = "";
 let guestCurrentPath = "";
+let originalDocumentTitle = "";
+let currentImageScale = 1.0;
 
 // ==========================================
 // PUSH NOTIFICATION LOGIC
@@ -2121,6 +2123,10 @@ async function downloadSelectedZip() {
 }
 
 async function openPreview(name, id) {
+  // Set dynamic title
+  if (!originalDocumentTitle) originalDocumentTitle = document.title;
+  document.title = name;
+  
   document.getElementById("previewTitle").innerText = name;
   activePreviewItem = { name, id };
 
@@ -2219,7 +2225,27 @@ async function openPreview(name, id) {
   }
   else if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.webp') || lower.endsWith('.gif') || lower.endsWith('.svg')) {
     container.style.justifyContent = "center";
-    container.innerHTML = `<img src="${finalUrlToRender}" alt="${name}" class="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl">`;
+    container.style.overflow = "hidden"; // hide scrollbar for zoom
+    
+    // Added id and transition on image
+    container.innerHTML = `<img id="previewImageElement" src="${finalUrlToRender}" alt="${name}" class="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl transition-transform duration-100 ease-out" style="transform: scale(1);">`;
+
+    // Ctrl + Mouse Wheel Zoom Logic
+    currentImageScale = 1.0;
+    container.onwheel = (e) => {
+      if (e.ctrlKey) {
+        e.preventDefault(); // browser default page zoom off
+        const zoomSpeed = 0.15;
+        // e.deltaY < 0 means zoom in
+        currentImageScale += (e.deltaY < 0) ? zoomSpeed : -zoomSpeed;
+        
+        // zoom limi (minimum 0.3x, maximum 10x)
+        currentImageScale = Math.max(0.3, Math.min(currentImageScale, 10.0));
+        
+        const img = document.getElementById("previewImageElement");
+        if (img) img.style.transform = `scale(${currentImageScale})`;
+      }
+    };
   }
   else if (lower.endsWith('.pdf')) {
     const viewportMeta = document.querySelector('meta[name="viewport"]');
@@ -2319,6 +2345,16 @@ async function openPreview(name, id) {
 }
  
 function closePreview(isFromBackButton = false) {
+  // Restore title
+  if (originalDocumentTitle) {
+    document.title = originalDocumentTitle;
+  }
+
+  // Clear zoom event
+  const container = document.getElementById("previewContainer");
+  if (container) container.onwheel = null;
+  currentImageScale = 1.0;
+  
   hideAnimatedModal("previewModal");
   document.getElementById("previewContainer").innerHTML = "";
   
