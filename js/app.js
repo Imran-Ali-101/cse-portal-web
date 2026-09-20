@@ -2225,26 +2225,55 @@ async function openPreview(name, id) {
   }
   else if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.webp') || lower.endsWith('.gif') || lower.endsWith('.svg')) {
     container.style.justifyContent = "center";
-    container.style.overflow = "hidden"; // hide scrollbar for zoom
+    container.style.overflow = "hidden"; // scrollbar hide
     
-    // Added id and transition on image
-    container.innerHTML = `<img id="previewImageElement" src="${finalUrlToRender}" alt="${name}" class="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl transition-transform duration-100 ease-out" style="transform: scale(1);">`;
+    // image e cursor: grab deya hoyese
+    container.innerHTML = `<img id="previewImageElement" src="${finalUrlToRender}" alt="${name}" class="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl transition-transform duration-75" style="transform: translate(0px, 0px) scale(1); cursor: grab;">`;
 
-    // Ctrl + Mouse Wheel Zoom Logic
     currentImageScale = 1.0;
+    let translateX = 0;
+    let translateY = 0;
+    let isDragging = false;
+    let startX, startY;
+
+    const img = document.getElementById("previewImageElement");
+
+    // Ctrl + Mouse Wheel Zoom
     container.onwheel = (e) => {
       if (e.ctrlKey) {
-        e.preventDefault(); // browser default page zoom off
+        e.preventDefault();
         const zoomSpeed = 0.15;
-        // e.deltaY < 0 means zoom in
         currentImageScale += (e.deltaY < 0) ? zoomSpeed : -zoomSpeed;
-        
-        // zoom limi (minimum 0.3x, maximum 10x)
         currentImageScale = Math.max(0.3, Math.min(currentImageScale, 10.0));
-        
-        const img = document.getElementById("previewImageElement");
-        if (img) img.style.transform = `scale(${currentImageScale})`;
+        img.style.transform = `translate(${translateX}px, ${translateY}px) scale(${currentImageScale})`;
       }
+    };
+
+    // Mouse Drag (Panning) Logic
+    img.onmousedown = (e) => {
+      e.preventDefault();
+      isDragging = true;
+      startX = e.clientX - translateX;
+      startY = e.clientY - translateY;
+      img.style.cursor = "grabbing";
+    };
+
+    container.onmousemove = (e) => {
+      if (!isDragging) return;
+      e.preventDefault();
+      translateX = e.clientX - startX;
+      translateY = e.clientY - startY;
+      img.style.transform = `translate(${translateX}px, ${translateY}px) scale(${currentImageScale})`;
+    };
+
+    container.onmouseup = () => {
+      isDragging = false;
+      img.style.cursor = "grab";
+    };
+
+    container.onmouseleave = () => {
+      isDragging = false;
+      img.style.cursor = "grab";
     };
   }
   else if (lower.endsWith('.pdf')) {
@@ -2346,14 +2375,16 @@ async function openPreview(name, id) {
  
 function closePreview(isFromBackButton = false) {
   // Restore title
-  if (originalDocumentTitle) {
-    document.title = originalDocumentTitle;
-  }
+  document.title = "Private Cloud | Academic Storage";
 
   // Clear zoom event
   const container = document.getElementById("previewContainer");
-  if (container) container.onwheel = null;
-  currentImageScale = 1.0;
+  if (container) {
+    container.onwheel = null;
+    container.onmousemove = null;
+    container.onmouseup = null;
+    container.onmouseleave = null;
+  }
   
   hideAnimatedModal("previewModal");
   document.getElementById("previewContainer").innerHTML = "";
