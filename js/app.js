@@ -2374,9 +2374,6 @@ async function openPreview(name, id) {
 }
  
 function closePreview(isFromBackButton = false) {
-  // Restore title
-  document.title = "Private Cloud | Academic Storage";
-
   // Clear zoom event
   const container = document.getElementById("previewContainer");
   if (container) {
@@ -2406,7 +2403,9 @@ function closePreview(isFromBackButton = false) {
 
   // Close using backbutton
   if (!isFromBackButton && history.state && history.state.previewOpen) {
-    history.back();
+    history.back(); 
+  } else {
+    document.title = "Private Cloud | Academic Storage";
   }
 }
 
@@ -2531,6 +2530,8 @@ function restoreFolderFromUrl() {
 
 window.addEventListener('popstate', (e) => {
   if (!currentUser) return;
+
+  document.title = "Private Cloud | Academic Storage";
 
   // Close preview on backpress
   const previewModal = document.getElementById("previewModal");
