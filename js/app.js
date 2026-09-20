@@ -2106,6 +2106,9 @@ async function downloadSelectedZip() {
 async function openPreview(name, id) {
   document.getElementById("previewTitle").innerText = name;
   activePreviewItem = { name, id };
+
+  history.pushState({ folder: currentSelectedFolder, previewOpen: true }, "", "");
+  
   const token = isGuestMode ? guestToken : (currentUser ? currentUser.token : '');
   const originalStreamUrl = `${API_BASE}/slides/stream/${id}?filename=${encodeURIComponent(name)}&token=${token}`;
 
@@ -2298,7 +2301,7 @@ async function openPreview(name, id) {
   }
 }
  
-function closePreview() {
+function closePreview(isFromBackButton = false) {
   hideAnimatedModal("previewModal");
   document.getElementById("previewContainer").innerHTML = "";
   
@@ -2315,6 +2318,11 @@ function closePreview() {
   if (viewportMeta && originalViewportContent) {
     viewportMeta.setAttribute("content", originalViewportContent);
     originalViewportContent = ""; // Reset
+  }
+
+  // Close using backbutton
+  if (!isFromBackButton && history.state && history.state.previewOpen) {
+    history.back();
   }
 }
 
@@ -2439,6 +2447,13 @@ function restoreFolderFromUrl() {
 
 window.addEventListener('popstate', (e) => {
   if (!currentUser) return;
+
+  // Close preview on backpress
+  const previewModal = document.getElementById("previewModal");
+  if (previewModal && !previewModal.classList.contains("modal-hidden")) {
+    closePreview(true);
+  }
+  
   const folder = e.state?.folder || '/';
   currentSelectedFolder = folder;
   document.getElementById("activeFolderPathText").innerText = `Folder: ${currentSelectedFolder}`;
