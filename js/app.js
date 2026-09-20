@@ -371,6 +371,14 @@ function startPresenceHeartbeat() {
 }
 
 async function renderPortalView() {
+  // --- Auto Open Preview from URL (For New Tab feature) ---
+  const urlParams = new URLSearchParams(window.location.search);
+  const pMsgId = urlParams.get('preview_msg_id');
+  const pName = urlParams.get('preview_name');
+  if (pMsgId && pName) {
+    setTimeout(() => openPreview(pName, pMsgId), 600); // open preview after loading ui
+  }
+  
   restoreFolderFromUrl();
   if (isGuestMode) return;
 
@@ -430,14 +438,6 @@ async function renderPortalView() {
     initWebSocket();
     startPresenceHeartbeat();
     checkUnseenNotices();
-    // --- Auto Open Preview from URL (For New Tab feature) ---
-    const urlParams = new URLSearchParams(window.location.search);
-    const pMsgId = urlParams.get('preview_msg_id');
-    const pName = urlParams.get('preview_name');
-    if (pMsgId && pName) {
-      setTimeout(() => openPreview(pName, pMsgId), 600); // open preview after loading ui
-    }
-
     loadDynamicTools();
     // Subscribe to push notifications
     subscribeToPush();
@@ -2221,13 +2221,13 @@ async function openPreview(name, id) {
     const viewportMeta = document.querySelector('meta[name="viewport"]');
     if (viewportMeta) {
       originalViewportContent = viewportMeta.getAttribute("content");
-      viewportMeta.setAttribute("content", "width=1024");
+      viewportMeta.setAttribute("content", "width=1024, initial-scale=0.1, maximum-scale=2.0, user-scalable=yes");
     }
     
     if(topBar) topBar.classList.add("hidden");
     container.style.padding = "0";
 
-    const viewerUrl = `/pdfjs/web/viewer.html?file=${encodeURIComponent(finalUrlToRender)}#zoom=page-width`;
+    const viewerUrl = `/pdfjs/web/viewer.html?file=${encodeURIComponent(finalUrlToRender)}#zoom=page-fit`;
 
     container.style.justifyContent = "center";
     container.innerHTML = `
