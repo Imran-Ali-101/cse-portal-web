@@ -3,6 +3,7 @@
 * {
   box-sizing: border-box;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  user-select: none;
 }
 
 /* Custom Minimal Scrollbar */
@@ -30,6 +31,13 @@
 
 .dark ::-webkit-scrollbar-thumb:hover {
   background: #475569;
+}
+
+/* Disable text selection and mobile long-press popups */
+.no-select-callout {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 /* Smooth Modal & Backdrop Animation */
