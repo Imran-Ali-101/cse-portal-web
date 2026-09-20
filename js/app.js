@@ -2221,7 +2221,7 @@ async function openPreview(name, id) {
     const viewportMeta = document.querySelector('meta[name="viewport"]');
     if (viewportMeta) {
       originalViewportContent = viewportMeta.getAttribute("content");
-      viewportMeta.setAttribute("content", "width=1024, initial-scale=0.1, maximum-scale=2.0, user-scalable=yes");
+      viewportMeta.setAttribute("content", "width=1024, user-scalable=yes");
     }
     
     if(topBar) topBar.classList.add("hidden");
