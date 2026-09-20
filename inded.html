@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>সার্ভার রক্ষণাবেক্ষণ চলছে | সাময়িক বিরতি</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- FontAwesome Icons -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  
+  <style>
+    /* স্মুথ পালস এবং ব্যাকগ্রাউন্ড অ্যানিমেশন */
+    @keyframes spin-slow {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .animate-spin-slow {
+      animation: spin-slow 8s linear infinite;
+    }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col justify-between items-center p-6 antialiased selection:bg-blue-600 selection:text-white">
+
+  <!-- টপ লোগো বা হেডার -->
+  <header class="w-full max-w-4xl flex items-center justify-between py-4">
+    <div class="flex items-center space-x-2">
+      <i class="fa-solid fa-cloud text-blue-500 text-2xl"></i>
+      <span class="font-bold text-lg tracking-tight text-white">CSE Private Cloud</span>
+    </div>
+    <div class="flex items-center gap-2 bg-slate-800/80 border border-slate-700 px-3 py-1 rounded-full text-xs text-amber-400 font-mono">
+      <span class="h-2 w-2 rounded-full bg-amber-400 animate-pulse"></span>
+      <span>Maintenance Mode</span>
+    </div>
+  </header>
+
+  <!-- মূল কন্টেন্ট সেকশন -->
+  <main class="flex-1 flex flex-col items-center justify-center text-center max-w-lg mx-auto my-8">
+    
+    <!-- অ্যানিমেটেড আইকন বক্স -->
+    <div class="relative mb-6">
+      <div class="w-24 h-24 bg-blue-950/60 border border-blue-500/30 rounded-3xl flex items-center justify-center shadow-2xl relative z-10">
+        <i class="fa-solid fa-screwdriver-wrench text-4xl text-blue-400"></i>
+      </div>
+      <!-- ব্যাকগ্রাউন্ডে স্পিনিং গিয়ার ইফেক্ট -->
+      <i class="fa-solid fa-gear text-6xl text-slate-800 absolute -top-3 -right-4 animate-spin-slow -z-0"></i>
+    </div>
+
+    <!-- হেডলাইন ও নোটিশ -->
+    <h1 class="text-2xl md:text-3xl font-extrabold text-white tracking-tight mb-3">
+      সার্ভার রক্ষণাবেক্ষণের কাজ চলমান রয়েছে
+    </h1>
+    
+    <p class="text-sm md:text-base text-slate-400 leading-relaxed mb-6">
+      আমাদের ক্লাউড স্টোরেজ ও সার্ভার আপগ্রেডের কাজ চলছে। আপনাদের উন্নত অভিজ্ঞতা দেওয়ার জন্য সাময়িকভাবে পোর্টাল বন্ধ রয়েছে। খুব শীঘ্রই আমরা অনলাইনে ফিরে আসব।
+    </p>
+
+    <!-- স্ট্যাটাস ব্যাজ বক্স -->
+    <div class="bg-slate-800/60 border border-slate-700/80 rounded-2xl p-4 w-full flex flex-col gap-2 text-xs font-mono text-slate-300">
+      <div class="flex justify-between items-center py-1 border-b border-slate-700/50">
+        <span class="text-slate-400">স্ট্যাটাস:</span>
+        <span class="text-amber-400 font-semibold flex items-center gap-1.5">
+          <i class="fa-solid fa-clock-rotate-left"></i> সার্ভার মাইগ্রেশন চলছে
+        </span>
+      </div>
+      <div class="flex justify-between items-center py-1 border-b border-slate-700/50">
+        <span class="text-slate-400">ফাইল ডাটাবেস:</span>
+        <span class="text-emerald-400 font-semibold">১০০% নিরাপদ ও অক্ষত</span>
+      </div>
+      <div class="flex justify-between items-center py-1">
+        <span class="text-slate-400">সম্ভাব্য সময়:</span>
+        <span class="text-blue-400 font-semibold">খুব দ্রুত লাইভ করা হবে</span>
+      </div>
+    </div>
+
+    <!-- রিলোড বাটন -->
+    <button onclick="window.location.reload()" class="mt-8 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-6 py-2.5 rounded-xl shadow-lg transition flex items-center gap-2">
+      <i class="fa-solid fa-rotate-right"></i> রিলোড দিয়ে চেক করুন
+    </button>
+  </main>
+
+  <!-- ফুটার -->
+  <footer class="text-center text-xs text-slate-500 py-4">
+    © 2026 Academic Cloud Portal | সাময়িক অসুবিধার জন্য আমরা আন্তরিকভাবে দুঃখিত।
+  </footer>
+
+</body>
+</html>
