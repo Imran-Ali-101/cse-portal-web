@@ -1,4 +1,4 @@
-const API_BASE = "https://varsity-portal-backend.onrender.com";
+const API_BASE = "https://cseportal-vyockc6s.b4a.run";
 let ws = null;
 let currentUser = JSON.parse(localStorage.getItem("user") || "null");
 let currentSelectedFolder = "/";
