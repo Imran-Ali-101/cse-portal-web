@@ -2614,6 +2614,14 @@ async function verifyAndLoadSharedFolder() {
     if(sortToolbar) sortToolbar.classList.add("hidden");
     
     await loadSharedFiles();
+
+    // Auto Open Preview from URL (For Guest New Tab feature) 
+    const urlParams = new URLSearchParams(window.location.search);
+    const pMsgId = urlParams.get('preview_msg_id');
+    const pName = urlParams.get('preview_name');
+    if (pMsgId && pName) {
+      setTimeout(() => openPreview(pName, pMsgId), 600); 
+    }
   } catch(err) {
     showToast(err.message, "error");
     document.getElementById("guestLandingView").innerHTML = `<div class="p-10 text-center text-rose-500 font-bold text-lg"><i class="fa-solid fa-triangle-exclamation text-3xl mb-2 block"></i> ${err.message}. Link may be broken or expired.</div>`;
