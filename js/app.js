@@ -1062,7 +1062,7 @@ function renderFilesTable() {
   });
 
   const filesMarkup = filteredFiles.map(f => `
-    <div class="grid grid-cols-12 px-4 py-3 items-center hover:bg-slate-50 dark:hover:bg-slate-800/50"
+    <div class="grid grid-cols-12 px-4 py-3 items-center hover:bg-slate-50 dark:hover:bg-slate-800/50 no-select-callout"
          oncontextmenu="handleRightClick(event, '${f.id}', ${f.telegram_message_id}, '${f.file_name.replace(/'/g, "\\'")}', false)"
          ontouchstart="handleTouchStart(event, '${f.id}', ${f.telegram_message_id}, '${f.file_name.replace(/'/g, "\\'")}', false)"
          ontouchend="handleTouchEnd(event)"
@@ -2727,7 +2727,7 @@ function renderSharedFilesTable() {
     // Files
     filesHere.forEach(f => {
       html += `
-        <div class="grid grid-cols-12 px-4 py-3 items-center hover:bg-slate-50 dark:hover:bg-slate-800/50 transition border-b border-slate-50 dark:border-slate-800/30">
+        <div class="grid grid-cols-12 px-4 py-3 items-center hover:bg-slate-50 dark:hover:bg-slate-800/50 transition border-b border-slate-50 dark:border-slate-800/30 no-select-callout">
           <div class="col-span-8 md:col-span-9 flex items-center gap-3">
             <i class="fa-solid fa-file-lines text-slate-400 text-sm"></i>
             <span onclick="openPreview('${f.file_name}', ${f.telegram_message_id})" 
