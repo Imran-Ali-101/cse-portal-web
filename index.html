@@ -766,6 +766,20 @@
     </button>
   </div>
 
+    <!-- Custom Right-Click / Long-Press Context Menu -->
+    <div id="advancedContextMenu" class="hidden fixed bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl py-1 z-[100] w-56 text-xs select-none">
+      <button onclick="contextOpenNewTab()" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center justify-between text-slate-700 dark:text-slate-200">
+        <span class="flex items-center gap-2"><i class="fa-solid fa-arrow-up-right-from-square text-blue-500"></i> Open in new tab</span>
+        <span class="text-[9px] text-slate-400 font-mono bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">Alt+T</span>
+      </button>
+      <button onclick="contextOpenBrowser()" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center justify-between text-slate-700 dark:text-slate-200 border-t border-slate-100 dark:border-slate-800">
+        <span class="flex items-center gap-2"><i class="fa-brands fa-chrome text-amber-500"></i> Open with Browser</span>
+      </button>
+      <button onclick="contextDownload()" class="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 text-slate-700 dark:text-slate-200 border-t border-slate-100 dark:border-slate-800">
+        <i class="fa-solid fa-download text-emerald-500"></i> Download
+      </button>
+    </div>
+
   <!-- New Folder Modal -->
   <div id="folderModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs modal-hidden modal-backdrop z-50 flex items-center justify-center p-4">
     <div class="modal-box bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-sm p-6 rounded-2xl shadow-2xl relative">
