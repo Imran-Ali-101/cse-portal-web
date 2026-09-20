@@ -430,6 +430,14 @@ async function renderPortalView() {
     initWebSocket();
     startPresenceHeartbeat();
     checkUnseenNotices();
+    // --- Auto Open Preview from URL (For New Tab feature) ---
+    const urlParams = new URLSearchParams(window.location.search);
+    const pMsgId = urlParams.get('preview_msg_id');
+    const pName = urlParams.get('preview_name');
+    if (pMsgId && pName) {
+      setTimeout(() => openPreview(pName, pMsgId), 600); // open preview after loading ui
+    }
+
     loadDynamicTools();
     // Subscribe to push notifications
     subscribeToPush();
@@ -1054,7 +1062,12 @@ function renderFilesTable() {
   });
 
   const filesMarkup = filteredFiles.map(f => `
-    <div class="grid grid-cols-12 px-4 py-3 items-center hover:bg-slate-50 dark:hover:bg-slate-800/50">
+    <div class="grid grid-cols-12 px-4 py-3 items-center hover:bg-slate-50 dark:hover:bg-slate-800/50"
+         oncontextmenu="handleRightClick(event, '${f.id}', ${f.telegram_message_id}, '${f.file_name.replace(/'/g, "\\'")}', false)"
+         ontouchstart="handleTouchStart(event, '${f.id}', ${f.telegram_message_id}, '${f.file_name.replace(/'/g, "\\'")}', false)"
+         ontouchend="handleTouchEnd(event)"
+         ontouchcancel="handleTouchEnd(event)"
+         ontouchmove="handleTouchMove(event)">
       <div class="col-span-8 md:col-span-9 flex items-center gap-3">
         <input type="checkbox" value="${f.id}" data-id="${f.telegram_message_id}" data-name="${f.file_name}" class="file-item-check rounded border-slate-300">
         <i class="fa-solid fa-file-lines text-slate-400 text-sm"></i>
@@ -3439,5 +3452,117 @@ async function handleZipExtract(input) {
     showToast("ZIP extraction failed: " + err.message, "error");
   }
 }
+
+// ==========================================
+// CUSTOM CONTEXT MENU & SHORTCUT LOGIC
+// ==========================================
+let touchTimer = null;
+let isTouching = false;
+let advancedContextItem = null;
+
+// Handle Mouse Right Click
+function handleRightClick(e, id, messageId, name, isFolder) {
+  if(isFolder) return;
+  e.preventDefault(); // default menu prevention
+  showAdvancedContextMenu(e.clientX, e.clientY, id, messageId, name, isFolder);
+}
+
+// Handle Mobile Touch and Hold (Long Press)
+function handleTouchStart(e, id, messageId, name, isFolder) {
+  if(isFolder) return;
+  if(e.target.closest('button') || e.target.closest('input')) return; // বাটন বা চেকবক্সে টাচ করলে মেনু আসবে না
+  
+  isTouching = true;
+  const touch = e.touches[0];
+  touchTimer = setTimeout(() => {
+    if(isTouching) {
+      showAdvancedContextMenu(touch.clientX, touch.clientY, id, messageId, name, isFolder);
+      // vibration feedback to prevent default popup
+      if(navigator.vibrate) navigator.vibrate(50); 
+    }
+  }, 500); // 500ms hold time
+}
+
+function handleTouchEnd(e) { isTouching = false; clearTimeout(touchTimer); }
+function handleTouchMove(e) { isTouching = false; clearTimeout(touchTimer); }
+
+// Show Context Menu UI
+function showAdvancedContextMenu(x, y, id, messageId, name, isFolder) {
+  advancedContextItem = { id, messageId, name, isFolder };
+  const menu = document.getElementById("advancedContextMenu");
+  
+  menu.classList.remove("hidden");
+  const rect = menu.getBoundingClientRect();
+  
+  // position adjustment
+  let top = y;
+  let left = x;
+  if (top + rect.height > window.innerHeight) top = window.innerHeight - rect.height - 10;
+  if (left + rect.width > window.innerWidth) left = window.innerWidth - rect.width - 10;
+  
+  menu.style.top = `${top}px`;
+  menu.style.left = `${left}px`;
+}
+
+// Close Context Menu on clicking outside
+window.addEventListener('click', (e) => {
+  if (!e.target.closest('#advancedContextMenu')) {
+    const menu = document.getElementById("advancedContextMenu");
+    if(menu) menu.classList.add("hidden");
+  }
+});
+
+// Action 1: Open in Custom Previewer (New Tab)
+function contextOpenNewTab() {
+  if(!advancedContextItem) return;
+  const url = new URL(window.location.origin + window.location.pathname);
+  url.searchParams.set('preview_msg_id', advancedContextItem.messageId);
+  url.searchParams.set('preview_name', advancedContextItem.name);
+  if(isGuestMode && currentShareId) url.searchParams.set('share', currentShareId);
+  
+  window.open(url.toString(), '_blank');
+  document.getElementById("advancedContextMenu").classList.add("hidden");
+}
+
+// Action 2: Open with Default Browser Viewer
+function contextOpenBrowser() {
+  if(!advancedContextItem) return;
+  const token = isGuestMode ? guestToken : (currentUser ? currentUser.token : '');
+  const streamUrl = `${API_BASE}/slides/stream/${advancedContextItem.messageId}?filename=${encodeURIComponent(advancedContextItem.name)}&token=${token}`;
+  window.open(streamUrl, '_blank');
+  document.getElementById("advancedContextMenu").classList.add("hidden");
+}
+
+// Action 3: Download Directly
+function contextDownload() {
+  if(!advancedContextItem) return;
+  downloadDirectFile(advancedContextItem.messageId, advancedContextItem.name);
+  document.getElementById("advancedContextMenu").classList.add("hidden");
+}
+
+// Keyboard Shortcut Listener (Alt + T)
+document.addEventListener('keydown', (e) => {
+  // Check if Alt + T is pressed
+  if (e.altKey && e.key.toLowerCase() === 't') {
+    // shortcut for newtab
+    if (advancedContextItem && !document.getElementById("advancedContextMenu").classList.contains("hidden")) {
+      e.preventDefault();
+      contextOpenNewTab();
+    } 
+    // otherwise, opens the checkboxed first file in newtab
+    else {
+      const checkedFile = document.querySelector(".file-item-check:checked");
+      if (checkedFile) {
+        e.preventDefault();
+        advancedContextItem = {
+          messageId: checkedFile.getAttribute("data-id"),
+          name: checkedFile.getAttribute("data-name")
+        };
+        contextOpenNewTab();
+      }
+    }
+  }
+});
+
 
 renderPortalView();
