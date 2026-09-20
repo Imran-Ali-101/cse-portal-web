@@ -2231,7 +2231,7 @@ async function openPreview(name, id) {
     if(topBar) topBar.classList.add("hidden");
     container.style.padding = "0";
 
-    const viewerUrl = `/pdfjs/web/viewer.html?file=${encodeURIComponent(finalUrlToRender)}#zoom=page-fit`;
+    const viewerUrl = `/pdfjs/web/viewer.html?file=${encodeURIComponent(finalUrlToRender)}#zoom=page-width`;
 
     container.style.justifyContent = "center";
     container.innerHTML = `
