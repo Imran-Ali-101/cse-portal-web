@@ -8,8 +8,8 @@ const LOCAL_ASSETS = [
   '/js/tailwind.js',
   '/css/style.css',
   '/manifest.json',
-  '/icon-192.png',
-  '/icon-512.png',
+  '/icon_192.png',
+  '/icon_512.png',
 ];
 
 // pdfjs — offline PDF preview
@@ -82,7 +82,7 @@ self.addEventListener('fetch', (e) => {
   const url = e.request.url;
 
   // Always bypass Service Worker for API calls
-  if (url.includes('varsity-portal-api')) return;
+  if (url.includes('blueglacier')) return;
 
   // Bypass non-GET requests (like POST, PUT, DELETE)
   if (e.request.method !== 'GET') return;
@@ -130,8 +130,8 @@ self.addEventListener('push', function(e) {
 
   const options = {
     body: data.body,
-    icon: '/icon-192.png',
-    badge: '/icon-192.png',
+    icon: '/icon_192.png',
+    badge: '/icon_192.png',
     data: { url: '/' }, // URL to open when clicked
     vibrate: [200, 100, 200]
   };
