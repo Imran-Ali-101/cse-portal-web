@@ -1,4 +1,4 @@
-const API_BASE = "https://cse-portal.blueglacier-a7e18882.centralindia.azurecontainerapps.io/";
+const API_BASE = "https://cse-portal.blueglacier-a7e18882.centralindia.azurecontainerapps.io";
 let ws = null;
 let currentUser = JSON.parse(localStorage.getItem("user") || "null");
 let currentSelectedFolder = "/";
