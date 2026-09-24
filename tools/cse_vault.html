@@ -1,0 +1,1412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CSE — Student Directory</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=DM+Sans:wght@400;500&family=DM+Mono:wght@400&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #f0f2f5;
+      --surface:   #ffffff;
+      --border:    #e2e5ea;
+      --navy:      #1a2b45;
+      --accent:    #2563eb;
+      --accent-lt: #eff4ff;
+      --text:      #0f172a;
+      --muted:     #64748b;
+      --light:     #94a3b8;
+      --radius:    12px;
+      --shadow:    0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.05);
+      --shadow-hv: 0 4px 8px rgba(0,0,0,.08), 0 12px 28px rgba(0,0,0,.08);
+      --gold:      #f59e0b;
+      --gold-lt:   #fffbeb;
+      user-select: none;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── HEADER ── */
+    header {
+      background: var(--navy);
+      padding: 10px 24px 0;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 16px rgba(0,0,0,.18);
+    }
+    .header-top {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding-bottom: 8px;
+    }
+    .header-title h1 {
+      font-family: 'Sora', sans-serif;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -.02em;
+    }
+    .header-title p {
+      font-size: .68rem;
+      color: #94a3b8;
+      margin-top: 1px;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    /* ── SEARCH ROW ── */
+    .search-row {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding-bottom: 8px;
+    }
+    .search-line {
+      display: flex;
+      align-items: center;
+    }
+    .tools-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .tool-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .tool-label {
+      font-family: 'Sora', sans-serif;
+      font-size: .68rem;
+      font-weight: 600;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      white-space: nowrap;
+    }
+    .search-wrap {
+      position: relative;
+      width: 100%;
+    }
+    .search-wrap svg {
+      position: absolute;
+      left: 11px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #94a3b8;
+      pointer-events: none;
+    }
+    #search {
+      background: rgba(255,255,255,.1);
+      border: 1px solid rgba(255,255,255,.15);
+      border-radius: 8px;
+      padding: 8px 12px 8px 34px;
+      color: #fff;
+      font-family: 'DM Sans', sans-serif;
+      font-size: .85rem;
+      width: 100%;
+      outline: none;
+      transition: background .2s, border-color .2s;
+    }
+    #search::placeholder { color: #94a3b8; }
+    #search:focus {
+      background: rgba(255,255,255,.16);
+      border-color: rgba(255,255,255,.35);
+    }
+
+    /* search scope toggle */
+    .scope-toggle {
+      display: flex;
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.15);
+      border-radius: 8px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .scope-btn {
+      padding: 8px 14px;
+      font-family: 'Sora', sans-serif;
+      font-size: .75rem;
+      font-weight: 600;
+      color: #94a3b8;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: background .2s, color .2s;
+      white-space: nowrap;
+    }
+    .scope-btn.active {
+      background: var(--accent);
+      color: #fff;
+    }
+    .scope-btn:not(.active):hover {
+      background: rgba(255,255,255,.1);
+      color: #cbd5e1;
+    }
+
+    /* female filter toggler */
+    .female-toggle {
+      display: flex;
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.15);
+      border-radius: 8px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .female-btn {
+      padding: 8px 11px;
+      font-family: 'Sora', sans-serif;
+      font-size: .72rem;
+      font-weight: 600;
+      color: #94a3b8;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: background .2s, color .2s;
+      white-space: nowrap;
+    }
+    .female-btn.active-search {
+      background: #be185d;
+      color: #fff;
+    }
+    .female-btn.active-all {
+      background: #db2777;
+      color: #fff;
+    }
+    .female-btn.active-normal {
+      background: rgba(255,255,255,.15);
+      color: #e2e8f0;
+    }
+    .female-btn:not(.active-search):not(.active-all):not(.active-normal):hover {
+      background: rgba(255,255,255,.1);
+      color: #cbd5e1;
+    }
+
+    /* gender badge */
+    .badge-female {
+      background: #fdf2f8;
+      color: #be185d;
+    }
+    .badge-male {
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+
+    /* favourite filter */
+    .fav-toggle {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 12px;
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.15);
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: 'Sora', sans-serif;
+      font-size: .75rem;
+      font-weight: 600;
+      color: #94a3b8;
+      transition: background .2s, color .2s;
+      user-select: none;
+      flex-shrink: 0;
+    }
+    .fav-toggle.active {
+      background: var(--gold-lt);
+      border-color: var(--gold);
+      color: var(--gold);
+    }
+    .fav-toggle svg { flex-shrink: 0; }
+
+    /* batch tabs */
+    .tabs {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      gap: 2px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .tabs::-webkit-scrollbar { display: none; }
+    .tab {
+      flex-shrink: 0;
+      padding: 10px 20px;
+      font-family: 'Sora', sans-serif;
+      font-size: .8rem;
+      font-weight: 600;
+      color: #94a3b8;
+      cursor: pointer;
+      border-radius: 8px 8px 0 0;
+      border: none;
+      background: transparent;
+      transition: color .2s, background .2s;
+      white-space: nowrap;
+      letter-spacing: .01em;
+    }
+    .tab:hover { color: #cbd5e1; background: rgba(255,255,255,.06); }
+    .tab.active {
+      color: var(--accent);
+      background: var(--bg);
+      position: relative;
+    }
+    .tab .count {
+      display: inline-block;
+      background: rgba(255,255,255,.1);
+      color: #94a3b8;
+      font-size: .65rem;
+      padding: 1px 6px;
+      border-radius: 99px;
+      margin-left: 5px;
+      vertical-align: middle;
+    }
+    .tab.active .count {
+      background: var(--accent-lt);
+      color: var(--accent);
+    }
+
+    /* ── MAIN ── */
+    main {
+      max-width: 1200px;
+      margin: 28px auto;
+      padding: 0 20px;
+    }
+
+    /* stats bar */
+    .stats-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .stats-bar span {
+      font-size: .82rem;
+      color: var(--muted);
+    }
+    .stats-bar strong { color: var(--text); }
+
+    /* ── FAV JSON BUTTONS (stats-bar) ── */
+    .fav-json-btn {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 10px;
+      border-radius: 7px;
+      cursor: pointer;
+      font-family: 'Sora', sans-serif;
+      font-size: .72rem;
+      font-weight: 600;
+      transition: background .15s, color .15s, border-color .15s;
+      user-select: none;
+      flex-shrink: 0;
+      white-space: nowrap;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--muted);
+    }
+    .fav-json-btn:hover { background: var(--bg); color: var(--text); }
+    #export-fav-btn { color: #059669; border-color: #a7f3d0; background: #f0fdf4; }
+    #export-fav-btn:hover { background: #dcfce7; }
+    #import-fav-btn { color: #2563eb; border-color: #bfdbfe; background: #eff6ff; }
+    #import-fav-btn:hover { background: #dbeafe; }
+    #import-fav-btn svg { transform: rotate(180deg); }
+
+    /* ── GRID ── */
+    #cards-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 16px;
+    }
+
+    /* ── CARD ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 20px 16px 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+      transition: transform .2s ease, box-shadow .2s ease;
+      animation: fadeUp .3s ease both;
+      position: relative;
+    }
+    .card:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-hv);
+    }
+    .card.is-fav {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 1px var(--gold), var(--shadow);
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* avatar */
+    .avatar {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      object-fit: cover;
+      background: var(--bg);
+      border: 2px solid var(--border);
+      flex-shrink: 0;
+      margin-bottom: 12px;
+    }
+    .avatar-placeholder {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
+      border: 2px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 12px;
+      flex-shrink: 0;
+      font-family: 'Sora', sans-serif;
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #64748b;
+    }
+
+    .card-name {
+      font-family: 'Sora', sans-serif;
+      font-size: .82rem;
+      font-weight: 600;
+      color: var(--text);
+      text-align: center;
+      line-height: 1.35;
+      margin-bottom: 4px;
+    }
+    .card-id {
+      font-family: 'DM Mono', monospace;
+      font-size: .7rem;
+      color: var(--light);
+      margin-bottom: 6px;
+    }
+    .card-batch-info {
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 10px;
+    }
+    .badge {
+      font-size: .65rem;
+      font-weight: 600;
+      font-family: 'Sora', sans-serif;
+      padding: 2px 8px;
+      border-radius: 99px;
+      white-space: nowrap;
+    }
+    .badge-year {
+      background: var(--accent-lt);
+      color: var(--accent);
+    }
+    .badge-hall {
+      background: #f0fdf4;
+      color: #16a34a;
+      max-width: 160px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .badge-blood {
+      background: #fff1f2;
+      color: #e11d48;
+    }
+
+    .card-divider {
+      width: 100%;
+      height: 1px;
+      background: var(--border);
+      margin-bottom: 10px;
+    }
+
+    .card-info {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .info-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 7px;
+      font-size: .75rem;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+    .info-row svg {
+      flex-shrink: 0;
+      margin-top: 1px;
+      color: var(--light);
+    }
+    .info-row.hidden { display: none; }
+
+    /* favourite button */
+    .fav-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 6px;
+      transition: background .15s;
+      line-height: 0;
+      color: var(--light);
+    }
+    .fav-btn:hover { background: var(--gold-lt); }
+    .fav-btn.active { color: var(--gold); }
+    .fav-btn svg { width: 16px; height: 16px; }
+
+    /* facebook / linkedin links */
+    .card-footer {
+      margin-top: auto;
+      padding-top: 12px;
+      width: 100%;
+      display: flex;
+      gap: 6px;
+      justify-content: center;
+    }
+    .fb-link {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 6px;
+      border-radius: 6px;
+      background: var(--accent-lt);
+      color: var(--accent);
+      font-size: .73rem;
+      font-weight: 500;
+      text-decoration: none;
+      transition: background .15s;
+    }
+    .fb-link:hover { background: #dbeafe; }
+    .li-link {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 6px;
+      border-radius: 6px;
+      background: #e8f3fb;
+      color: #0a66c2;
+      font-size: .73rem;
+      font-weight: 500;
+      text-decoration: none;
+      transition: background .15s;
+    }
+    .li-link:hover { background: #cde4f5; }
+    .cf-link {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 6px;
+      border-radius: 6px;
+      background: #fff7ed;
+      color: #ea580c;
+      font-size: .73rem;
+      font-weight: 500;
+      text-decoration: none;
+      transition: background .15s;
+    }
+    .cf-link:hover { background: #fed7aa; }
+    .gh-link {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 6px;
+      border-radius: 6px;
+      background: #f6f8fa;
+      color: #24292f;
+      font-size: .73rem;
+      font-weight: 500;
+      text-decoration: none;
+      transition: background .15s;
+    }
+    .gh-link:hover { background: #e2e8f0; }
+
+    /* ── EMPTY STATE ── */
+    .empty {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--muted);
+    }
+    .empty svg { margin-bottom: 12px; opacity: .4; }
+    .empty p { font-size: .9rem; }
+
+    /* ── PAGINATION ── */
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      margin-top: 32px;
+      flex-wrap: wrap;
+    }
+    .page-btn {
+      min-width: 36px;
+      height: 36px;
+      padding: 0 10px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--muted);
+      font-family: 'Sora', sans-serif;
+      font-size: .8rem;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all .15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .page-btn:hover:not(:disabled) {
+      background: var(--accent-lt);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .page-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .page-btn:disabled { opacity: .35; cursor: default; }
+    .page-ellipsis {
+      color: var(--light);
+      font-size: .8rem;
+      padding: 0 4px;
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 600px) {
+      .header-top { gap: 12px; }
+      .search-wrap { max-width: 100%; }
+      #cards-container { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+      .card { padding: 16px 12px 12px; }
+      .avatar, .avatar-placeholder { width: 56px; height: 56px; font-size: 1rem; }
+      main { padding: 0 12px; margin: 16px auto; }
+    }
+
+    /* ── PHONE LINK ── */
+    .phone-link {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 500;
+      transition: color .15s;
+    }
+    .phone-link:hover { color: #1d4ed8; text-decoration: underline; }
+
+    /* ── EMAIL LINK ── */
+    .email-link {
+      color: #059669;
+      text-decoration: none;
+      font-weight: 500;
+      font-size: .72rem;
+      word-break: break-all;
+      transition: color .15s;
+    }
+    .email-link:hover { color: #047857; text-decoration: underline; }
+    .email-label {
+      font-size: .6rem;
+      font-family: 'Sora', sans-serif;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      color: var(--light);
+      margin-left: 2px;
+    }
+
+    /* ── CARD POPUP ── */
+    #card-popup-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(15,23,42,.4);
+      z-index: 998;
+      backdrop-filter: blur(5px);
+    }
+    #card-popup {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(.92);
+      z-index: 999;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: 0 8px 60px rgba(0,0,0,.5);
+      padding: 32px 28px 24px;
+      width: 300px;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+      transition: transform .18s ease, opacity .18s ease;
+      opacity: 0;
+    }
+    #card-popup.visible {
+      transform: translate(-50%, -50%) scale(1);
+      opacity: 1;
+    }
+    #card-popup .avatar-placeholder {
+      width: 96px;
+      height: 96px;
+      font-size: 1.6rem;
+      margin-bottom: 14px;
+    }
+    #card-popup .card-name {
+      font-size: 1rem;
+      margin-bottom: 5px;
+      text-align: center;
+    }
+    #card-popup .card-id {
+      font-size: .78rem;
+      margin-bottom: 8px;
+    }
+    #card-popup .card-batch-info { margin-bottom: 12px; }
+    #card-popup .badge { font-size: .72rem; padding: 3px 10px; }
+    #card-popup .card-divider { margin-bottom: 12px; }
+    #card-popup .card-info { gap: 8px; }
+    #card-popup .info-row { font-size: .85rem; gap: 9px; }
+    #card-popup .info-row svg { width: 14px; height: 14px; }
+    #card-popup .card-footer { margin-top: 14px; }
+    #card-popup .fb-link { font-size: .82rem; padding: 8px; }
+    #card-popup .li-link { font-size: .82rem; padding: 8px; }
+    #card-popup .fav-btn { top: 14px; right: 14px; }
+    #card-popup .fav-btn svg { width: 20px; height: 20px; }
+    #card-popup-close {
+      position: absolute;
+      top: 12px;
+      left: 14px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--light);
+      font-size: 1.2rem;
+      line-height: 1;
+      padding: 4px 6px;
+      border-radius: 6px;
+      transition: background .15s, color .15s;
+    }
+    #card-popup-close:hover { background: var(--bg); color: var(--muted); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-top">
+    <div class="header-title">
+      <h1>CSE Student Directory</h1>
+      <p>University of Rajshahi</p>
+    </div>
+  </div>
+
+  <div class="search-row">
+    <div class="search-line">
+      <div class="search-wrap">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+        <input type="search" id="search" placeholder="Search name, ID, hall…" autocomplete="on" />
+      </div>
+    </div>
+
+    <div class="tools-row">
+      <div class="tool-group">
+        <span class="tool-label">Scope</span>
+        <div class="scope-toggle">
+          <button class="scope-btn active" id="scope-batch" onclick="setScope('batch')">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="8" r="5"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              <line x1="4" y1="16" x2="14" y2="16"></line>
+              <line x1="4" y1="20" x2="10" y2="20"></line>
+            </svg>
+          </button>
+          <button class="scope-btn" id="scope-all" onclick="setScope('all')">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              <circle cx="11" cy="11" r="3"></circle>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="tool-group">
+        <span class="tool-label">Gender</span>
+        <div class="female-toggle">
+          <button class="female-btn active-normal" id="fem-normal" onclick="setFemaleFilter('normal')" title="Normal view">All</button>
+          <button class="female-btn" id="fem-all"
+          onclick="setFemaleFilter('all')" title="All Female in Batch">Female</button>
+        </div>
+        <button class="fav-toggle" id="fav-toggle-btn" onclick="toggleFavFilter()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+        </button>
+      </div>a
+    </div>
+  </div>
+
+  <div class="tabs" id="tabs"></div>
+</header>
+
+<main>
+  <div class="stats-bar">
+    <span id="stats-text">Loading…</span>
+    <div id="fav-json-actions" style="display:none; display:none; align-items:center; gap:6px;">
+      <button class="fav-json-btn" id="export-fav-btn" onclick="exportFavsJSON()" title="Export favourites as JSON">
+        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export JSON
+      </button>
+      <label class="fav-json-btn" id="import-fav-btn" title="Import favourites from JSON">
+        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Import JSON
+        <input type="file" id="import-fav-input" accept=".json" style="display:none" onchange="importFavsJSON(event)" />
+      </label>
+    </div>
+  </div>
+  <div id="cards-container"></div>
+  <div class="pagination" id="pagination"></div>
+</main>
+
+<!-- Toast -->
+<div id="fav-toast" style="
+  display:none;
+  position:fixed;
+  bottom:28px;
+  left:50%;
+  transform:translateX(-50%);
+  background:#1e293b;
+  color:#f1f5f9;
+  font-family:'Sora',sans-serif;
+  font-size:.82rem;
+  font-weight:600;
+  padding:10px 20px;
+  border-radius:10px;
+  box-shadow:0 4px 24px rgba(0,0,0,.3);
+  z-index:9999;
+  transition:opacity .3s;
+  white-space:nowrap;
+"></div>
+
+<!-- Card Hover Popup -->
+<div id="card-popup-overlay" onclick="closeCardPopup()"></div>
+<div id="card-popup" role="dialog">
+  <button id="card-popup-close" onclick="closeCardPopup()" title="Close">✕</button>
+</div>
+
+<script src="datas.js"></script>
+<script>
+  /* ── HALL MAP ── */
+  const Hax = {
+    101: "SHER-E BANGLA FAZLUL HAQUE HALL",
+    102: "SHAH MAKHDUM HALL",
+    103: "NAWAB ABDUL LATIF HALL",
+    104: "SYED AMER ALI HALL",
+    105: "SHAHEED SHAMSUZZOHA HALL",
+    106: "SHAHEED HABIBUR RAHMAN HALL",
+    107: "MATIHAR HALL",
+    108: "MADAR BUX HALL",
+    109: "HUSEYN SHAHEED SUHRAWARDY HALL",
+    110: "SHAHID ZIAUR RAHMAN HALL",
+    111: "BIJOY-24 HALL",
+    120: "MANNUJAN HALL",
+    121: "ROKEYA HALL",
+    122: "TAPASHI RABEYA HALL",
+    123: "BEGUM KHALEDA ZIA HALL",
+    124: "RAHAMATUNNESA HALL",
+    130: "JULY-36 HALL"
+  };
+
+  /* ── HELPERS ── */
+  function parseStudentId(id) {
+    const s = String(id);
+    // Year: first 2 digits
+    const year = '20' + s.substring(0, 2);
+    // Hall code: digits 3–5 (index 2 to 4, 3 chars)
+    const hallCode = parseInt(s.substring(2, 5), 10);
+    const hall = Hax[hallCode] || null;
+    return { year, hallCode, hall };
+  }
+
+  /* ── CONFIG ── */
+  const PER_PAGE = 24;
+
+  /* ── STATE ── */
+  let activeBatch   = 0;
+  let currentPage   = 1;
+  let searchQuery   = '';
+  let searchScope   = 'batch';   // 'batch' | 'all'
+  let showFavsOnly  = false;
+  let femaleFilter  = 'normal';  // 'normal' | 'search' | 'all'
+  let filteredData  = [];
+
+  /* ── FAVOURITES (localStorage, per batch) ── */
+  function favKey(batchIndex) {
+    const year = getBatchYear(directories[batchIndex]);
+    return 'favs_' + year;
+  }
+  function getFavs(batchIndex) {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(favKey(batchIndex)) || '[]'));
+    } catch { return new Set(); }
+  }
+  function saveFavs(batchIndex, set) {
+    localStorage.setItem(favKey(batchIndex), JSON.stringify([...set]));
+  }
+  function toggleFav(studentId, batchIndex) {
+    const favs = getFavs(batchIndex);
+    if (favs.has(studentId)) favs.delete(studentId);
+    else favs.add(studentId);
+    saveFavs(batchIndex, favs);
+  }
+  // For "all" scope search, find which batch a student belongs to
+  function getBatchIndexForStudent(studentId) {
+    for (let i = 0; i < directories.length; i++) {
+      if (directories[i].some(s => s.id === studentId)) return i;
+    }
+    return 0;
+  }
+
+  /* ── BATCH LABELS ── */
+  function getBatchYear(students) {
+    const id = String(students[0]?.id ?? '');
+    return id.length >= 2 ? '20' + id.substring(0, 2) : '????';
+  }
+
+  /* ── INIT TABS ── */
+  function initTabs() {
+    const tabsEl = document.getElementById('tabs');
+    directories.forEach((batch, i) => {
+      const year = getBatchYear(batch) - 1;
+      const btn  = document.createElement('button');
+      btn.className = 'tab' + (i === 0 ? ' active' : '');
+      btn.innerHTML = `Batch ${year}-${year-1999}<span class="count">${batch.length}</span>`;
+      btn.addEventListener('click', () => switchBatch(i));
+      tabsEl.appendChild(btn);
+    });
+  }
+
+  function switchBatch(index) {
+    activeBatch  = index;
+    currentPage  = 1;
+    searchQuery  = '';
+    showFavsOnly = false;
+    document.getElementById('search').value = '';
+    document.getElementById('fav-toggle-btn').classList.remove('active');
+    document.getElementById('fav-json-actions').style.display = 'none';
+    document.querySelectorAll('.tab').forEach((t, i) => {
+      t.classList.toggle('active', i === index);
+    });
+    renderView();
+  }
+
+  /* ── SCOPE ── */
+  function setScope(scope) {
+    searchScope = scope;
+    currentPage = 1;
+    document.getElementById('scope-batch').classList.toggle('active', scope === 'batch');
+    document.getElementById('scope-all').classList.toggle('active', scope === 'all');
+    renderView();
+  }
+
+  /* ── FAV FILTER ── */
+  function toggleFavFilter() {
+    showFavsOnly = !showFavsOnly;
+    currentPage = 1;
+    document.getElementById('fav-toggle-btn').classList.toggle('active', showFavsOnly);
+    const actions = document.getElementById('fav-json-actions');
+    actions.style.display = showFavsOnly ? 'flex' : 'none';
+    renderView();
+  }
+
+  /* ── FEMALE FILTER ── */
+  function setFemaleFilter(mode) {
+    femaleFilter = mode;
+    currentPage = 1;
+    document.getElementById('fem-normal').className = 'female-btn' + (mode === 'normal' ? ' active-normal' : '');
+    document.getElementById('fem-all').className    = 'female-btn' + (mode === 'all'    ? ' active-all'    : '');
+    renderView();
+  }
+
+  /* ── FILTER ── */
+  function getFiltered() {
+    const q = searchQuery.toLowerCase().trim();
+
+    let pool;
+    if (searchScope === 'all' && q) {
+      pool = directories.flatMap((batch, bi) =>
+        batch.map(s => ({ ...s, _batchIndex: bi }))
+      );
+    } else {
+      pool = directories[activeBatch].map(s => ({ ...s, _batchIndex: activeBatch }));
+    }
+
+    // filter by search
+    if (q) {
+      pool = pool.filter(s => {
+        const { hall } = parseStudentId(s.id);
+        return (
+          s.name.toLowerCase().includes(q) ||
+          String(s.id).includes(q) ||
+          (s.address && s.address.toLowerCase().includes(q)) ||
+          (hall && hall.toLowerCase().includes(q))
+        );
+      });
+    }
+
+    // filter by favourites
+    if (showFavsOnly) {
+      pool = pool.filter(s => {
+        const bi = s._batchIndex;
+        return getFavs(bi).has(s.id);
+      });
+    }
+
+    // female filter
+    if (femaleFilter === 'search') {
+      // search female: within current search results, show only female
+      pool = pool.filter(s => s.female === true);
+    } else if (femaleFilter === 'all') {
+      // all female in this batch (ignore current search)
+      pool = directories[activeBatch].map(s => ({ ...s, _batchIndex: activeBatch }))
+             .filter(s => s.female === true);
+    }
+
+    return pool;
+  }
+
+  /* ── AVATAR ── */
+  function initialsHTML(name) {
+    // Use 2nd and 3rd word's first letters (skip first word like "MD." / "MST." etc.)
+    const parts = name.trim().split(/\s+/);
+    let init = '';
+    if (parts.length >= 3) {
+      init = (parts[1][0] ?? '') + (parts[2][0] ?? '');
+    } else if (parts.length === 2) {
+      init = (parts[0][0] ?? '') + (parts[1][0] ?? '');
+    } else {
+      init = parts[0].substring(0, 2);
+    }
+    return `<div class="avatar-placeholder">${init.toUpperCase()}</div>`;
+  }
+
+  function renderAvatar(student) {
+    // Always use initials (images removed as requested)
+    return initialsHTML(student.name);
+  }
+
+  /* ── ICONS ── */
+  const ICON = {
+    phone: `<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.07 12 19.79 19.79 0 0 1 1 3.18 2 2 0 0 1 3 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.09 8.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`,
+    loc:   `<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 10c0 6-8 13-8 13s-8-7-8-13a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>`,
+    hall:  `<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`,
+    fb:    `<svg width="13" height="13" fill="currentColor" viewBox="0 0 24 24"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>`,
+    li:    `<svg width="13" height="13" fill="currentColor" viewBox="0 0 24 24"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>`,
+    star:  `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>`,
+    search:`<svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>`,
+    email: `<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>`,
+    cf:    `<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M4 2h4v20H4zM10 9h4v13h-4zM16 5h4v17h-4z"/></svg>`,
+    gh:    `<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.84 1.237 1.84 1.237 1.07 1.834 2.809 1.304 3.495.997.108-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0 1 12 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .322.218.694.825.576C20.565 21.795 24 17.295 24 12c0-6.63-5.37-12-12-12z"/></svg>`,
+  };
+
+  /* ── RENDER CARD ── */
+  function renderCard(student, delay) {
+    const phone   = student.phone && student.phone !== '[HIDDEN]' ? student.phone : '';
+    const hidden  = student.phone === '[HIDDEN]';
+    const hasFb   = student.facebook && !student.facebook.startsWith('img/');
+    const fbUrl   = hasFb ? (student.facebook.startsWith('http') ? student.facebook : 'https://' + student.facebook) : '';
+    const hasLi   = student.linkedin && student.linkedin.trim();
+    const liUrl   = hasLi ? (student.linkedin.startsWith('http') ? student.linkedin : 'https://' + student.linkedin) : '';
+    const hasCf   = student.codeforces && student.codeforces.trim();
+    const cfUrl   = hasCf ? `https://codeforces.com/profile/${student.codeforces.trim()}` : '';
+    const hasGh   = student.github && student.github.trim();
+    const ghUrl   = hasGh ? (student.github.startsWith('http') ? student.github : 'https://' + student.github) : '';
+
+    const { year, hall } = parseStudentId(student.id);
+    const bi   = student._batchIndex ?? activeBatch;
+    const isFav = getFavs(bi).has(student.id);
+    const batchYear = getBatchYear(directories[bi]);
+
+    // Email: always generate RU email; also show custom email if exists
+    const ruEmail     = `s${student.id}@ru.ac.bd`;
+    const customEmail = student.email && student.email.trim() && !student.email.endsWith('@ru.ac.bd')
+                        ? student.email.trim() : '';
+
+    // For all-scope, show batch year badge too
+    const showBatchBadge = (searchScope === 'all' && searchQuery);
+
+    return `
+    <div class="card${isFav ? ' is-fav' : ''}" style="animation-delay:${delay}ms">
+      <button class="fav-btn${isFav ? ' active' : ''}"
+        onclick="handleFavClick(${student.id}, ${bi}, this)"
+        title="${isFav ? 'Remove from favourites' : 'Add to favourites'}">
+        ${ICON.star}
+      </button>
+      ${renderAvatar(student)}
+      <div class="card-name">${student.name}</div>
+      <div class="card-id">#${student.id}</div>
+      <div class="card-batch-info">
+        ${showBatchBadge ? `<span class="badge badge-year">Batch ${batchYear}</span>` : ''}
+        ${hall ? `<span class="badge badge-hall" title="${hall}">${hall}</span>` : ''}
+        ${student.blood ? `<span class="badge badge-blood">🩸 ${student.blood}</span>` : ''}
+        <span class="badge ${student.female ? 'badge-female' : 'badge-male'}">${student.female ? '♀ Female' : '♂ Male'}</span>
+      </div>
+      <div class="card-divider"></div>
+      <div class="card-info">
+        <div class="info-row${phone ? '' : ' hidden'}">
+          ${ICON.phone}<a class="phone-link" href="https://wa.me/${phone}">${phone}</a>
+        </div>
+        ${hidden ? `<div class="info-row">${ICON.phone}<span style="color:#94a3b8;font-style:italic">Hidden</span></div>` : ''}
+        <div class="info-row">
+          ${ICON.email}<a class="email-link" href="mailto:${ruEmail}" title="RU Institutional Email">${ruEmail}</a>
+        </div>
+        ${customEmail ? `
+        <div class="info-row">
+          ${ICON.email}<a class="email-link" href="mailto:${customEmail}" title="Personal Email" style="color:#7c3aed;">${customEmail}</a>
+        </div>` : ''}
+        <div class="info-row${student.address ? '' : ' hidden'}">
+          ${ICON.loc}<span>${student.address}</span>
+        </div>
+      </div>
+      <div class="card-footer">
+        ${hasFb ? `<a class="fb-link" href="${fbUrl}" target="_blank" rel="noopener" title="Facebook">${ICON.fb}</a>` : `<span class="fb-link" style="opacity:.25;cursor:default;pointer-events:none">${ICON.fb}</span>`}
+        ${hasLi ? `<a class="li-link" href="${liUrl}" target="_blank" rel="noopener" title="LinkedIn">${ICON.li}</a>` : `<span class="li-link" style="opacity:.25;cursor:default;pointer-events:none">${ICON.li}</span>`}
+        ${hasCf ? `<a class="cf-link" href="${cfUrl}" target="_blank" rel="noopener" title="Codeforces">${ICON.cf}</a>` : `<span class="cf-link" style="opacity:.25;cursor:default;pointer-events:none">${ICON.cf}</span>`}
+        ${hasCf ? `<a class="gh-link" href="${ghUrl}" target="_blank" rel="noopener" title="Codeforces">${ICON.gh}</a>` : `<span class="gh-link" style="opacity:.25;cursor:default;pointer-events:none">${ICON.gh}</span>`}
+      </div>
+    </div>`;
+  }
+
+  /* ── FAV CLICK (no re-render flicker) ── */
+  function handleFavClick(studentId, batchIndex, btn) {
+    toggleFav(studentId, batchIndex);
+    const isFav = getFavs(batchIndex).has(studentId);
+    btn.classList.toggle('active', isFav);
+    const card = btn.closest('.card');
+    card.classList.toggle('is-fav', isFav);
+    btn.title = isFav ? 'Remove from favourites' : 'Add to favourites';
+    // If currently in fav-only mode, remove card smoothly
+    if (showFavsOnly && !isFav) {
+      card.style.transition = 'opacity .3s, transform .3s';
+      card.style.opacity = '0';
+      card.style.transform = 'scale(.95)';
+      setTimeout(() => renderView(), 320);
+    }
+  }
+
+  /* ── RENDER VIEW ── */
+  function renderView() {
+    filteredData = getFiltered();
+
+    const total = filteredData.length;
+    const totalPages = Math.ceil(total / PER_PAGE);
+    if (currentPage > totalPages) currentPage = 1;
+
+    const start = (currentPage - 1) * PER_PAGE;
+    const slice = filteredData.slice(start, start + PER_PAGE);
+
+    /* stats */
+    const batchSize = (searchScope === 'all' && searchQuery)
+      ? directories.reduce((a, b) => a + b.length, 0)
+      : directories[activeBatch].length;
+    const statsEl = document.getElementById('stats-text');
+    if (searchQuery) {
+      const scopeLabel = searchScope === 'all' ? 'all batches' : 'this batch';
+      statsEl.innerHTML = `Found <strong>${total}</strong> result${total !== 1 ? 's' : ''} for "<strong>${searchQuery}</strong>" in ${scopeLabel}`;
+    } else if (showFavsOnly) {
+      statsEl.innerHTML = `<strong>${total}</strong> favourite${total !== 1 ? 's' : ''} in this batch`;
+    } else {
+      statsEl.innerHTML = `Showing <strong>${Math.min(start + PER_PAGE, total)}</strong> of <strong>${batchSize}</strong> students`;
+    }
+
+    /* cards */
+    const container = document.getElementById('cards-container');
+    if (slice.length === 0) {
+      const msg = showFavsOnly
+        ? 'No favourites yet in this batch. Click ★ on a card to favourite!'
+        : `No students found matching "<strong>${searchQuery}</strong>"`;
+      container.innerHTML = `
+        <div class="empty">
+          ${ICON.search}
+          <p>${msg}</p>
+        </div>`;
+    } else {
+      const wrapper = document.createElement('div');
+      wrapper.style.display = 'contents';
+      wrapper.innerHTML = slice.map((s, i) => renderCard(s, i * 18)).join('');
+      container.innerHTML = wrapper.innerHTML;
+    }
+
+    renderPagination(totalPages);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  /* ── PAGINATION ── */
+  function renderPagination(totalPages) {
+    const el = document.getElementById('pagination');
+    el.innerHTML = '';
+    if (totalPages <= 1) return;
+
+    const mkBtn = (label, page, disabled = false) => {
+      const b = document.createElement('button');
+      b.className = 'page-btn' + (page === currentPage ? ' active' : '');
+      b.innerHTML = label;
+      b.disabled  = disabled;
+      b.addEventListener('click', () => { currentPage = page; renderView(); });
+      return b;
+    };
+    const mkEllipsis = () => {
+      const s = document.createElement('span');
+      s.className = 'page-ellipsis';
+      s.textContent = '…';
+      return s;
+    };
+
+    el.appendChild(mkBtn('←', currentPage - 1, currentPage === 1));
+    const pages = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (currentPage > 3) pages.push('…');
+      for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) pages.push(i);
+      if (currentPage < totalPages - 2) pages.push('…');
+      pages.push(totalPages);
+    }
+    pages.forEach(p => {
+      if (p === '…') el.appendChild(mkEllipsis());
+      else el.appendChild(mkBtn(p, p));
+    });
+    el.appendChild(mkBtn('→', currentPage + 1, currentPage === totalPages));
+  }
+
+  /* ── SEARCH ── */
+  let searchTimer;
+  document.getElementById('search').addEventListener('input', e => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      searchQuery = e.target.value;
+      currentPage = 1;
+      renderView();
+    }, 250);
+  });
+
+  /* ── FAV EXPORT / IMPORT JSON ── */
+
+  function showToast(msg, color) {
+    const t = document.getElementById('fav-toast');
+    t.textContent = msg;
+    t.style.background = color || '#1e293b';
+    t.style.display = 'block';
+    t.style.opacity = '1';
+    clearTimeout(window._toastTimer);
+    window._toastTimer = setTimeout(() => {
+      t.style.opacity = '0';
+      setTimeout(() => { t.style.display = 'none'; }, 300);
+    }, 2800);
+  }
+
+  function exportFavsJSON() {
+    // Collect all favourites across all batches
+    const result = [];
+    directories.forEach((batch, bi) => {
+      const favs = getFavs(bi);
+      batch.forEach(s => {
+        if (favs.has(s.id)) {
+          result.push({ name: s.name, id: s.id });
+        }
+      });
+    });
+
+    if (result.length === 0) {
+      showToast('⚠️ কোনো Favourite নেই!', '#92400e');
+      return;
+    }
+
+    const blob = new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = 'favourites.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast(`✅ ${result.length} জন favourite export হয়েছে`, '#065f46');
+  }
+
+  function importFavsJSON(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      let data;
+      try {
+        data = JSON.parse(e.target.result);
+      } catch {
+        showToast('❌ Invalid JSON file!', '#7f1d1d');
+        event.target.value = '';
+        return;
+      }
+
+      if (!Array.isArray(data)) {
+        showToast('❌ JSON format ঠিক নেই! Array হতে হবে।', '#7f1d1d');
+        event.target.value = '';
+        return;
+      }
+
+      let matched = 0, notFound = 0;
+      const notFoundNames = [];
+
+      data.forEach(entry => {
+        const entryId = Number(entry.id);
+        const entryName = (entry.name || '').trim().toLowerCase();
+        let found = false;
+
+        directories.forEach((batch, bi) => {
+          // Match by id first, then by name as fallback
+          const student = batch.find(s =>
+            s.id === entryId ||
+            (entryName && s.name.trim().toLowerCase() === entryName)
+          );
+          if (student) {
+            const favs = getFavs(bi);
+            favs.add(student.id);
+            saveFavs(bi, favs);
+            matched++;
+            found = true;
+          }
+        });
+
+        if (!found) {
+          notFound++;
+          if (notFoundNames.length < 3) notFoundNames.push(entry.name || entry.id);
+        }
+      });
+
+      // Re-render
+      renderView();
+      event.target.value = '';
+
+      if (notFound === 0) {
+        showToast(`✅ ${matched} জন Favourite হিসেবে যোগ হয়েছে!`, '#065f46');
+      } else {
+        const extra = notFound > 3 ? ` আরো ${notFound - 3} জন…` : '';
+        showToast(`✅ ${matched} জন যোগ হয়েছে | ❌ ${notFound} জন পাওয়া যায়নি${extra}`, '#92400e');
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  /* ── BOOT ── */
+  initTabs();
+  renderView();
+
+  /* ── CARD HOVER POPUP ── */
+  const popupOverlay = document.getElementById('card-popup-overlay');
+  const popupEl      = document.getElementById('card-popup');
+  let popupCloseTimer = null;
+
+  function buildPopupHTML(card) {
+    // Clone relevant inner content from the hovered card
+    const name    = card.querySelector('.card-name')?.innerHTML || '';
+    const cardId  = card.querySelector('.card-id')?.innerHTML || '';
+    const batchInfo = card.querySelector('.card-batch-info')?.innerHTML || '';
+    const avatar  = card.querySelector('.avatar-placeholder')?.outerHTML
+                 || card.querySelector('.avatar')?.outerHTML || '';
+    const infoRows = card.querySelector('.card-info')?.innerHTML || '';
+    const footer  = card.querySelector('.card-footer')?.outerHTML || '';
+    const favBtn  = card.querySelector('.fav-btn')?.outerHTML || '';
+
+    return `
+      ${favBtn}
+      ${avatar}
+      <div class="card-name">${name}</div>
+      <div class="card-id">${cardId}</div>
+      <div class="card-batch-info">${batchInfo}</div>
+      <div class="card-divider"></div>
+      <div class="card-info">${infoRows}</div>
+      ${footer}
+    `;
+  }
+
+  function showCardPopup(card) {
+    popupEl.innerHTML = `<button id="card-popup-close" onclick="closeCardPopup()" title="Close">✕</button>` + buildPopupHTML(card);
+    popupEl.style.display = 'flex';
+    popupOverlay.style.display = 'block';
+    // Trigger transition
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => popupEl.classList.add('visible'));
+    });
+  }
+
+  function closeCardPopup() {
+    popupEl.classList.remove('visible');
+    setTimeout(() => {
+      popupEl.style.display = 'none';
+      popupOverlay.style.display = 'none';
+    }, 180);
+  }
+
+  // Event delegation on cards container
+  const container = document.getElementById('cards-container');
+  let hoverTimer = null;
+  let activeCard = null;
+
+  container.addEventListener('mouseover', function(e) {
+    const card = e.target.closest('.card');
+    if (!card || card === activeCard) return;
+    clearTimeout(hoverTimer);
+    activeCard = card;
+    hoverTimer = setTimeout(() => showCardPopup(card), 220);
+  });
+
+  container.addEventListener('mouseout', function(e) {
+    const card = e.target.closest('.card');
+    if (!card) return;
+    if (card.contains(e.relatedTarget)) return;
+    clearTimeout(hoverTimer);
+    activeCard = null;
+    closeCardPopup();
+  });
+
+  // Close on Escape key
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeCardPopup();
+  });
+</script>
+</body>
+</html>
