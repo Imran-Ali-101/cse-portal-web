@@ -162,9 +162,11 @@ function updateServerDot(isOnline) {
 }
 
 // On page load — check internet only, no server ping
-updateServerDot(navigator.onLine);
-window.addEventListener('online', () => updateServerDot(true));
-window.addEventListener('offline', () => updateServerDot(false));
+// Start grey — will turn green only when WebSocket actually connects
+const dot = document.getElementById("serverStatusDot");
+const text = document.getElementById("serverStatusText");
+if (dot) dot.className = "h-2.5 w-2.5 rounded-full bg-slate-400 animate-pulse";
+if (text) { text.innerText = "Connecting..."; text.className = "text-[10px] font-mono text-slate-400 hidden sm:inline"; }
 
 // GLOBAL API SECURITY INTERCEPTOR
 const originalFetch = window.fetch;
@@ -2205,15 +2207,38 @@ async function openPreview(name, id) {
     const token = isGuestMode ? guestToken : (currentUser ? currentUser.token : '');
     const streamUrl = `${API_BASE}/slides/stream/${id}?filename=${encodeURIComponent(name)}&token=${token}`;
 
+    const token = isGuestMode ? guestToken : (currentUser ? currentUser.token : '');
+    const streamUrl = `${API_BASE}/slides/stream/${id}?filename=${encodeURIComponent(name)}&token=${token}`;
+
     try {
+      // Show download progress using ReadableStream
       const response = await fetch(streamUrl);
       if (!response.ok) throw new Error('Server error: ' + response.status);
 
-      const blob = await response.blob();
-      
-      // Save to cache with stable key so next open skips server
+      const contentLength = response.headers.get('Content-Length');
+      const total = contentLength ? parseInt(contentLength) : 0;
+      let loaded = 0;
+      const reader = response.body.getReader();
+      const chunks = [];
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        loaded += value.length;
+        if (total > 0) {
+          const percent = Math.round((loaded / total) * 100);
+          const loadBar = document.getElementById("previewLoadBar");
+          const loadText = document.getElementById("previewLoadText");
+          if (loadBar) loadBar.style.width = `${percent}%`;
+          if (loadText) loadText.innerText = `${percent}% — ${(loaded / 1048576).toFixed(1)} MB`;
+        }
+      }
+
+      const blob = new Blob(chunks);
+
+      // Save to cache so next open skips server completely
       await saveToFileCache(id, blob, mimeType);
-      
       finalUrlToRender = URL.createObjectURL(blob);
 
     } catch (err) {
@@ -2239,8 +2264,15 @@ async function openPreview(name, id) {
   
   if(topBar) topBar.classList.remove("hidden");
 
-  container.innerHTML = `<div class="m-auto text-center text-slate-400 py-20 flex flex-col items-center gap-2"><span class="spinner"></span><span>Loading preview...</span></div>`;
   showAnimatedModal("previewModal");
+  container.style.justifyContent = "center";
+  container.innerHTML = `
+    <div class="flex flex-col items-center gap-4 py-20">
+      <div class="w-64 bg-slate-800 rounded-full h-2 overflow-hidden">
+        <div id="previewLoadBar" class="bg-blue-500 h-full rounded-full progress-bar-striped" style="width: 100%"></div>
+      </div>
+      <span class="text-xs text-slate-400 font-mono" id="previewLoadText">Loading file...</span>
+    </div>`;
 
   const lower = name.toLowerCase();
 
@@ -2532,9 +2564,18 @@ function initWebSocket() {
       }
     };
     
+    ws.onopen = () => {
+      updateServerDot(true); // WS connected = server is alive
+    };
+
     ws.onclose = () => {
       console.log("WebSocket disconnected.");
-      ws = null; // Allow reconnecting if needed
+      ws = null;
+      updateServerDot(false); // WS dropped = server sleeping or unreachable
+    };
+
+    ws.onerror = () => {
+      updateServerDot(false);
     };
   }
   setInterval(() => {
