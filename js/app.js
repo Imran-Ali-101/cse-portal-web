@@ -143,6 +143,28 @@ window.addEventListener('appinstalled', () => {
   deferredInstallPrompt = null;
 });
 
+// ============================================
+// SERVER STATUS — Passive tracking only
+// No extra requests, no server wake-up
+// ============================================
+function updateServerDot(isOnline) {
+  const dot = document.getElementById("serverStatusDot");
+  const text = document.getElementById("serverStatusText");
+  if (!dot) return;
+  if (isOnline) {
+    dot.className = "h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse";
+    if (text) { text.innerText = "Online"; text.className = "text-[10px] font-mono text-emerald-500 hidden sm:inline"; }
+  } else {
+    dot.className = "h-2.5 w-2.5 rounded-full bg-rose-500";
+    if (text) { text.innerText = "Offline"; text.className = "text-[10px] font-mono text-rose-500 hidden sm:inline"; }
+  }
+}
+
+// On page load — check internet only, no server ping
+updateServerDot(navigator.onLine);
+window.addEventListener('online', () => updateServerDot(true));
+window.addEventListener('offline', () => updateServerDot(false));
+
 // GLOBAL API SECURITY INTERCEPTOR
 const originalFetch = window.fetch;
 window.fetch = async function(resource, config) {
@@ -156,7 +178,18 @@ window.fetch = async function(resource, config) {
       config.headers['Authorization'] = `Bearer ${currentUser.token}`;
     }
   }
-  return originalFetch(resource, config);
+  try {
+    const response = await originalFetch(resource, config);
+    if (typeof resource === 'string' && resource.startsWith(API_BASE)) {
+      updateServerDot(true);
+    }
+    return response;
+  } catch (err) {
+    if (typeof resource === 'string' && resource.startsWith(API_BASE)) {
+      updateServerDot(false);
+    }
+    throw err;
+  }
 };
 
 let presenceData = [];
@@ -2123,6 +2156,47 @@ async function downloadSelectedZip() {
   showToast("ZIP download started!", "success");
 }
 
+// ============================================
+// STABLE FILE CACHE HELPERS (messageId-based)
+// ============================================
+const FILE_CACHE_NAME = 'portal-offline-files-v1';
+
+function getFileCacheKey(messageId) {
+  // Stable key using messageId — no token, no expiry issues
+  return `file-cache://stream/${messageId}`;
+}
+
+async function getCachedBlobUrl(messageId) {
+  // Returns a blob URL if file exists in cache, otherwise null
+  if (!('caches' in window)) return null;
+  try {
+    const cache = await caches.open(FILE_CACHE_NAME);
+    const match = await cache.match(getFileCacheKey(messageId));
+    if (!match) return null;
+    const blob = await match.blob();
+    return URL.createObjectURL(blob);
+  } catch (e) {
+    return null;
+  }
+}
+
+async function saveToFileCache(messageId, blob, mimeType) {
+  // Save downloaded file to cache with stable key
+  if (!('caches' in window)) return;
+  try {
+    const cache = await caches.open(FILE_CACHE_NAME);
+    await cache.put(
+      getFileCacheKey(messageId),
+      new Response(blob, {
+        headers: { 'Content-Type': mimeType || 'application/octet-stream' }
+      })
+    );
+    trimCacheIfOverLimit(); // Run in background
+  } catch (e) {
+    console.warn('Cache save failed:', e);
+  }
+}
+
 async function openPreview(name, id) {
   // Set dynamic title
   if (!originalDocumentTitle) originalDocumentTitle = document.title;
@@ -2133,51 +2207,64 @@ async function openPreview(name, id) {
 
   history.pushState({ folder: currentSelectedFolder, previewOpen: true }, "", "");
   
-  const token = isGuestMode ? guestToken : (currentUser ? currentUser.token : '');
-  const originalStreamUrl = `${API_BASE}/slides/stream/${id}?filename=${encodeURIComponent(name)}&token=${token}`;
+  // ============================================
+  // CACHE-FIRST LOGIC — Server only when needed
+  // ============================================
+  let finalUrlToRender = null;
 
-  let finalUrlToRender = originalStreamUrl;
-  const FILE_CACHE_NAME = 'portal-offline-files-v1';
+  // Step 1: Check cache first using stable messageId key
+  finalUrlToRender = await getCachedBlobUrl(id);
 
-  // --- SMART CACHING & OFFLINE LOGIC START ---
-  if ('caches' in window) {
+  // Step 2: Not in cache — fetch from server, then save
+  if (!finalUrlToRender) {
+    if (!navigator.onLine) {
+      container.style.justifyContent = "center";
+      container.innerHTML = `
+        <div class="text-center p-8 bg-slate-900 border border-slate-800 rounded-2xl max-w-sm">
+          <i class="fa-solid fa-wifi text-rose-500 text-4xl mb-3 block"></i>
+          <h4 class="text-sm font-semibold text-slate-200 mb-1">Not found in local storage</h4>
+          <p class="text-xs text-slate-400">Connect to internet once — next time it will open offline.</p>
+        </div>`;
+      return;
+    }
+
+    // Determine MIME type from file extension
+    const lower = name.toLowerCase();
+    let mimeType = 'application/octet-stream';
+    if (lower.endsWith('.pdf')) mimeType = 'application/pdf';
+    else if (lower.endsWith('.mp4') || lower.endsWith('.mkv') || lower.endsWith('.mov')) mimeType = 'video/mp4';
+    else if (lower.endsWith('.mp3') || lower.endsWith('.m4a') || lower.endsWith('.wav')) mimeType = 'audio/mpeg';
+    else if (lower.endsWith('.png')) mimeType = 'image/png';
+    else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) mimeType = 'image/jpeg';
+    else if (lower.endsWith('.webp')) mimeType = 'image/webp';
+    else if (lower.endsWith('.gif')) mimeType = 'image/gif';
+
+    // Build server URL and fetch
+    const token = isGuestMode ? guestToken : (currentUser ? currentUser.token : '');
+    const streamUrl = `${API_BASE}/slides/stream/${id}?filename=${encodeURIComponent(name)}&token=${token}`;
+
     try {
-      const cache = await caches.open(FILE_CACHE_NAME);
-      const matched = await cache.match(originalStreamUrl, { ignoreSearch: true });
+      const response = await fetch(streamUrl);
+      if (!response.ok) throw new Error('Server error: ' + response.status);
+
+      const blob = await response.blob();
       
-      if (matched) {
-        // File is already cached! Open locally without API request
-        const cachedBlob = await matched.blob();
-        finalUrlToRender = URL.createObjectURL(cachedBlob); 
-      } else if (!navigator.onLine) {
-        // File not cached and internet is off
-        showAnimatedModal("previewModal");
-        const container = document.getElementById("previewContainer");
-        const topBar = document.getElementById("previewTopBar");
-        if(topBar) topBar.classList.remove("hidden");
-        
-        container.style.justifyContent = "center";
-        container.innerHTML = `
-          <div class="text-center p-8 bg-slate-900 border border-slate-800 rounded-2xl max-w-sm">
-            <i class="fa-solid fa-wifi text-rose-500 text-4xl mb-3 block"></i>
-            <h4 class="text-sm font-semibold text-slate-200 mb-1">Not found in local storage</h4>
-            <p class="text-xs text-slate-400">Please turn on your internet connection to view this file.</p>
-          </div>
-        `;
-        return; 
-      } else {
-        // File not cached, but internet is on. Save in background (won't slow down preview)
-        fetch(originalStreamUrl)
-          .then(res => res.blob())
-          .then(blob => cache.put(originalStreamUrl, new Response(blob)))
-          .then(() => trimCacheIfOverLimit())
-          .catch(e => console.warn("Background cache failed"));
-      }
-    } catch (e) {
-      console.warn("Caching error", e);
+      // Save to cache with stable key so next open skips server
+      await saveToFileCache(id, blob, mimeType);
+      
+      finalUrlToRender = URL.createObjectURL(blob);
+
+    } catch (err) {
+      container.style.justifyContent = "center";
+      container.innerHTML = `
+        <div class="text-center p-8 bg-slate-900 border border-slate-800 rounded-2xl max-w-sm">
+          <i class="fa-solid fa-triangle-exclamation text-rose-500 text-4xl mb-3 block"></i>
+          <h4 class="text-sm font-semibold text-slate-200 mb-1">Failed to load file</h4>
+          <p class="text-xs text-slate-400">${err.message}</p>
+        </div>`;
+      return;
     }
   }
-  // --- SMART CACHING & OFFLINE LOGIC END ---
 
   const container = document.getElementById("previewContainer");
   const pageIndicator = document.getElementById("pdfPageIndicator");
