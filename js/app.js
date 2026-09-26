@@ -2162,24 +2162,43 @@ async function saveToFileCache(messageId, blob, mimeType) {
 }
 
 async function openPreview(name, id) {
-  // Set dynamic title
   if (!originalDocumentTitle) originalDocumentTitle = document.title;
   document.title = name;
-  
+
   document.getElementById("previewTitle").innerText = name;
   activePreviewItem = { name, id };
 
   history.pushState({ folder: currentSelectedFolder, previewOpen: true }, "", "");
-  
+
+  // Show modal and loading bar immediately
+  showAnimatedModal("previewModal");
+  const container = document.getElementById("previewContainer");
+  const pageIndicator = document.getElementById("pdfPageIndicator");
+  const topBar = document.getElementById("previewTopBar");
+
+  if (pageIndicator) pageIndicator.classList.add("hidden");
+  container.scrollTop = 0;
+  container.style.padding = "16px";
+  container.style.justifyContent = "center";
+  if (topBar) topBar.classList.remove("hidden");
+
+  container.innerHTML = `
+    <div class="flex flex-col items-center gap-4 py-20">
+      <div class="w-64 bg-slate-800 rounded-full h-2 overflow-hidden">
+        <div id="previewLoadBar" class="bg-blue-500 h-full rounded-full progress-bar-striped" style="width: 100%"></div>
+      </div>
+      <span class="text-xs text-slate-400 font-mono" id="previewLoadText">Loading file...</span>
+    </div>`;
+
   // ============================================
   // CACHE-FIRST LOGIC — Server only when needed
   // ============================================
   let finalUrlToRender = null;
 
-  // Step 1: Check cache first using stable messageId key
+  // Step 1: Check cache first
   finalUrlToRender = await getCachedBlobUrl(id);
 
-  // Step 2: Not in cache — fetch from server, then save
+  // Step 2: Not in cache — fetch from server
   if (!finalUrlToRender) {
     if (!navigator.onLine) {
       container.style.justifyContent = "center";
@@ -2202,10 +2221,6 @@ async function openPreview(name, id) {
     else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) mimeType = 'image/jpeg';
     else if (lower.endsWith('.webp')) mimeType = 'image/webp';
     else if (lower.endsWith('.gif')) mimeType = 'image/gif';
-
-    // Build server URL and fetch
-    const token = isGuestMode ? guestToken : (currentUser ? currentUser.token : '');
-    const streamUrl = `${API_BASE}/slides/stream/${id}?filename=${encodeURIComponent(name)}&token=${token}`;
 
     const token = isGuestMode ? guestToken : (currentUser ? currentUser.token : '');
     const streamUrl = `${API_BASE}/slides/stream/${id}?filename=${encodeURIComponent(name)}&token=${token}`;
@@ -2253,30 +2268,7 @@ async function openPreview(name, id) {
     }
   }
 
-  const container = document.getElementById("previewContainer");
-  const pageIndicator = document.getElementById("pdfPageIndicator");
-  const topBar = document.getElementById("previewTopBar");
-  
-  if (pageIndicator) pageIndicator.classList.add("hidden");
-  container.scrollTop = 0;
-  container.style.justifyContent = "flex-start";
-  container.style.padding = "16px"; 
-  
-  if(topBar) topBar.classList.remove("hidden");
-
-  showAnimatedModal("previewModal");
-  container.style.justifyContent = "center";
-  container.innerHTML = `
-    <div class="flex flex-col items-center gap-4 py-20">
-      <div class="w-64 bg-slate-800 rounded-full h-2 overflow-hidden">
-        <div id="previewLoadBar" class="bg-blue-500 h-full rounded-full progress-bar-striped" style="width: 100%"></div>
-      </div>
-      <span class="text-xs text-slate-400 font-mono" id="previewLoadText">Loading file...</span>
-    </div>`;
-
   const lower = name.toLowerCase();
-
-  // Common text and programming file extensions list
   const textExtensions = ['.txt', '.v', '.sv', '.c', '.cpp', '.h', '.py', '.java', '.html', '.css', '.js', '.json', '.xml', '.md', '.csv', '.sql', '.sh', '.bat', '.log'];
   const isTextFile = textExtensions.some(ext => lower.endsWith(ext));
 
@@ -2288,8 +2280,7 @@ async function openPreview(name, id) {
           <source src="${finalUrlToRender}" type="video/mp4">
           Your browser does not support the video tag.
         </video>
-      </div>
-    `;
+      </div>`;
   }
   else if (lower.endsWith('.mp3') || lower.endsWith('.wav') || lower.endsWith('.m4a') || lower.endsWith('.aac')) {
     container.style.justifyContent = "center";
@@ -2302,36 +2293,25 @@ async function openPreview(name, id) {
         <audio controls autoplay class="w-72 md:w-96">
           <source src="${finalUrlToRender}">
         </audio>
-      </div>
-    `;
+      </div>`;
   }
   else if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.webp') || lower.endsWith('.gif') || lower.endsWith('.svg')) {
     container.style.justifyContent = "center";
-    container.style.overflow = "hidden"; // scrollbar hide
-    
-    // image e cursor: grab deya hoyese
+    container.style.overflow = "hidden";
     container.innerHTML = `<img id="previewImageElement" src="${finalUrlToRender}" alt="${name}" class="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl transition-transform duration-75" style="transform: translate(0px, 0px) scale(1); cursor: grab;">`;
 
     currentImageScale = 1.0;
-    let translateX = 0;
-    let translateY = 0;
-    let isDragging = false;
-    let startX, startY;
-
+    let translateX = 0, translateY = 0, isDragging = false, startX, startY;
     const img = document.getElementById("previewImageElement");
 
-    // Ctrl + Mouse Wheel Zoom
     container.onwheel = (e) => {
       if (e.ctrlKey) {
         e.preventDefault();
-        const zoomSpeed = 0.15;
-        currentImageScale += (e.deltaY < 0) ? zoomSpeed : -zoomSpeed;
+        currentImageScale += (e.deltaY < 0) ? 0.15 : -0.15;
         currentImageScale = Math.max(0.3, Math.min(currentImageScale, 10.0));
         img.style.transform = `translate(${translateX}px, ${translateY}px) scale(${currentImageScale})`;
       }
     };
-
-    // Mouse Drag (Panning) Logic
     img.onmousedown = (e) => {
       e.preventDefault();
       isDragging = true;
@@ -2339,24 +2319,14 @@ async function openPreview(name, id) {
       startY = e.clientY - translateY;
       img.style.cursor = "grabbing";
     };
-
     container.onmousemove = (e) => {
       if (!isDragging) return;
-      e.preventDefault();
       translateX = e.clientX - startX;
       translateY = e.clientY - startY;
       img.style.transform = `translate(${translateX}px, ${translateY}px) scale(${currentImageScale})`;
     };
-
-    container.onmouseup = () => {
-      isDragging = false;
-      img.style.cursor = "grab";
-    };
-
-    container.onmouseleave = () => {
-      isDragging = false;
-      img.style.cursor = "grab";
-    };
+    container.onmouseup = () => { isDragging = false; img.style.cursor = "grab"; };
+    container.onmouseleave = () => { isDragging = false; img.style.cursor = "grab"; };
   }
   else if (lower.endsWith('.pdf')) {
     const viewportMeta = document.querySelector('meta[name="viewport"]');
@@ -2364,74 +2334,53 @@ async function openPreview(name, id) {
       originalViewportContent = viewportMeta.getAttribute("content");
       viewportMeta.setAttribute("content", "width=1024, user-scalable=yes");
     }
-    
-    if(topBar) topBar.classList.add("hidden");
+    if (topBar) topBar.classList.add("hidden");
     container.style.padding = "0";
-
-    const viewerUrl = `/pdfjs/web/viewer.html?file=${encodeURIComponent(finalUrlToRender)}#zoom=page-width`;
-
     container.style.justifyContent = "center";
     container.innerHTML = `
-      <iframe 
-        id="pdfIframe"
-        src="${viewerUrl}" 
-        class="w-full h-full border-0 shadow-xl"
-        allowfullscreen>
-      </iframe>
-    `;
+      <iframe id="pdfIframe" src="/pdfjs/web/viewer.html?file=${encodeURIComponent(finalUrlToRender)}#zoom=page-width"
+              class="w-full h-full border-0 shadow-xl" allowfullscreen></iframe>`;
 
-    const iframe = document.getElementById("pdfIframe");
-    iframe.onload = () => {
+    document.getElementById("pdfIframe").onload = () => {
       try {
-        const doc = iframe.contentDocument || iframe.contentWindow.document;
+        const doc = document.getElementById("pdfIframe").contentDocument || document.getElementById("pdfIframe").contentWindow.document;
         const openFileBtn = doc.getElementById('openFile');
         if (openFileBtn) openFileBtn.style.display = 'none';
-
         const toolbarLeft = doc.getElementById('toolbarViewerLeft');
         if (toolbarLeft) {
-           const titleEl = doc.createElement('div');
-           titleEl.innerHTML = name;
-           titleEl.style.cssText = 'color:#d1d5db; font-size:13px; font-weight:600; padding-top:6px; margin-left:20px; max-width:250px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:inline-block; vertical-align:top;';
-           toolbarLeft.appendChild(titleEl); 
+          const titleEl = doc.createElement('div');
+          titleEl.innerHTML = name;
+          titleEl.style.cssText = 'color:#d1d5db; font-size:13px; font-weight:600; padding-top:6px; margin-left:20px; max-width:250px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:inline-block; vertical-align:top;';
+          toolbarLeft.appendChild(titleEl);
         }
-
         const toolbarRight = doc.getElementById('toolbarViewerRight');
         if (toolbarRight) {
           const closeBtn = doc.createElement('button');
           closeBtn.innerHTML = '✕ Close';
-          closeBtn.style.cssText = 'background-color: #e11d48; border: none; padding: 4px 12px; margin-top: 4px; margin-right: 8px; border-radius: 6px; cursor: pointer; color: white; font-weight: bold; font-size: 12px; transition: 0.2s;';
+          closeBtn.style.cssText = 'background-color:#e11d48; border:none; padding:4px 12px; margin-top:4px; margin-right:8px; border-radius:6px; cursor:pointer; color:white; font-weight:bold; font-size:12px;';
           closeBtn.onclick = () => window.parent.closePreview();
           toolbarRight.insertBefore(closeBtn, toolbarRight.firstChild);
         }
       } catch(e) {}
     };
   }
-  // --- NEW TEXT/CODE READER LOGIC ---
   else if (isTextFile) {
     container.style.justifyContent = "flex-start";
     container.innerHTML = `
       <div class="w-full max-w-4xl max-h-[85vh] bg-slate-950 border border-slate-800 rounded-xl overflow-hidden flex flex-col shadow-2xl">
         <div class="bg-slate-900 px-4 py-2 border-b border-slate-800 flex justify-between items-center shrink-0">
-           <span class="text-xs font-mono text-slate-400"><i class="fa-solid fa-code mr-2"></i>Text Viewer</span>
-           <button onclick="downloadActivePreviewFile()" class="text-blue-400 hover:text-blue-300 text-xs font-semibold px-2 py-1"><i class="fa-solid fa-download"></i> Download</button>
+          <span class="text-xs font-mono text-slate-400"><i class="fa-solid fa-code mr-2"></i>Text Viewer</span>
+          <button onclick="downloadActivePreviewFile()" class="text-blue-400 hover:text-blue-300 text-xs font-semibold px-2 py-1"><i class="fa-solid fa-download"></i> Download</button>
         </div>
         <div class="p-4 overflow-auto flex-1 text-left">
-           <pre><code id="textPreviewCode" class="text-[13px] font-mono text-slate-300 break-words whitespace-pre-wrap">Loading content...</code></pre>
+          <pre><code id="textPreviewCode" class="text-[13px] font-mono text-slate-300 break-words whitespace-pre-wrap">Loading content...</code></pre>
         </div>
-      </div>
-    `;
-    
+      </div>`;
     fetch(finalUrlToRender)
       .then(res => res.text())
-      .then(text => {
-         // textContent automatically escapes HTML tags, making it XSS secure
-         document.getElementById("textPreviewCode").textContent = text;
-      })
-      .catch(err => {
-         document.getElementById("textPreviewCode").textContent = "Error loading text content.";
-      });
+      .then(text => { document.getElementById("textPreviewCode").textContent = text; })
+      .catch(() => { document.getElementById("textPreviewCode").textContent = "Error loading text content."; });
   }
-  // --- FALLBACK LOGIC (With "Read as Text" button for unknown files) ---
   else {
     const isPptx = lower.endsWith('.pptx') || lower.endsWith('.ppt');
     container.style.justifyContent = "center";
@@ -2440,18 +2389,15 @@ async function openPreview(name, id) {
         <i class="fa-solid ${isPptx ? 'fa-file-powerpoint text-amber-500' : 'fa-file-lines text-slate-500'} text-4xl mb-3 block"></i>
         <h4 class="text-sm font-semibold text-slate-200 mb-1 break-all">${name}</h4>
         <p class="text-xs text-slate-400 mb-5">${isPptx ? 'PowerPoint Presentation' : 'Unknown File Format'}</p>
-        
         <div class="flex flex-col gap-2.5">
           <button onclick="downloadActivePreviewFile()" class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition shadow-sm">
             <i class="fa-solid fa-download"></i> Download File
           </button>
-          
           <button onclick="forceLoadAsText('${finalUrlToRender}')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-5 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition">
             <i class="fa-solid fa-code"></i> Read as Text
           </button>
         </div>
-      </div>
-    `;
+      </div>`;
   }
 }
  
