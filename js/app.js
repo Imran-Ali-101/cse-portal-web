@@ -38,10 +38,13 @@ function urlBase64ToUint8Array(base64String) {
   return outputArray;
 }
 
-// Ask for permission and subscribe
+// Ask for permission and subscribe — runs only once per device
 async function subscribeToPush() {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
-  
+
+  // Already subscribed before — skip server call entirely
+  if (localStorage.getItem("push_subscribed") === "true") return;
+
   if (Notification.permission !== "granted") {
     const permission = await Notification.requestPermission();
     if (permission !== "granted") return;
@@ -53,8 +56,6 @@ async function subscribeToPush() {
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(PUBLIC_VAPID_KEY)
     });
-    
-    // Send subscription to backend
     await fetch(`${API_BASE}/push/subscribe`, {
       method: 'POST',
       headers: {
@@ -63,12 +64,12 @@ async function subscribeToPush() {
       },
       body: JSON.stringify(subscription)
     });
+    localStorage.setItem("push_subscribed", "true"); // Never subscribe again
     console.log("Push Notification Subscribed!");
   } catch (e) {
     console.error("Push subscription failed", e);
   }
 }
-
 
 // ==========================================
 // PWA INSTALL LOGIC
@@ -371,38 +372,28 @@ function hasFolderPermission(folderPath) {
 }
 
 async function syncUserRole() {
+  // Role/status is already in the JWT token from login — no server call needed
+  // Server is only called when admin explicitly changes a user's role/status
   if (!currentUser) return;
-  try {
-    const res = await fetch(`${API_BASE}/auth/check-role/${currentUser.student_id}`);
-    if (res.ok) {
-      const data = await res.json();
-      currentUser.role = data.role;
-      currentUser.status = data.status;
-      currentUser.reg_no = data.reg_no;
-      currentUser.chat_banned_until = data.chat_banned_until;
-      currentUser.file_banned_until = data.file_banned_until;
-      localStorage.setItem("user", JSON.stringify(currentUser));
-    }
-  } catch(e) {}
 }
 
 
 function startPresenceHeartbeat() {
   if (!currentUser) return;
-  
+
   async function ping() {
-    // Check if user is admin and ghost mode is enabled
-    if (isAdmin() && localStorage.getItem("ghostMode") === "true") {
-      return; 
-    }
-    
+    if (isAdmin() && localStorage.getItem("ghostMode") === "true") return;
+    if (document.hidden) return; // Don't ping when tab is not visible
     try {
       await fetch(`${API_BASE}/presence/heartbeat`, { method: "POST" });
     } catch(e) {}
   }
-  
-  ping(); // Instant ping on load
-  setInterval(ping, 2 * 60 * 1000); // Ping every 2 minutes
+
+  // No instant ping on load — start after 10 minutes, then every 10 minutes
+  setTimeout(() => {
+    ping();
+    setInterval(ping, 10 * 60 * 1000);
+  }, 10 * 60 * 1000);
 }
 
 async function renderPortalView() {
@@ -796,38 +787,26 @@ async function loadDynamicTools() {
 async function loadFolders() {
   if (!currentUser) return;
 
-  // Check if offline, load from local storage
-  if (!navigator.onLine) {
-    allFolders = getFromLocalStorage("cached_folders");
-    return;
+  // Always load from cache first (instant, no server)
+  const cached = getFromLocalStorage("cached_folders");
+  if (cached.length > 0) {
+    allFolders = cached;
+    return; // Cache exists — skip server entirely
   }
 
+  // Cache is empty = first time visit — fetch from server once
+  if (!navigator.onLine) return;
   try {
-    const res = await fetch(`${API_BASE}/folders/list?t=${Date.now()}`);
+    const res = await fetch(`${API_BASE}/folders/list`);
     allFolders = await res.json();
-    
     allFolders = allFolders.map(f => {
       let n = f.folder_name;
       if (!n.startsWith('/')) n = '/' + n;
       return { ...f, folder_name: n };
     });
-
-    // Save to local storage for offline use
-    saveToLocalStorage("cached_folders_time", Date.now());
     saveToLocalStorage("cached_folders", allFolders);
-
-    const moveSelect = document.getElementById("moveFolderSelect");
-    if(moveSelect) {
-      moveSelect.innerHTML = `<option value="/">Home (/)</option>`;
-      allFolders.forEach(f => {
-        if (f.folder_name !== '/') {
-          moveSelect.innerHTML += `<option value="${f.folder_name}">${f.folder_name}</option>`;
-        }
-      });
-    }
-  } catch(e) { 
+  } catch(e) {
     console.error(e);
-    // Fallback to local storage if API fails
     allFolders = getFromLocalStorage("cached_folders");
   }
 }
@@ -962,33 +941,29 @@ async function uploadSelectedFiles(input) {
 async function loadFiles() {
   if (!currentUser) return;
 
-  // Check if offline, load from local storage
-  if (!navigator.onLine) {
-    allFiles = getFromLocalStorage("cached_files");
-    return;
+  // Always load from cache first (instant, no server)
+  const cached = getFromLocalStorage("cached_files");
+  if (cached.length > 0) {
+    allFiles = cached;
+    return; // Cache exists — skip server entirely
   }
 
+  // Cache is empty = first time visit — fetch from server once
+  if (!navigator.onLine) return;
   try {
-    const res = await fetch(`${API_BASE}/slides/list?t=${Date.now()}`);
+    const res = await fetch(`${API_BASE}/slides/list`);
     const data = await res.json();
-    
     allFiles = data.map(f => {
       let p = f.folder_path || '/';
       if (!p.startsWith('/')) p = '/' + p;
       return { ...f, folder_path: p };
     });
-
-    // Save to local storage for offline use
-    saveToLocalStorage("cached_files_time", Date.now());
     saveToLocalStorage("cached_files", allFiles);
-
-  } catch(e) { 
+  } catch(e) {
     console.error(e);
-    // Fallback to local storage if API fails
     allFiles = getFromLocalStorage("cached_files");
   }
 }
-
 
 function sortFiles(type) {
   currentSortMode = type;
@@ -1680,44 +1655,31 @@ async function trashSelected() {
 }
 
 async function checkUnseenNotices() {
-  try {
-    const res = await fetch(`${API_BASE}/notices/list?t=${Date.now()}`);
-    const notices = await res.json();
-    
-    allNotices = notices.filter(n => {
-      if (!n.folder_path || n.folder_path === '/') return true;
-      return hasFolderPermission(n.folder_path);
-    });
-
-    if (allNotices.length === 0) return;
-
+  // On page load — use cached notices only, no server call
+  // WebSocket handles real-time notice delivery for active users
+  const cached = getFromLocalStorage("cached_notices");
+  if (cached.length > 0) {
+    allNotices = cached;
     const lastSeenId = localStorage.getItem("last_seen_notice_id");
-    const latestNotice = allNotices[0];
-
-    if (latestNotice.id !== lastSeenId) {
+    if (allNotices[0]?.id !== lastSeenId) {
       document.getElementById("headerUnseenNoticeDot").classList.remove("hidden");
       document.getElementById("noticeBadgeCount").classList.remove("hidden");
-      
-      const timeFormatted = new Date(latestNotice.created_at).toLocaleString('en-US', {
-        month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric', hour12: true
-      });
-      showToast(latestNotice.title, "info", `${latestNotice.file_name || latestNotice.message || ''} • ${timeFormatted}`);
     }
-  } catch(e) {}
+  }
 }
-
 async function openNoticeBoardModal() {
   showAnimatedModal("noticeBoardModal");
   document.getElementById("headerUnseenNoticeDot").classList.add("hidden");
   document.getElementById("noticeBadgeCount").classList.add("hidden");
 
+  // User explicitly opened the board — fetch fresh from server now
+  await loadNoticesList();
+
   if (allNotices.length > 0) {
     localStorage.setItem("last_seen_notice_id", allNotices[0].id);
+    saveToLocalStorage("cached_notices", allNotices); // Update cache
   }
-
-  loadNoticesList();
 }
-
 function closeNoticeBoardModal() { hideAnimatedModal("noticeBoardModal"); }
 
 async function loadNoticesList() {
@@ -2547,12 +2509,18 @@ function initWebSocket() {
     ws.onmessage = async (e) => {
       const data = JSON.parse(e.data);
       if (data.type === "notice") {
+        // New upload/notice from admin — bust cache and sync fresh data
+        localStorage.removeItem("cached_files");
+        localStorage.removeItem("cached_folders");
+        localStorage.removeItem("cached_notices");
+        await loadFolders();
+        await loadFiles();
+        sortFiles(currentSortMode);
+
         if (!data.folder_path || hasFolderPermission(data.folder_path)) {
           document.getElementById("headerUnseenNoticeDot").classList.remove("hidden");
           document.getElementById("noticeBadgeCount").classList.remove("hidden");
           showToast(data.title, "info", `${data.file_name || data.message || ''} • ${data.time}`);
-          await loadFiles();
-          sortFiles(currentSortMode);
         }
       } else if (data.type === "chat_event" && data.cleared) {
         document.getElementById("chatMessages").innerHTML = "";
@@ -3376,8 +3344,11 @@ function getFromLocalStorage(key) {
 
 // Listen for internet connection return
 window.addEventListener('online', async () => {
-  showToast("Internet connected! Updating data...", "success");
-  if(currentUser) {
+  showToast("Internet connected! Syncing latest data...", "success");
+  if (currentUser) {
+    // Bust cache on reconnect so fresh data loads from server
+    localStorage.removeItem("cached_files");
+    localStorage.removeItem("cached_folders");
     await loadFolders();
     await loadFiles();
     sortFiles(currentSortMode);
