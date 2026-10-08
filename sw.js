@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cse-portal-v20';
+const CACHE_NAME = 'cse-portal-v21';
 
 // Critical local files to load in offline
 const LOCAL_ASSETS = [
@@ -68,7 +68,7 @@ self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys().then(keys =>
       Promise.all(
-        keys.filter(k => k !== CACHE_NAME).map(k => {
+        keys.filter(k => k !== CACHE_NAME && k !== 'portal-offline-files-v1').map(k => {
           console.log('[SW] Deleting old cache:', k);
           return caches.delete(k);
         })
