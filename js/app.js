@@ -20,6 +20,8 @@ let originalViewportContent = "";
 let guestCurrentPath = "";
 let originalDocumentTitle = "";
 let currentImageScale = 1.0;
+let forceSync = performance.getEntriesByType('navigation')[0]?.type === 'reload';
+let lastApiOk = 0;
 
 // ==========================================
 // PUSH NOTIFICATION LOGIC
@@ -185,6 +187,12 @@ window.fetch = async function(resource, config) {
     const response = await originalFetch(resource, config);
     if (typeof resource === 'string' && resource.startsWith(API_BASE)) {
       updateServerDot(true);
+      if (!resource.includes('/presence/heartbeat')) lastApiOk = Date.now();
+      const method = ((config && config.method) || 'GET').toUpperCase();
+      const MUTATING = ['/slides/upload','/slides/move','/slides/trash','/folders/','/items/rename','/admin/trash/','/notices/'];
+      if (response.ok && method !== 'GET' && MUTATING.some(p => resource.includes(p))) {
+        ["cached_files","cached_folders","cached_notices"].forEach(k => localStorage.removeItem(k));
+      }
     }
     return response;
   } catch (err) {
@@ -201,7 +209,7 @@ let currentPresenceTab = 'online';
 function getOnlineStatus(last_seen) {
   if (!last_seen) return { online: false, label: "Never seen" };
   const diff = (Date.now() - new Date(last_seen)) / 1000 / 60; // minutes
-  if (diff <= 5) return { online: true, label: "Online now" };
+  if (diff <= 3) return { online: true, label: "Online now" };
   return { online: false, label: formatLastSeen(last_seen) };
 }
 
@@ -383,19 +391,14 @@ async function syncUserRole() {
 function startPresenceHeartbeat() {
   if (!currentUser) return;
 
-  async function ping() {
+    async function ping() {
     if (isAdmin() && localStorage.getItem("ghostMode") === "true") return;
-    if (document.hidden) return; // Don't ping when tab is not visible
-    try {
-      await fetch(`${API_BASE}/presence/heartbeat`, { method: "POST" });
-    } catch(e) {}
+    if (document.hidden) return;
+    if (Date.now() - lastApiOk > 5 * 60 * 1000) return; // সার্ভার ঘুমে থাকলে জাগাবে না
+    try { await fetch(`${API_BASE}/presence/heartbeat`, { method: "POST" }); } catch(e) {}
   }
-
-  // No instant ping on load — start after 10 minutes, then every 10 minutes
-  setTimeout(() => {
-    ping();
-    setInterval(ping, 10 * 60 * 1000);
-  }, 10 * 60 * 1000);
+  ping();
+  setInterval(ping, 60 * 1000);
 }
 
 async function renderPortalView() {
@@ -462,8 +465,9 @@ async function renderPortalView() {
     await loadFolders();
     await loadFiles();
     restoreFolderFromUrl();
+    forceSync = false;
     sortFiles(currentSortMode);
-    initWebSocket();
+    
     startPresenceHeartbeat();
     checkUnseenNotices();
     loadDynamicTools();
@@ -727,6 +731,7 @@ async function handleRegister() {
 function handleLogout() {
   currentUser = null;
   localStorage.removeItem("user");
+  ["cached_files","cached_folders","cached_notices"].forEach(k => localStorage.removeItem(k));
   renderPortalView();
   showToast("Logged out successfully", "info");
 }
@@ -759,7 +764,7 @@ async function loadDynamicTools() {
   const defaultTools = [
     { file: "cgpa.html", defaultTitle: "CGPA / GPA Suite" },
     { file: "ru-result.html", defaultTitle: "RU Result Portal" },
-    { file: "cse_vault.html", defaultTitoe: "Student Directory" }
+    { file: "cse_vault.html", defaultTitle: "Student Directory" }
   ];
 
   container.innerHTML = `<span class="text-[10px] font-bold text-indigo-500 uppercase tracking-wider block mb-1">Academic Tools</span>`;
@@ -791,7 +796,7 @@ async function loadFolders() {
 
   // Always load from cache first (instant, no server)
   const cached = getFromLocalStorage("cached_folders");
-  if (cached.length > 0) {
+    if (cached.length > 0 && (!forceSync || !navigator.onLine)) {
     allFolders = cached;
     return; // Cache exists — skip server entirely
   }
@@ -945,7 +950,7 @@ async function loadFiles() {
 
   // Always load from cache first (instant, no server)
   const cached = getFromLocalStorage("cached_files");
-  if (cached.length > 0) {
+  if (cached.length > 0 && (!forceSync || !navigator.onLine)) {
     allFiles = cached;
     return; // Cache exists — skip server entirely
   }
@@ -2439,6 +2444,7 @@ function closePreview(isFromBackButton = false) {
 
 function openChatFullscreen() {
   if (!currentUser) return showToast("Please login first", "error");
+  if (!ws) initWebSocket();
   document.getElementById("chatModal").classList.remove("chat-closed");
 }
 
