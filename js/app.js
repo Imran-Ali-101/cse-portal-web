@@ -195,7 +195,7 @@ function _ensureColdLoader() {
       <div>
         <div style="font-size:13px;font-weight:600">Loading… Please wait a moment.</div>
         <div style="font-size:11px;color:#94a3b8;margin-top:5px;line-height:1.6">
-          <br><span style="opacity:.7">Server sleeps when idle to save cost — sorry for the wait. Everything will work normally once it loads.</span>
+          <span style="opacity:.7">Server sleeps when idle to save cost — sorry for the wait. Everything will work normally once it loads.</span>
         </div>
       </div>
     </div>`;
