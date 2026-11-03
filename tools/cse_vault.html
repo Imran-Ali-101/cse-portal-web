@@ -248,6 +248,9 @@
       scrollbar-width: none;
     }
     .tabs::-webkit-scrollbar { display: none; }
+    .tabs { cursor: grab; }
+    .tabs.dragging { cursor: grabbing; user-select: none; }
+    .tab { cursor: pointer; }
     .tab {
       flex-shrink: 0;
       padding: 10px 20px;
@@ -912,9 +915,10 @@
     const tabsEl = document.getElementById('tabs');
     directories.forEach((batch, i) => {
       const year = getBatchYear(batch) - 1;
+      const batch_name = year - 1991;
       const btn  = document.createElement('button');
       btn.className = 'tab' + (i === 0 ? ' active' : '');
-      btn.innerHTML = `Batch ${year}-${year-1999}<span class="count">${batch.length}</span>`;
+      btn.innerHTML = `Batch ${year}-${year-1999}<span class="count">${batch_name}</span>`;
       btn.addEventListener('click', () => switchBatch(i));
       tabsEl.appendChild(btn);
     });
@@ -1335,10 +1339,57 @@
   initTabs();
   renderView();
 
+    /* ── TABS: mouse wheel + drag scrolling (desktop) ── */
+  (function enableTabsMouseScroll() {
+    const tabsEl = document.getElementById('tabs');
+    if (!tabsEl) return;
+
+    // Convert vertical wheel movement into horizontal scrolling
+    tabsEl.addEventListener('wheel', (e) => {
+      if (tabsEl.scrollWidth <= tabsEl.clientWidth) return; // nothing to scroll
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return; // trackpad already scrolls sideways
+      e.preventDefault();
+      tabsEl.scrollLeft += e.deltaY;
+    }, { passive: false });
+
+    // Click-and-drag scrolling with the mouse
+    let isDown = false, moved = false, startX = 0, startScroll = 0;
+
+    tabsEl.addEventListener('mousedown', (e) => {
+      isDown = true;
+      moved = false;
+      startX = e.pageX;
+      startScroll = tabsEl.scrollLeft;
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isDown) return;
+      const dx = e.pageX - startX;
+      if (Math.abs(dx) > 5) moved = true;
+      if (moved) {
+        tabsEl.scrollLeft = startScroll - dx;
+        tabsEl.classList.add('dragging');
+      }
+    });
+
+    window.addEventListener('mouseup', () => {
+      isDown = false;
+      tabsEl.classList.remove('dragging');
+    });
+
+    // Swallow the click that ends a drag so a tab is not switched by accident
+    tabsEl.addEventListener('click', (e) => {
+      if (moved) {
+        e.stopPropagation();
+        e.preventDefault();
+        moved = false;
+      }
+    }, true);
+  })();
+
   /* ── CARD HOVER POPUP ── */
   const popupOverlay = document.getElementById('card-popup-overlay');
   const popupEl      = document.getElementById('card-popup');
-  let popupCloseTimer = null;
 
   function buildPopupHTML(card) {
     // Clone relevant inner content from the hovered card
@@ -1363,10 +1414,26 @@
     `;
   }
 
+  // True only on real mouse devices (not touch screens)
+  const canHover = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+
+  let popupHideTimer = null;   // delays display:none until the fade-out finishes
+  let popupCloseTimer = null;  // delays closing when the mouse leaves card/popup
+  let hoverTimer = null;       // delays opening on hover
+  let activeCard = null;
+
   function showCardPopup(card) {
+    // Cancel any pending close/hide so it cannot hide the popup we are opening
+    clearTimeout(popupHideTimer);
+    clearTimeout(popupCloseTimer);
+
     popupEl.innerHTML = `<button id="card-popup-close" onclick="closeCardPopup()" title="Close">✕</button>` + buildPopupHTML(card);
     popupEl.style.display = 'flex';
     popupOverlay.style.display = 'block';
+    // On desktop the overlay must not capture the mouse, otherwise the card
+    // underneath loses hover and the popup flickers
+    popupOverlay.style.pointerEvents = canHover ? 'none' : 'auto';
+
     // Trigger transition
     requestAnimationFrame(() => {
       requestAnimationFrame(() => popupEl.classList.add('visible'));
@@ -1374,21 +1441,31 @@
   }
 
   function closeCardPopup() {
+    clearTimeout(hoverTimer);
+    clearTimeout(popupHideTimer);
+    activeCard = null;
     popupEl.classList.remove('visible');
-    setTimeout(() => {
+    popupHideTimer = setTimeout(() => {
       popupEl.style.display = 'none';
       popupOverlay.style.display = 'none';
     }, 180);
   }
 
+  // Close after a short grace period so moving between card and popup does not flicker
+  function scheduleClose() {
+    clearTimeout(hoverTimer);
+    clearTimeout(popupCloseTimer);
+    popupCloseTimer = setTimeout(closeCardPopup, 150);
+  }
+
   // Event delegation on cards container
   const container = document.getElementById('cards-container');
-  let hoverTimer = null;
-  let activeCard = null;
 
   container.addEventListener('mouseover', function(e) {
     const card = e.target.closest('.card');
-    if (!card || card === activeCard) return;
+    if (!card) return;
+    clearTimeout(popupCloseTimer);          // mouse is back on a card, keep popup
+    if (card === activeCard) return;
     clearTimeout(hoverTimer);
     activeCard = card;
     hoverTimer = setTimeout(() => showCardPopup(card), 220);
@@ -1397,11 +1474,16 @@
   container.addEventListener('mouseout', function(e) {
     const card = e.target.closest('.card');
     if (!card) return;
-    if (card.contains(e.relatedTarget)) return;
-    clearTimeout(hoverTimer);
-    activeCard = null;
-    closeCardPopup();
+    if (card.contains(e.relatedTarget)) return;    // still inside the same card
+    if (popupEl.contains(e.relatedTarget)) return; // moved onto the popup itself
+    scheduleClose();
   });
+
+  // Desktop only: keep the popup open while the mouse is on it
+  if (canHover) {
+    popupEl.addEventListener('mouseenter', () => clearTimeout(popupCloseTimer));
+    popupEl.addEventListener('mouseleave', scheduleClose);
+  }
 
   // Close on Escape key
   document.addEventListener('keydown', e => {
