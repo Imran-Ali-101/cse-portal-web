@@ -545,6 +545,7 @@ async function renderPortalView() {
     
     startPresenceHeartbeat();
     checkUnseenNotices();
+    checkAndShowNoticePopups();
     loadDynamicTools();
     // Subscribe to push notifications
     subscribeToPush();
@@ -1791,6 +1792,137 @@ async function checkUnseenNotices() {
     }
   }
 }
+
+// ==========================================
+// FORCED NOTICE POPUP
+// ==========================================
+const NOTICE_POPUP_MAX_AGE_DAYS = 30;  // Ignore notices older than this
+const NOTICE_POPUP_MAX_COUNT = 1;     // Never show more than this many at once
+
+let _noticePopupOpen = false;  // True while the popup is on screen
+let _noticeRecheck = false;    // A new notice arrived while the popup was open
+
+// Escape text before putting it into innerHTML
+function _escHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+}
+
+function _getSeenNoticeIds() {
+  try { return new Set(JSON.parse(localStorage.getItem("seen_notice_ids") || "[]")); }
+  catch { return new Set(); }
+}
+
+function _markNoticeSeen(id) {
+  const seen = _getSeenNoticeIds();
+  seen.add(String(id));
+  // Keep only the latest 200 ids so storage stays small
+  localStorage.setItem("seen_notice_ids", JSON.stringify([...seen].slice(-200)));
+}
+
+// Fetch notices from the server and show the ones this device has not acknowledged yet
+async function checkAndShowNoticePopups() {
+  if (!currentUser || isGuestMode || isAdmin()) return;
+  if (_noticePopupOpen) { _noticeRecheck = true; return; }
+  if (!navigator.onLine) return;
+
+  let list;
+  try {
+    const res = await fetch(`${API_BASE}/notices/list?t=${Date.now()}`);
+    if (!res.ok) return;
+    list = await res.json();
+  } catch (e) { return; }
+  if (!Array.isArray(list)) return;
+
+  // Another call may have opened the popup while we were waiting for the server
+  if (_noticePopupOpen) return;
+
+  const seen = _getSeenNoticeIds();
+  const minTime = Date.now() - NOTICE_POPUP_MAX_AGE_DAYS * 86400000;
+
+  const unseen = list
+    // Only notices for folders this user can access
+    .filter(n => !n.folder_path || n.folder_path === '/' || hasFolderPermission(n.folder_path))
+    .filter(n => !seen.has(String(n.id)))
+    .filter(n => new Date(n.created_at).getTime() >= minTime)
+    .slice(0, NOTICE_POPUP_MAX_COUNT)  // The list is newest first
+    .reverse();                        // Show oldest first
+
+  if (unseen.length === 0) return;
+  _showNoticePopup(unseen, 0, list[0]?.id);
+}
+
+// Render one notice of the queue as a full-screen popup
+function _showNoticePopup(queue, index, newestId) {
+  _noticePopupOpen = true;
+  const n = queue[index];
+
+  let el = document.getElementById('noticeForcePopup');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'noticeForcePopup';
+    el.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.8);display:flex;align-items:center;justify-content:center;padding:16px;';
+    document.body.appendChild(el);
+  }
+
+  const time = new Date(n.created_at).toLocaleString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric', hour12: true
+  });
+
+  // File notices show a file list, custom notices show the message text
+  const files = n.file_name ? String(n.file_name).split('\n') : [];
+  const bodyHtml = files.length
+    ? `<div style="font-size:12px;color:#94a3b8;margin-bottom:6px">New file(s) uploaded${n.folder_path ? ' in ' + _escHtml(n.folder_path) : ''}:</div>
+       <div style="max-height:30vh;overflow-y:auto;font-size:13px;line-height:1.7">
+         ${files.map(f => `<div style="word-break:break-all">📄 ${_escHtml(f)}</div>`).join('')}
+       </div>`
+    : `<div style="white-space:pre-wrap;word-break:break-word;max-height:45vh;overflow-y:auto;font-size:14px;line-height:1.7">${_escHtml(n.message || '')}</div>`;
+
+  const canOpenFolder = files.length && n.folder_path;
+  const isLast = index === queue.length - 1;
+
+  el.innerHTML = `
+    <div style="width:100%;max-width:440px;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:20px;padding:20px;box-shadow:0 20px 50px rgba(0,0,0,.6);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <span style="font-size:11px;font-weight:700;color:#fbbf24;letter-spacing:.05em">📢 NOTICE</span>
+        <span style="font-size:11px;color:#64748b">${index + 1} / ${queue.length}</span>
+      </div>
+      <div style="font-size:17px;font-weight:700;margin-bottom:4px;word-break:break-word">${_escHtml(n.title)}</div>
+      <div style="font-size:11px;color:#64748b;margin-bottom:14px">${_escHtml(time)}${n.uploaded_by ? ' • ' + _escHtml(n.uploaded_by) : ''}</div>
+      ${bodyHtml}
+      <div style="display:flex;gap:10px;margin-top:18px">
+        ${canOpenFolder ? `<button id="noticeOpenFolderBtn" style="flex:1;padding:12px;border-radius:12px;border:1px solid #334155;background:transparent;color:#e2e8f0;font-size:13px;font-weight:600">Open folder</button>` : ''}
+        <button id="noticeAckBtn" style="flex:1;padding:12px;border-radius:12px;border:none;background:#2563eb;color:#fff;font-size:13px;font-weight:700">
+          ${isLast ? "I've read this" : 'Next'}
+        </button>
+      </div>
+    </div>`;
+
+  // Mark as seen and move to the next notice (or close at the end)
+  const acknowledge = (openFolder) => {
+    _markNoticeSeen(n.id);
+    if (openFolder) queue._folder = n.folder_path; // Open it after the queue finishes
+
+    if (!isLast) { _showNoticePopup(queue, index + 1, newestId); return; }
+
+    // Queue finished
+    el.remove();
+    _noticePopupOpen = false;
+    if (newestId) localStorage.setItem("last_seen_notice_id", String(newestId));
+    document.getElementById("headerUnseenNoticeDot")?.classList.add("hidden");
+    document.getElementById("noticeBadgeCount")?.classList.add("hidden");
+    if (queue._folder) selectFolder(queue._folder);
+
+    // A new notice came in while the popup was open
+    if (_noticeRecheck) { _noticeRecheck = false; checkAndShowNoticePopups(); }
+  };
+
+  el.querySelector('#noticeAckBtn').onclick = () => acknowledge(false);
+  const openBtn = el.querySelector('#noticeOpenFolderBtn');
+  if (openBtn) openBtn.onclick = () => acknowledge(true);
+}
+
 async function openNoticeBoardModal() {
   showAnimatedModal("noticeBoardModal");
   document.getElementById("headerUnseenNoticeDot").classList.add("hidden");
@@ -2622,7 +2754,9 @@ function initWebSocket() {
         if (!data.folder_path || hasFolderPermission(data.folder_path)) {
           document.getElementById("headerUnseenNoticeDot").classList.remove("hidden");
           document.getElementById("noticeBadgeCount").classList.remove("hidden");
-          showToast(data.title, "info", `${data.file_name || data.message || ''} • ${data.time}`);
+          // Admins keep the small toast; everyone else gets the forced popup
+          if (isAdmin()) showToast(data.title, "info", `${data.file_name || data.message || ''} • ${data.time}`);
+          else checkAndShowNoticePopups();
         }
       } else if (data.type === "chat_event" && data.cleared) {
         document.getElementById("chatMessages").innerHTML = "";
