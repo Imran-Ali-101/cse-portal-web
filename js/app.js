@@ -646,6 +646,10 @@ function openSettingsModal() {
       ghostContainer.classList.add("hidden");
     }
   }
+
+  // Only admins can manage public share links
+  const linksBtn = document.getElementById("adminShareLinksBtn");
+  if (linksBtn) linksBtn.classList.toggle("hidden", !isAdmin());
   
   showAnimatedModal("settingsModal");
 }
@@ -4016,6 +4020,102 @@ function handleMiddleClick(e, messageId, name) {
     if(isGuestMode && currentShareId) url.searchParams.set('share', currentShareId);
     
     window.open(url.toString(), '_blank');
+  }
+}
+
+// ==========================================
+// ADMIN: PUBLIC SHARE LINKS MANAGER
+// ==========================================
+let adminShareLinks = [];
+
+function buildShareUrl(shareId) {
+  return `${window.location.origin}${window.location.pathname}?share=${shareId}`;
+}
+
+async function openSharedLinksModal() {
+  if (!isAdmin()) return;
+  closeSettingsModal();
+  showAnimatedModal("sharedLinksModal");
+  await loadSharedLinks();
+}
+
+function closeSharedLinksModal() { hideAnimatedModal("sharedLinksModal"); }
+
+async function loadSharedLinks() {
+  const container = document.getElementById("sharedLinksListContainer");
+  container.innerHTML = `<div class="text-center py-10 text-slate-400"><span class="spinner"></span></div>`;
+  try {
+    const res = await fetch(`${API_BASE}/share/list?t=${Date.now()}`);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    adminShareLinks = await res.json();
+    renderSharedLinks();
+  } catch (e) {
+    console.error(e);
+    container.innerHTML = `<p class="text-center py-10 text-rose-500">Could not load links.</p>`;
+  }
+}
+
+function renderSharedLinks() {
+  const container = document.getElementById("sharedLinksListContainer");
+  document.getElementById("sharedLinksCount").innerText = adminShareLinks.length;
+
+  if (adminShareLinks.length === 0) {
+    container.innerHTML = `<p class="text-center py-10 text-slate-400">No public links are active.</p>`;
+    return;
+  }
+
+  container.innerHTML = adminShareLinks.map((l, i) => {
+    const created = l.created_at
+      ? new Date(l.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric', hour12: true })
+      : '';
+
+    return `
+      <div class="py-3 flex flex-col gap-2">
+        <div class="flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2 min-w-0">
+            <i class="fa-solid fa-folder text-amber-500"></i>
+            <span class="font-semibold text-slate-800 dark:text-slate-100 truncate">${_escHtml(l.folder_path)}</span>
+          </div>
+          <span class="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded ${l.has_password ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-400' : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400'}">
+            <i class="fa-solid ${l.has_password ? 'fa-lock' : 'fa-globe'} mr-1"></i>${l.has_password ? 'Password' : 'Open'}
+          </span>
+        </div>
+        <div class="text-[10px] text-slate-400 font-mono">${_escHtml(created)}${l.created_by ? ' • by ' + _escHtml(l.created_by) : ''}</div>
+        <div class="flex gap-2">
+          <button onclick="copySharedLink(${i})" class="flex-1 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold">
+            <i class="fa-solid fa-copy mr-1"></i> Copy link
+          </button>
+          <button onclick="revokeSharedLink(${i})" class="flex-1 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 font-semibold">
+            <i class="fa-solid fa-ban mr-1"></i> Revoke
+          </button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function copySharedLink(index) {
+  const link = adminShareLinks[index];
+  if (!link) return;
+  navigator.clipboard.writeText(buildShareUrl(link.id));
+  showToast("Link copied to clipboard!", "success");
+}
+
+async function revokeSharedLink(index) {
+  const link = adminShareLinks[index];
+  if (!link) return;
+  if (!confirm(`Disable the public link for "${link.folder_path}"? Anyone using it will immediately lose access.`)) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/share/revoke-by-id`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ share_id: link.id })
+    });
+    if (!res.ok) throw new Error("Failed to disable link");
+    showToast("Public link has been disabled!", "success");
+    await loadSharedLinks();
+  } catch (err) {
+    showToast(err.message, "error");
   }
 }
 
