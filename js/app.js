@@ -539,6 +539,7 @@ async function renderPortalView() {
 
     await loadFolders();
     await loadFiles();
+    await refreshOfflineIds();
     restoreFolderFromUrl();
     forceSync = false;
     sortFiles(currentSortMode);
@@ -1150,10 +1151,16 @@ function renderFilesTable() {
   }
 
   const currentPrefix = currentSelectedFolder === '/' ? '/' : currentSelectedFolder + '/';
+  // While offline, only show what is actually saved on this device
+  const offlineMode = !navigator.onLine;
+  const hasOfflineFileUnder = (folderName) => allFiles.some(f =>
+    (f.folder_path === folderName || f.folder_path.startsWith(folderName + '/')) &&
+    offlineIds.has(String(f.telegram_message_id)));
   
   const childFolders = allFolders.filter(f => {
     if (f.folder_name === '/') return false;
     if (!f.folder_name.startsWith(currentPrefix)) return false;
+    if (offlineMode && !hasOfflineFileUnder(f.folder_name)) return false;
     
     if (f.allowed_students && f.allowed_students.length > 0 && !isPrimarySuperAdmin()) {
       if (!currentUser || !f.allowed_students.includes(currentUser.student_id)) return false;
@@ -1188,6 +1195,8 @@ function renderFilesTable() {
 
   const filteredFiles = allFiles.filter(f => {
     if (f.folder_path !== currentSelectedFolder) return false;
+    if (offlineMode && !offlineIds.has(String(f.telegram_message_id))) return false;
+    
     const currentFolderObj = allFolders.find(x => x.folder_name === currentSelectedFolder);
     if (currentFolderObj && currentFolderObj.allowed_students && currentFolderObj.allowed_students.length > 0 && !isPrimarySuperAdmin()) {
       if (!currentUser || !currentFolderObj.allowed_students.includes(currentUser.student_id)) return false;
@@ -1214,7 +1223,7 @@ function renderFilesTable() {
         </span>
       </div>
       <div class="col-span-4 md:col-span-3 flex items-center justify-end gap-3 text-slate-400 font-mono">
-        <span>${formatBytes(f.file_size)}</span>
+        <span>${offlineIds.has(String(f.telegram_message_id)) ? '<i class="fa-solid fa-circle-check text-emerald-500 mr-1" title="Saved offline"></i>' : ''}${formatBytes(f.file_size)}</span>
         <button onclick="openItemActionMenu(event, '${f.id}', ${f.telegram_message_id}, '${f.file_name}', false)" class="hover:text-slate-600 p-1">
           <i class="fa-solid fa-ellipsis-vertical"></i>
         </button>
@@ -1223,7 +1232,7 @@ function renderFilesTable() {
   `).join('');
 
   if (!parentRow && foldersMarkup === "" && filesMarkup === "") {
-    container.innerHTML = `<div class="text-center py-10 text-slate-400">No files in this folder.</div>`;
+    container.innerHTML = `<div class="text-center py-10 text-slate-400">${offlineMode ? 'No files saved offline here. Open a file while online to save it for offline use.' : 'No files in this folder.'}</div>`;
   } else {
     container.innerHTML = parentRow + foldersMarkup + filesMarkup;
   }
@@ -2379,6 +2388,22 @@ async function downloadSelectedZip() {
 // ============================================
 const FILE_CACHE_NAME = 'portal-offline-files-v1';
 
+// Message IDs of the files that are saved on this device for offline use
+let offlineIds = new Set();
+
+async function refreshOfflineIds() {
+  offlineIds = new Set();
+  if (!('caches' in window)) return;
+  try {
+    const cache = await caches.open(FILE_CACHE_NAME);
+    const keys = await cache.keys();
+    for (const req of keys) {
+      // Cache key looks like <origin>/__offline_file__/<messageId>
+      offlineIds.add(String(new URL(req.url).pathname.split('/').pop()));
+    }
+  } catch (e) { /* ignore */ }
+}
+
 function getFileCacheKey(messageId) {
   // Cache API only accepts http(s) URLs, so use a fake path on our own origin.
   // Stable key: no token in it, so it keeps working after re-login.
@@ -2413,7 +2438,9 @@ async function saveToFileCache(messageId, blob, mimeType) {
         }
       })
     );
-    trimCacheIfOverLimit();
+    await trimCacheIfOverLimit();
+    await refreshOfflineIds();                // Update the "saved offline" markers
+    if (!isGuestMode) renderFilesTable();     // Never touch the list in guest (public) view
   } catch (e) {
     console.error('Cache save failed:', e);
     showToast("Could not save file for offline use", "error", String(e.message || e));
@@ -2486,7 +2513,9 @@ async function openPreview(name, id) {
 
     try {
       // Show download progress using ReadableStream
-      const response = await fetch(streamUrl);
+      // no-store: do not keep a second hidden copy in the browser HTTP cache
+      const response = await fetch(streamUrl, { cache: 'no-store' });
+      
       if (!response.ok) throw new Error('Server error: ' + response.status);
 
       const contentLength = response.headers.get('Content-Length');
@@ -2747,9 +2776,8 @@ function initWebSocket() {
     ws.onmessage = async (e) => {
       const data = JSON.parse(e.data);
       if (data.type === "notice") {
-        // New upload/notice from admin — bust cache and sync fresh data
-        localStorage.removeItem("cached_files");
-        localStorage.removeItem("cached_folders");
+        // Force a fresh fetch but keep the old lists as a fallback
+        forceSync = true;
         localStorage.removeItem("cached_notices");
         await loadFolders();
         await loadFiles();
@@ -3623,10 +3651,9 @@ function getFromLocalStorage(key) {
 // Listen for internet connection return
 window.addEventListener('online', async () => {
   showToast("Internet connected! Syncing latest data...", "success");
-  if (currentUser) {
-    // Bust cache on reconnect so fresh data loads from server
-    localStorage.removeItem("cached_files");
-    localStorage.removeItem("cached_folders");
+  if (currentUser && !isGuestMode) {
+    // Keep the old lists as a fallback and just force a fresh fetch
+    forceSync = true;
     await loadFolders();
     await loadFiles();
     sortFiles(currentSortMode);
@@ -3635,7 +3662,8 @@ window.addEventListener('online', async () => {
 
 // Listen for internet connection loss
 window.addEventListener('offline', () => {
-  showToast("You are offline. Showing cached data.", "info");
+  showToast("You are offline. Showing files saved on this device.", "info");
+  if (currentUser && !isGuestMode) renderFilesTable();
 });
 
 // Offline এ cached data দিয়ে render করো
@@ -3694,19 +3722,18 @@ async function clearOfflineStorage() {
   if (!confirm("Are you sure you want to delete all downloaded files? You will need an internet connection to view them again.")) return;
 
   try {
-    // 1. Clear file cache (PDFs, Images)
+    // Delete the saved files (PDFs, images, ...)
     if ('caches' in window) {
-      await caches.delete('portal-offline-files-v1'); 
+      await caches.delete(FILE_CACHE_NAME);
     }
-    
-    // 2. Clear localStorage fallback data
-    localStorage.removeItem("cached_files");
-    localStorage.removeItem("cached_folders");
-    
+
+    // Keep the file/folder lists: they are tiny, and keeping them
+    // means the portal still opens correctly when offline
+    offlineIds = new Set();
+    if (!isGuestMode) renderFilesTable();
+
     showToast("Offline storage cleared successfully!", "success");
-    
-    // Refresh modal UI
-    openStorageManager(); 
+    openStorageManager(); // Refresh the modal numbers
   } catch (err) {
     showToast("Failed to clear storage.", "error");
   }
