@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cse-portal-v24';
+const CACHE_NAME = 'cse-portal-v25';
 
 // Critical local files to load in offline
 const LOCAL_ASSETS = [
