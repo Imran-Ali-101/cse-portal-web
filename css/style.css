@@ -6,6 +6,10 @@
   user-select: none;
 }
 
+html {
+  touch-action: manipulation;
+}
+
 /* Custom Minimal Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

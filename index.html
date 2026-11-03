@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <!-- PWA Support -->
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#2563eb">
@@ -504,6 +504,9 @@
 
       <!-- Action Buttons -->
       <div class="flex items-center gap-4 shrink-0">
+        <button id="imageRotateBtn" onclick="rotatePreviewImage()" class="hidden text-slate-400 hover:text-white text-sm" title="Rotate 90°">
+          <i class="fa-solid fa-rotate-right"></i>
+        </button>
         <button onclick="downloadActivePreviewFile()" class="text-slate-400 hover:text-white text-sm" title="Download File">
           <i class="fa-solid fa-download"></i>
         </button>

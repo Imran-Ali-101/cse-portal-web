@@ -2467,6 +2467,9 @@ async function openPreview(name, id) {
   const topBar = document.getElementById("previewTopBar");
 
   if (pageIndicator) pageIndicator.classList.add("hidden");
+  const rotateBtnReset = document.getElementById("imageRotateBtn");
+  if (rotateBtnReset) rotateBtnReset.classList.add("hidden");
+  
   container.scrollTop = 0;
   container.style.padding = "16px";
   container.style.justifyContent = "center";
@@ -2588,37 +2591,93 @@ async function openPreview(name, id) {
       </div>`;
   }
   else if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.webp') || lower.endsWith('.gif') || lower.endsWith('.svg')) {
-    container.style.justifyContent = "center";
-    container.style.overflow = "hidden";
-    container.innerHTML = `<img id="previewImageElement" src="${finalUrlToRender}" alt="${name}" class="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl transition-transform duration-75" style="transform: translate(0px, 0px) scale(1); cursor: grab;">`;
-
-    currentImageScale = 1.0;
-    let translateX = 0, translateY = 0, isDragging = false, startX, startY;
-    const img = document.getElementById("previewImageElement");
-
-    container.onwheel = (e) => {
-      if (e.ctrlKey) {
+      container.style.justifyContent = "center";
+      container.style.overflow = "hidden";
+      container.style.touchAction = "none"; // let our own handlers take over touch gestures
+  
+      container.innerHTML = `<img id="previewImageElement" src="${finalUrlToRender}" alt="${name}" draggable="false" class="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl select-none" style="transform: translate(0px, 0px) rotate(0deg) scale(1); cursor: grab; touch-action: none;">`;
+  
+      const img = document.getElementById("previewImageElement");
+      const rotateBtn = document.getElementById("imageRotateBtn");
+      if (rotateBtn) rotateBtn.classList.remove("hidden");
+  
+      const MIN_SCALE = 0.3, MAX_SCALE = 10;
+      let scale = 1, rotation = 0, tx = 0, ty = 0;
+      const pointers = new Map(); // active pointers: id -> {x, y}
+      let lastDist = 0, lastMidX = 0, lastMidY = 0;
+  
+      const applyTransform = () => {
+        img.style.transform = `translate(${tx}px, ${ty}px) rotate(${rotation}deg) scale(${scale})`;
+      };
+  
+      // Zoom while keeping the point (px, py) fixed under the cursor / fingers
+      const zoomAt = (factor, px, py) => {
+        const rect = container.getBoundingClientRect();
+        const dx = px - (rect.left + rect.width / 2);
+        const dy = py - (rect.top + rect.height / 2);
+        const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale * factor));
+        const ratio = newScale / scale;
+        tx = dx - (dx - tx) * ratio;
+        ty = dy - (dy - ty) * ratio;
+        scale = newScale;
+      };
+  
+      // Rotate 90 degrees clockwise (used by the toolbar button)
+      window.rotatePreviewImage = () => {
+        rotation = (rotation + 90) % 360;
+        applyTransform();
+      };
+  
+      // Desktop: mouse wheel zoom (also covers trackpad pinch)
+      container.onwheel = (e) => {
         e.preventDefault();
-        currentImageScale += (e.deltaY < 0) ? 0.15 : -0.15;
-        currentImageScale = Math.max(0.3, Math.min(currentImageScale, 10.0));
-        img.style.transform = `translate(${translateX}px, ${translateY}px) scale(${currentImageScale})`;
-      }
-    };
-    img.onmousedown = (e) => {
-      e.preventDefault();
-      isDragging = true;
-      startX = e.clientX - translateX;
-      startY = e.clientY - translateY;
-      img.style.cursor = "grabbing";
-    };
-    container.onmousemove = (e) => {
-      if (!isDragging) return;
-      translateX = e.clientX - startX;
-      translateY = e.clientY - startY;
-      img.style.transform = `translate(${translateX}px, ${translateY}px) scale(${currentImageScale})`;
-    };
-    container.onmouseup = () => { isDragging = false; img.style.cursor = "grab"; };
-    container.onmouseleave = () => { isDragging = false; img.style.cursor = "grab"; };
+        const delta = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;
+        zoomAt(Math.exp(-delta * 0.002), e.clientX, e.clientY);
+        applyTransform();
+      };
+  
+      // Mouse drag + one-finger pan + two-finger pinch, all via pointer events
+      container.onpointerdown = (e) => {
+        container.setPointerCapture(e.pointerId);
+        pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        img.style.cursor = "grabbing";
+        if (pointers.size === 2) {
+          const [a, b] = [...pointers.values()];
+          lastDist = Math.hypot(a.x - b.x, a.y - b.y);
+          lastMidX = (a.x + b.x) / 2;
+          lastMidY = (a.y + b.y) / 2;
+        }
+      };
+  
+      container.onpointermove = (e) => {
+        if (!pointers.has(e.pointerId)) return;
+        const prev = pointers.get(e.pointerId);
+        pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  
+        if (pointers.size === 1) {
+          tx += e.clientX - prev.x;
+          ty += e.clientY - prev.y;
+        } else if (pointers.size === 2) {
+          const [a, b] = [...pointers.values()];
+          const dist = Math.hypot(a.x - b.x, a.y - b.y);
+          const midX = (a.x + b.x) / 2;
+          const midY = (a.y + b.y) / 2;
+          if (lastDist > 0) zoomAt(dist / lastDist, midX, midY);
+          tx += midX - lastMidX;
+          ty += midY - lastMidY;
+          lastDist = dist;
+          lastMidX = midX;
+          lastMidY = midY;
+        }
+        applyTransform();
+      };
+  
+      const endPointer = (e) => {
+        pointers.delete(e.pointerId);
+        if (pointers.size === 0) img.style.cursor = "grab";
+      };
+      container.onpointerup = endPointer;
+      container.onpointercancel = endPointer;
   }
   else if (lower.endsWith('.pdf')) {
     const viewportMeta = document.querySelector('meta[name="viewport"]');
@@ -2701,6 +2760,15 @@ function closePreview(isFromBackButton = false) {
     container.onmousemove = null;
     container.onmouseup = null;
     container.onmouseleave = null;
+    container.onpointerdown = null;
+    container.onpointermove = null;
+    container.onpointerup = null;
+    container.onpointercancel = null;
+    container.style.touchAction = "";
+    container.style.overflow = "";
+    window.rotatePreviewImage = null;
+    const rotateBtnClose = document.getElementById("imageRotateBtn");
+    if (rotateBtnClose) rotateBtnClose.classList.add("hidden");
   }
   
   hideAnimatedModal("previewModal");
@@ -4118,6 +4186,11 @@ async function revokeSharedLink(index) {
     showToast(err.message, "error");
   }
 }
+
+// iOS Safari ignores user-scalable=no, so block the page-level pinch gesture manually
+document.addEventListener("gesturestart", (e) => {
+  if (!document.getElementById("pdfIframe")) e.preventDefault();
+});
 
 
 renderPortalView();
