@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cse-portal-v23';
+const CACHE_NAME = 'cse-portal-v24';
 
 // Critical local files to load in offline
 const LOCAL_ASSETS = [
@@ -86,6 +86,24 @@ self.addEventListener('fetch', (e) => {
 
   // Bypass non-GET requests (like POST, PUT, DELETE)
   if (e.request.method !== 'GET') return;
+
+  // App shell (HTML + app.js): network-first so code updates reach users,
+  // falling back to the cached copy when offline
+  const u = new URL(e.request.url);
+  const isAppShell = u.origin === location.origin &&
+    (u.pathname === '/' || u.pathname.endsWith('.html') || u.pathname === '/js/app.js');
+  if (isAppShell) {
+    e.respondWith(
+      fetch(e.request).then(r => {
+        if (r.ok) {
+          const c = r.clone();
+          caches.open(CACHE_NAME).then(ch => ch.put(e.request, c));
+        }
+        return r;
+      }).catch(() => caches.match(e.request, { ignoreSearch: true }))
+    );
+    return;
+  }
 
   // Magic Fix: Added ignoreSearch: true to handle URL query parameters
   e.respondWith(

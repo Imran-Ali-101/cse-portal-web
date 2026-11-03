@@ -170,38 +170,113 @@ const text = document.getElementById("serverStatusText");
 if (dot) dot.className = "h-2.5 w-2.5 rounded-full bg-slate-400 animate-pulse";
 if (text) { text.innerText = "Connecting..."; text.className = "text-[10px] font-mono text-slate-400 hidden sm:inline"; }
 
-// GLOBAL API SECURITY INTERCEPTOR
+// ==========================================
+// GLOBAL API SECURITY INTERCEPTOR + COLD START LOADER
+// ==========================================
+let _pendingApi = 0;      // Number of in-flight API requests
+let _loaderTimer = null;  // Delay timer so the loader only shows on slow requests
+
+// Create the loader element once (lazily) and reuse it
+function _ensureColdLoader() {
+  let el = document.getElementById('coldStartLoader');
+  if (el) return el;
+
+  // Spinner animation keyframes
+  const st = document.createElement('style');
+  st.textContent = '@keyframes coldspin{to{transform:rotate(360deg)}}';
+  document.head.appendChild(st);
+
+  el = document.createElement('div');
+  el.id = 'coldStartLoader';
+  el.style.cssText = 'position:fixed;left:12px;right:12px;bottom:16px;z-index:99999;max-width:440px;margin:0 auto;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:16px;padding:14px 16px;box-shadow:0 10px 30px rgba(0,0,0,.45);display:none;';
+  el.innerHTML = `
+    <div style="display:flex;align-items:flex-start;gap:12px;">
+      <div style="width:22px;height:22px;border:3px solid #334155;border-top-color:#60a5fa;border-radius:50%;animation:coldspin .8s linear infinite;flex-shrink:0;margin-top:2px"></div>
+      <div>
+        <div style="font-size:13px;font-weight:600">Loading… Please wait a moment.</div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:5px;line-height:1.6">
+          <br><span style="opacity:.7">Server sleeps when idle to save cost — sorry for the wait. Everything will work normally once it loads.</span>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+  return el;
+}
+
+// Called when an API request starts
+function _apiStart() {
+  _pendingApi++;
+  if (_pendingApi === 1) {
+    clearTimeout(_loaderTimer);
+    // Show the loader only if the request takes longer than 1.5s
+    _loaderTimer = setTimeout(() => {
+      if (_pendingApi > 0) _ensureColdLoader().style.display = 'block';
+    }, 1500);
+  }
+}
+
+// Called when an API request finishes (success or failure)
+function _apiEnd() {
+  _pendingApi = Math.max(0, _pendingApi - 1);
+  if (_pendingApi === 0) {
+    clearTimeout(_loaderTimer);
+    const el = document.getElementById('coldStartLoader');
+    if (el) el.style.display = 'none';
+  }
+}
+
 const originalFetch = window.fetch;
 window.fetch = async function(resource, config) {
-  // Add token for backend
-  if (typeof resource === 'string' && resource.startsWith(API_BASE)) {
+  const isApi = typeof resource === 'string' && resource.startsWith(API_BASE);
+  // Background presence calls should never trigger the loader
+  const silent = isApi && resource.includes('/presence/');
+
+  if (isApi) {
     config = config || {};
     config.headers = config.headers || {};
-    
-    // add token for logged in users
+
+    // Attach the JWT for logged-in (non-guest) users
     if (currentUser && currentUser.token && !isGuestMode) {
       config.headers['Authorization'] = `Bearer ${currentUser.token}`;
     }
+    if (!silent) _apiStart();
   }
+
   try {
     const response = await originalFetch(resource, config);
-    if (typeof resource === 'string' && resource.startsWith(API_BASE)) {
+
+    if (isApi) {
       updateServerDot(true);
       if (!resource.includes('/presence/heartbeat')) lastApiOk = Date.now();
+
+      // Invalidate local list caches after any successful mutating request
       const method = ((config && config.method) || 'GET').toUpperCase();
       const MUTATING = ['/slides/upload','/slides/move','/slides/trash','/folders/','/items/rename','/admin/trash/','/notices/'];
       if (response.ok && method !== 'GET' && MUTATING.some(p => resource.includes(p))) {
         ["cached_files","cached_folders","cached_notices"].forEach(k => localStorage.removeItem(k));
       }
+
+      // Expired/invalid JWT: log the user out automatically
+      // (/auth/ and /share/ are excluded because they use 401 for wrong passwords)
+      if (response.status === 401 && currentUser && !isGuestMode &&
+          !resource.includes('/auth/') && !resource.includes('/share/')) {
+        handleLogout();
+        showToast("Session expired. Please login again.", "error");
+      }
     }
     return response;
   } catch (err) {
-    if (typeof resource === 'string' && resource.startsWith(API_BASE)) {
-      updateServerDot(false);
-    }
+    if (isApi) updateServerDot(false);
     throw err;
+  } finally {
+    // Always hide the loader when the request settles
+    if (isApi && !silent) _apiEnd();
   }
 };
+
+// Start waking the server as soon as the page opens
+// (shows the loader on refresh and in the public view too)
+fetch(`${API_BASE}/`).catch(() => {});
 
 let presenceData = [];
 let currentPresenceTab = 'online';
@@ -791,28 +866,67 @@ async function loadDynamicTools() {
   }
 }
 
+// Refresh folders and files in the background without blocking the UI
+let _bgSyncing = false;
+async function syncListsInBackground() {
+  if (_bgSyncing || !navigator.onLine || !currentUser) return;
+  _bgSyncing = true;
+  try {
+    const [fr, sr] = await Promise.all([
+      fetch(`${API_BASE}/folders/list`),
+      fetch(`${API_BASE}/slides/list`)
+    ]);
+    if (!fr.ok || !sr.ok) throw new Error("sync failed");
+
+    const folders = await fr.json();
+    const files = await sr.json();
+
+    // Normalize paths so they always start with "/"
+    allFolders = folders.map(f => { let n = f.folder_name; if (!n.startsWith('/')) n = '/' + n; return { ...f, folder_name: n }; });
+    allFiles = files.map(f => { let p = f.folder_path || '/'; if (!p.startsWith('/')) p = '/' + p; return { ...f, folder_path: p }; });
+
+    saveToLocalStorage("cached_folders", allFolders);
+    saveToLocalStorage("cached_files", allFiles);
+    localStorage.setItem("lists_synced_at", Date.now());
+
+    sortFiles(currentSortMode); // Re-render with fresh data
+  } catch (e) {
+    console.warn(e);
+  } finally {
+    _bgSyncing = false;
+  }
+}
+
+// True if the cached lists are older than 5 minutes
+function _listsStale() {
+  return Date.now() - Number(localStorage.getItem("lists_synced_at") || 0) > 5 * 60 * 1000;
+}
+
 async function loadFolders() {
   if (!currentUser) return;
 
-  // Always load from cache first (instant, no server)
+  // Show cached data instantly; refresh in the background if it is stale
   const cached = getFromLocalStorage("cached_folders");
-    if (cached.length > 0 && (!forceSync || !navigator.onLine)) {
+  if (cached.length > 0 && (!forceSync || !navigator.onLine)) {
     allFolders = cached;
-    return; // Cache exists — skip server entirely
+    if (_listsStale()) syncListsInBackground();
+    return;
   }
 
-  // Cache is empty = first time visit — fetch from server once
+  // No cache (first visit) or forced reload: fetch from the server
   if (!navigator.onLine) return;
   try {
     const res = await fetch(`${API_BASE}/folders/list`);
-    allFolders = await res.json();
-    allFolders = allFolders.map(f => {
+    if (!res.ok) throw new Error("HTTP " + res.status); // Avoid calling .map on an error object
+    const data = await res.json();
+    allFolders = data.map(f => {
       let n = f.folder_name;
       if (!n.startsWith('/')) n = '/' + n;
       return { ...f, folder_name: n };
     });
     saveToLocalStorage("cached_folders", allFolders);
-  } catch(e) {
+    localStorage.setItem("lists_synced_at", Date.now());
+  } catch (e) {
     console.error(e);
     allFolders = getFromLocalStorage("cached_folders");
   }
@@ -948,17 +1062,19 @@ async function uploadSelectedFiles(input) {
 async function loadFiles() {
   if (!currentUser) return;
 
-  // Always load from cache first (instant, no server)
+  // Show cached data instantly; refresh in the background if it is stale
   const cached = getFromLocalStorage("cached_files");
   if (cached.length > 0 && (!forceSync || !navigator.onLine)) {
     allFiles = cached;
-    return; // Cache exists — skip server entirely
+    if (_listsStale()) syncListsInBackground();
+    return;
   }
 
-  // Cache is empty = first time visit — fetch from server once
+  // No cache (first visit) or forced reload: fetch from the server
   if (!navigator.onLine) return;
   try {
     const res = await fetch(`${API_BASE}/slides/list`);
+    if (!res.ok) throw new Error("HTTP " + res.status); // Avoid calling .map on an error object
     const data = await res.json();
     allFiles = data.map(f => {
       let p = f.folder_path || '/';
@@ -966,7 +1082,8 @@ async function loadFiles() {
       return { ...f, folder_path: p };
     });
     saveToLocalStorage("cached_files", allFiles);
-  } catch(e) {
+    localStorage.setItem("lists_synced_at", Date.now());
+  } catch (e) {
     console.error(e);
     allFiles = getFromLocalStorage("cached_files");
   }
@@ -2150,20 +2267,21 @@ async function getCachedBlobUrl(messageId) {
 }
 
 async function saveToFileCache(messageId, blob, mimeType) {
-  // Save downloaded file to cache with stable key
   if (!('caches' in window)) return;
   try {
     const cache = await caches.open(FILE_CACHE_NAME);
     await cache.put(
       getFileCacheKey(messageId),
       new Response(blob, {
-        headers: { 'Content-Type': mimeType || 'application/octet-stream' }
+        headers: {
+          'Content-Type': mimeType || 'application/octet-stream',
+          'X-File-Size': String(blob.size),
+          'X-Saved-At': String(Date.now())
+        }
       })
     );
-    trimCacheIfOverLimit(); // Run in background
-  } catch (e) {
-    console.warn('Cache save failed:', e);
-  }
+    trimCacheIfOverLimit();
+  } catch (e) { console.warn('Cache save failed:', e); }
 }
 
 async function openPreview(name, id) {
@@ -3295,30 +3413,50 @@ async function saveEditedRoutine() {
 // ==========================================
 
 // Function to automatically trim older cached files when storage exceeds 1.5 GB limit
-async function trimCacheIfOverLimit() {
-  if (!('caches' in window) || !navigator.storage || !navigator.storage.estimate) return;
+// Sum the size of all offline files using the X-File-Size header
+// (reads headers only, never the file body, so it is fast)
+async function getOfflineUsageBytes() {
+  if (!('caches' in window)) return 0;
+  try {
+    const cache = await caches.open(FILE_CACHE_NAME);
+    const keys = await cache.keys();
+    let total = 0;
+    for (const req of keys) {
+      const res = await cache.match(req);
+      total += parseInt(res?.headers.get('X-File-Size') || '0', 10);
+    }
+    return total;
+  } catch { return 0; }
+}
 
-  const MAX_BYTES = 1536 * 1024 * 1024; // 1.5 GB in Bytes
-  const FILE_CACHE_NAME = 'portal-offline-files-v1';
+// Delete the oldest offline files when usage goes over the 1.5 GB limit
+async function trimCacheIfOverLimit() {
+  if (!('caches' in window)) return;
+  const MAX_BYTES = 1536 * 1024 * 1024; // 1.5 GB
 
   try {
-    let { usage } = await navigator.storage.estimate();
+    const cache = await caches.open(FILE_CACHE_NAME);
+    const keys = await cache.keys();
 
-    // If storage usage exceeds 1.5 GB
-    if (usage && usage > MAX_BYTES) {
-      const cache = await caches.open(FILE_CACHE_NAME);
-      const requests = await cache.keys();
+    // Collect size and saved-time of every cached file
+    const items = [];
+    let total = 0;
+    for (const req of keys) {
+      const res = await cache.match(req);
+      const size = parseInt(res?.headers.get('X-File-Size') || '0', 10);
+      const at = parseInt(res?.headers.get('X-Saved-At') || '0', 10);
+      items.push({ req, size, at });
+      total += size;
+    }
 
-      // Older cached files are stored first, so start deleting from the beginning
-      for (const request of requests) {
-        // Re-check storage estimate after deleting each file
-        const currentEstimate = await navigator.storage.estimate();
-        if (currentEstimate.usage <= MAX_BYTES * 0.85) { 
-          // Stop loop once usage drops to 85% (approx 870 MB)
-          break; 
-        }
-        await cache.delete(request);
-      }
+    if (total <= MAX_BYTES) return;
+
+    // Oldest files first; stop once usage drops to 85% of the limit
+    items.sort((a, b) => a.at - b.at);
+    for (const it of items) {
+      if (total <= MAX_BYTES * 0.85) break;
+      await cache.delete(it.req);
+      total -= it.size;
     }
   } catch (err) {
     console.warn("Auto cache trimming failed:", err);
@@ -3363,16 +3501,10 @@ if (!navigator.onLine && currentUser) {
 // STORAGE MANAGER LOGIC
 // ==========================================
 
-// Get real storage estimation from browser API
+// Use our own accurate size count instead of navigator.storage.estimate(),
+// which updates lazily and also includes app assets
 async function getStorageInfo() {
-  if (navigator.storage && navigator.storage.estimate) {
-    const estimate = await navigator.storage.estimate();
-    return {
-      usage: estimate.usage || 0,
-      quota: estimate.quota || 0
-    };
-  }
-  return { usage: 0, quota: 500 * 1024 * 1024 }; // Fallback to 500MB if API not supported
+  return { usage: await getOfflineUsageBytes(), quota: 1536 * 1024 * 1024 };
 }
 
 async function openStorageManager() {
