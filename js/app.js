@@ -2380,8 +2380,9 @@ async function downloadSelectedZip() {
 const FILE_CACHE_NAME = 'portal-offline-files-v1';
 
 function getFileCacheKey(messageId) {
-  // Stable key using messageId — no token, no expiry issues
-  return `file-cache://stream/${messageId}`;
+  // Cache API only accepts http(s) URLs, so use a fake path on our own origin.
+  // Stable key: no token in it, so it keeps working after re-login.
+  return `${location.origin}/__offline_file__/${messageId}`;
 }
 
 async function getCachedBlobUrl(messageId) {
@@ -2413,7 +2414,10 @@ async function saveToFileCache(messageId, blob, mimeType) {
       })
     );
     trimCacheIfOverLimit();
-  } catch (e) { console.warn('Cache save failed:', e); }
+  } catch (e) {
+    console.error('Cache save failed:', e);
+    showToast("Could not save file for offline use", "error", String(e.message || e));
+  }
 }
 
 async function openPreview(name, id) {
@@ -3547,8 +3551,18 @@ async function saveEditedRoutine() {
 // ==========================================
 
 // Function to automatically trim older cached files when storage exceeds 1.5 GB limit
-// Sum the size of all offline files using the X-File-Size header
-// (reads headers only, never the file body, so it is fast)
+// Read size and saved-time of one cached response.
+// Falls back to the real body size for entries saved without our headers.
+async function _cacheEntryInfo(res) {
+  let size = parseInt(res.headers.get('X-File-Size') || '0', 10);
+  if (!size) {
+    try { size = (await res.clone().blob()).size; } catch { size = 0; }
+  }
+  const at = parseInt(res.headers.get('X-Saved-At') || '0', 10);
+  return { size, at };
+}
+
+// Sum the size of all offline files
 async function getOfflineUsageBytes() {
   if (!('caches' in window)) return 0;
   try {
@@ -3557,7 +3571,7 @@ async function getOfflineUsageBytes() {
     let total = 0;
     for (const req of keys) {
       const res = await cache.match(req);
-      total += parseInt(res?.headers.get('X-File-Size') || '0', 10);
+      if (res) total += (await _cacheEntryInfo(res)).size;
     }
     return total;
   } catch { return 0; }
@@ -3572,15 +3586,14 @@ async function trimCacheIfOverLimit() {
     const cache = await caches.open(FILE_CACHE_NAME);
     const keys = await cache.keys();
 
-    // Collect size and saved-time of every cached file
     const items = [];
     let total = 0;
     for (const req of keys) {
       const res = await cache.match(req);
-      const size = parseInt(res?.headers.get('X-File-Size') || '0', 10);
-      const at = parseInt(res?.headers.get('X-Saved-At') || '0', 10);
-      items.push({ req, size, at });
-      total += size;
+      if (!res) continue;
+      const info = await _cacheEntryInfo(res);
+      items.push({ req, size: info.size, at: info.at });
+      total += info.size;
     }
 
     if (total <= MAX_BYTES) return;
