@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
   <!-- PWA Support -->
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#2563eb">
@@ -37,11 +37,78 @@
       to { background-position: 0 0; }
     }
   </style>
+
+  <style>
+    :root { --hdr: 3.5rem; --nav-h: 4rem; }
+
+    /* ---------- pages ---------- */
+    .page { display: none; }
+    .page.is-active { display: block; }
+    html:not(.vt) .page.is-active { animation: page-in .22s ease both; }
+    @keyframes page-in { from { opacity: 0; transform: translateY(8px); } }
+
+    /* ---------- layout offsets (nav = bottom bar on phone, left sidebar on md+) ---------- */
+    body.has-nav { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); }
+    body.guest-mode #appNav { display: none !important; }
+    body[data-tab="chat"] footer { display: none; }
+    .chat-box { height: calc(100dvh - var(--hdr) - var(--nav-h) - env(safe-area-inset-bottom)); }
+    @media (max-width: 767px) {
+      body.kbd #appNav { display: none !important; }
+      body.kbd.has-nav { padding-bottom: 0; }
+      body.kbd .chat-box { height: calc(100dvh - var(--hdr)); }
+    }
+    @media (min-width: 768px) {
+      body.has-nav { padding-bottom: 0; padding-left: 15rem; }
+      body.has-nav #hdrBrand { visibility: hidden; }
+      .chat-box { height: calc(100dvh - var(--hdr)); }
+    }
+
+    /* ---------- nav items ---------- */
+    .nav-item { position: relative; color: #64748b; transition: color .2s, transform .15s; -webkit-tap-highlight-color: transparent; }
+    .nav-item.is-active { color: #2563eb; }
+    .dark .nav-item { color: #94a3b8; }
+    .dark .nav-item.is-active { color: #60a5fa; }
+    .nav-pill { position: absolute; z-index: 0; inset: 5px 16px; border-radius: 9999px; background: #dbeafe; view-transition-name: navpill; }
+    .dark .nav-pill { background: rgba(37, 99, 235, .22); }
+    @media (min-width: 768px) {
+      .nav-pill { inset: 0; border-radius: .75rem; background: #eff6ff; }
+      .dark .nav-pill { background: rgba(37, 99, 235, .18); }
+    }
+
+    /* ---------- More page: Academic Tools (filled by loadDynamicTools) ---------- */
+    #dynamicToolsContainer > span { display: block; padding: .85rem 1rem .25rem; }
+    #dynamicToolsContainer > a { padding: .8rem 1rem; border-radius: 0; }
+
+    /* ---------- page transitions (View Transitions API) ---------- */
+    #appNav { view-transition-name: appnav; }
+    #appHeader { view-transition-name: apphdr; }
+    ::view-transition-old(root), ::view-transition-new(root) {
+      animation-duration: .26s; animation-timing-function: cubic-bezier(.32, .72, 0, 1);
+      animation-fill-mode: both; mix-blend-mode: normal;
+    }
+    ::view-transition-group(navpill) { animation-duration: .3s; animation-timing-function: cubic-bezier(.32, .72, 0, 1); }
+    html[data-dir="fwd"]::view-transition-old(root)  { animation-name: vt-out-l; }
+    html[data-dir="fwd"]::view-transition-new(root)  { animation-name: vt-in-r; }
+    html[data-dir="back"]::view-transition-old(root) { animation-name: vt-out-r; }
+    html[data-dir="back"]::view-transition-new(root) { animation-name: vt-in-l; }
+    html[data-dir="fade"]::view-transition-old(root) { animation-name: vt-fade-out; }
+    html[data-dir="fade"]::view-transition-new(root) { animation-name: vt-fade-in; }
+    @keyframes vt-out-l { to { transform: translateX(-24%); opacity: 0; } }
+    @keyframes vt-in-r  { from { transform: translateX(32%); opacity: 0; } }
+    @keyframes vt-out-r { to { transform: translateX(24%); opacity: 0; } }
+    @keyframes vt-in-l  { from { transform: translateX(-32%); opacity: 0; } }
+    @keyframes vt-fade-out { to { opacity: 0; } }
+    @keyframes vt-fade-in  { from { opacity: 0; } }
+    @media (prefers-reduced-motion: reduce) {
+      ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+      html:not(.vt) .page.is-active { animation: none; }
+    }
+  </style> 
 </head>
 <body class="bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100 min-h-screen flex flex-col antialiased">
 
   <!-- Toast Notification Container -->
-  <div id="toastContainer" class="fixed bottom-5 right-5 z-[999] flex flex-col gap-2 pointer-events-none"></div>
+  <div id="toastContainer" class="fixed bottom-24 md:bottom-5 right-4 md:right-5 z-[999] flex flex-col gap-2 pointer-events-none"></div>
 
     <!-- PWA Install Popup (First Time Only) -->
     <div id="pwaInstallPopup" class="hidden fixed bottom-5 left-4 right-4 md:left-auto md:right-5 md:w-[340px] bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-900/50 shadow-2xl rounded-2xl p-4 z-[999]">
@@ -62,16 +129,12 @@
     </div>
 
   <!-- Header -->
-  <header class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 md:px-8 py-3 flex justify-between items-center sticky top-0 z-30 shadow-xs">
-    <div class="flex items-center space-x-4">
-      <button id="sidebarToggleBtn" onclick="toggleSidebar(true)" class="relative p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
-        <i class="fa-solid fa-bars text-lg"></i>
-        <span id="headerUnseenNoticeDot" class="hidden absolute top-1.5 right-1.5 h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-white dark:ring-slate-900"></span>
-      </button>
-      <div class="flex items-center space-x-2">
-        <i class="fa-solid fa-cloud text-blue-600 text-xl"></i>
-        <span class="font-bold text-base text-slate-800 dark:text-white tracking-tight">Private Cloud</span>
-      </div>
+  <header id="appHeader" class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 md:px-8 h-14 flex justify-between items-center sticky top-0 z-30">
+    <!-- (পুরোনো hamburger: app.js এর জন্য থাকতেই হবে, কিন্তু সবসময় লুকানো) -->
+    <button id="sidebarToggleBtn" style="display:none !important" aria-hidden="true" tabindex="-1"></button>
+    <div id="hdrBrand" class="flex items-center gap-2">
+      <i class="fa-solid fa-cloud text-blue-600 text-xl"></i>
+      <span class="font-bold text-base text-slate-800 dark:text-white tracking-tight">Private Cloud</span>
     </div>
     <div class="flex items-center gap-2">
       <!-- Server Status Dot -->
@@ -80,7 +143,7 @@
         <span id="serverStatusText" class="text-[10px] font-mono text-slate-400 hidden sm:inline">Checking...</span>
       </div>
       <!-- PWA Install Button -->
-      <button id="pwaInstallBtn" onclick="triggerPwaInstall()" 
+      <button id="pwaInstallBtn" onclick="triggerPwaInstall()"
               class="hidden items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition">
         <i class="fa-solid fa-mobile-screen-button text-sm"></i>
         <span class="hidden sm:inline">Install App</span>
@@ -108,7 +171,7 @@
 
   <!-- Authenticated Portal View -->
   <div id="authenticatedView" class="hidden flex-1 flex flex-col">
-    
+    <section id="pageDrive" class="page is-active" data-page="drive">
     <!-- Path Display Bar -->
     <div class="max-w-6xl w-full mx-auto px-4 pt-4 flex items-center justify-between text-xs">
       <div id="activeFolderBadge" class="font-mono text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-200/70 dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-300/60 dark:border-slate-700 flex items-center gap-2 shadow-xs">
@@ -197,6 +260,158 @@
         </div>
       </div>
     </main>
+    </section>
+
+    <!-- ===== Notice page ===== -->
+    <section id="pageNotice" class="page" data-page="notice">
+      <div class="max-w-3xl w-full mx-auto px-4 pt-5 pb-6">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-2xl font-bold flex items-center gap-2.5">
+            <i class="fa-solid fa-bullhorn text-amber-500 text-xl"></i> Notice Board
+            <span id="noticeBadgeCount" class="hidden px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500 text-white">NEW</span>
+          </h2>
+          <button id="adminClearNoticesBtn" onclick="confirmClearAllNotices()" class="hidden px-2.5 py-1 text-[11px] font-semibold bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400 rounded-lg border border-rose-200 dark:border-rose-900">
+            <i class="fa-solid fa-broom mr-1"></i> Clear All
+          </button>
+        </div>
+
+        <div id="adminNoticeComposer" class="hidden mb-4 p-3 bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/70 dark:border-amber-900/40 rounded-2xl flex flex-col gap-2">
+          <input id="customNoticeTitle" type="text" placeholder="Notice Title..." class="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs font-semibold">
+          <textarea id="customNoticeMsg" rows="2" placeholder="Write custom announcement message..." class="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs"></textarea>
+          <div class="flex justify-end">
+            <button onclick="postCustomNotice()" class="bg-amber-600 hover:bg-amber-500 text-white px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1">
+              <i class="fa-solid fa-paper-plane"></i> Broadcast Notice
+            </button>
+          </div>
+        </div>
+
+        <div id="noticesListContainer" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 divide-y divide-slate-100 dark:divide-slate-800 text-xs min-h-[200px]">
+          <p class="text-center py-10 text-slate-400">Loading notices...</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Chat page ===== -->
+    <section id="pageChat" class="page" data-page="chat">
+      <div class="chat-box flex flex-col max-w-4xl w-full mx-auto">
+        <div class="px-4 py-3 flex items-center justify-between shrink-0">
+          <div>
+            <h2 class="font-bold text-xl flex items-center gap-2">Live Class Hub <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span></h2>
+            <span class="text-[11px] text-slate-400">Real-time conversation</span>
+          </div>
+          <button id="clearChatBtn" onclick="confirmClearChat()" class="hidden px-2.5 py-1 text-xs font-semibold bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400 rounded-lg border border-rose-200 dark:border-rose-900">
+            <i class="fa-solid fa-broom mr-1"></i> Clear Chat
+          </button>
+        </div>
+        <div id="chatMessages" class="flex-1 min-h-0 px-4 py-2 overflow-y-auto overscroll-contain space-y-3 text-xs"></div>
+        <form id="chatForm" onsubmit="sendLiveMessage(event)" class="p-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 shrink-0">
+          <div class="flex gap-2">
+            <input id="chatInput" type="text" placeholder="Type a message..." class="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-200">
+            <button type="submit" class="bg-blue-600 hover:bg-blue-500 active:scale-95 transition text-white px-5 rounded-xl text-xs font-semibold flex items-center gap-1">
+              <span>Send</span> <i class="fa-solid fa-paper-plane text-[10px]"></i>
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- ===== More page ===== -->
+    <section id="pageMore" class="page" data-page="more">
+      <div class="max-w-3xl w-full mx-auto px-4 pt-5 pb-6 space-y-6">
+        <h2 class="text-2xl font-bold">More</h2>
+
+        <div>
+          <p class="px-2 mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">Services</p>
+          <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden divide-y divide-slate-100 dark:divide-slate-800">
+            <button onclick="openRoutineModal()" class="w-full flex items-center gap-4 px-4 py-3.5 text-left active:bg-slate-50 dark:active:bg-slate-800 transition-colors">
+              <span class="w-11 h-11 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 flex items-center justify-center shrink-0"><i class="fa-solid fa-calendar-days"></i></span>
+              <span class="flex-1 min-w-0"><span class="block font-semibold text-sm">Class Routine</span><span class="block text-xs text-slate-400">Schedule and tomorrow's classes</span></span>
+              <i class="fa-solid fa-chevron-right text-slate-300 text-xs"></i>
+            </button>
+            <button onclick="openOnlineUsersModal()" class="w-full flex items-center gap-4 px-4 py-3.5 text-left active:bg-slate-50 dark:active:bg-slate-800 transition-colors">
+              <span class="w-11 h-11 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 flex items-center justify-center shrink-0"><i class="fa-solid fa-circle-dot"></i></span>
+              <span class="flex-1 min-w-0"><span class="block font-semibold text-sm">Who's Online</span><span class="block text-xs text-slate-400">Online now and last seen</span></span>
+              <span id="onlineCountBadge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500 text-white">0</span>
+              <i class="fa-solid fa-chevron-right text-slate-300 text-xs"></i>
+            </button>
+            <button onclick="openSettingsModal()" class="w-full flex items-center gap-4 px-4 py-3.5 text-left active:bg-slate-50 dark:active:bg-slate-800 transition-colors">
+              <span class="w-11 h-11 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0"><i class="fa-solid fa-gear"></i></span>
+              <span class="flex-1 min-w-0"><span class="block font-semibold text-sm">Settings &amp; Security</span><span class="block text-xs text-slate-400">Password, security question</span></span>
+              <i class="fa-solid fa-chevron-right text-slate-300 text-xs"></i>
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <p class="px-2 mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">Tools &amp; Storage</p>
+          <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden divide-y divide-slate-100 dark:divide-slate-800">
+            <div id="dynamicToolsContainer" class="divide-y divide-slate-100 dark:divide-slate-800 text-sm"></div>
+            <button onclick="openStorageManager()" class="w-full flex items-center gap-4 px-4 py-3.5 text-left active:bg-slate-50 dark:active:bg-slate-800 transition-colors">
+              <span class="w-11 h-11 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 flex items-center justify-center shrink-0"><i class="fa-solid fa-hard-drive"></i></span>
+              <span class="flex-1 min-w-0"><span class="block font-semibold text-sm">Offline Storage</span><span class="block text-xs text-slate-400">Cached files on this device</span></span>
+              <i class="fa-solid fa-chevron-right text-slate-300 text-xs"></i>
+            </button>
+          </div>
+        </div>
+
+        <div id="adminSidebarSection" class="hidden">
+          <p class="px-2 mb-2 text-[11px] font-bold uppercase tracking-wider text-rose-500">Administration</p>
+          <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden divide-y divide-slate-100 dark:divide-slate-800">
+            <button onclick="openUserManagementModal()" class="w-full flex items-center gap-4 px-4 py-3.5 text-left active:bg-slate-50 dark:active:bg-slate-800 transition-colors">
+              <span class="w-11 h-11 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 flex items-center justify-center shrink-0"><i class="fa-solid fa-users-gear"></i></span>
+              <span class="flex-1 min-w-0"><span class="block font-semibold text-sm">User Management</span><span class="block text-xs text-slate-400">Roles, bans, classmates list</span></span>
+              <i class="fa-solid fa-chevron-right text-slate-300 text-xs"></i>
+            </button>
+            <button onclick="openAdminTrashModal()" class="w-full flex items-center gap-4 px-4 py-3.5 text-left active:bg-slate-50 dark:active:bg-slate-800 transition-colors">
+              <span class="w-11 h-11 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 flex items-center justify-center shrink-0"><i class="fa-solid fa-trash-can-arrow-up"></i></span>
+              <span class="flex-1 min-w-0"><span class="block font-semibold text-sm">Trash Bin</span><span class="block text-xs text-slate-400">Restore or delete permanently</span></span>
+              <i class="fa-solid fa-chevron-right text-slate-300 text-xs"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
+          <button onclick="handleLogout()" class="w-full flex items-center gap-4 px-4 py-3.5 text-left active:bg-rose-50 dark:active:bg-rose-950/30 transition-colors">
+            <span class="w-11 h-11 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 flex items-center justify-center shrink-0"><i class="fa-solid fa-arrow-right-from-bracket"></i></span>
+            <span class="flex-1 font-semibold text-sm text-rose-600">Logout</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Navigation: bottom bar (phone) / left sidebar (md+) ===== -->
+    <nav id="appNav" class="fixed z-40 inset-x-0 bottom-0 h-16 flex bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 pb-[env(safe-area-inset-bottom)] box-content md:box-border md:inset-y-0 md:right-auto md:w-60 md:h-auto md:flex-col md:border-t-0 md:border-r md:p-4 md:gap-1">
+      <div class="hidden md:flex items-center gap-2 px-2 pt-1 pb-5">
+        <i class="fa-solid fa-cloud text-blue-600 text-2xl"></i>
+        <span class="font-bold text-lg tracking-tight">Private Cloud</span>
+      </div>
+
+      <button data-tab="drive" onclick="goTab('drive')" class="nav-item is-active flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center md:justify-start gap-0.5 md:gap-3 md:px-4 md:py-3 active:scale-95">
+        <span class="nav-pill"></span>
+        <span class="relative z-10 text-lg md:text-base leading-none md:w-5 md:text-center"><i class="fa-solid fa-hard-drive"></i></span>
+        <span class="relative z-10 text-[11px] md:text-sm font-semibold">Drive</span>
+      </button>
+      <button data-tab="notice" onclick="goTab('notice')" class="nav-item flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center md:justify-start gap-0.5 md:gap-3 md:px-4 md:py-3 active:scale-95">
+        <span class="relative z-10 text-lg md:text-base leading-none md:w-5 md:text-center">
+          <i class="fa-solid fa-bullhorn"></i>
+          <span id="headerUnseenNoticeDot" class="hidden absolute -top-1 -right-2 h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-white dark:ring-slate-900"></span>
+        </span>
+        <span class="relative z-10 text-[11px] md:text-sm font-semibold">Notice</span>
+      </button>
+      <button data-tab="chat" onclick="goTab('chat')" class="nav-item flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center md:justify-start gap-0.5 md:gap-3 md:px-4 md:py-3 active:scale-95">
+        <span class="relative z-10 text-lg md:text-base leading-none md:w-5 md:text-center"><i class="fa-solid fa-comments"></i></span>
+        <span class="relative z-10 text-[11px] md:text-sm font-semibold">Chat</span>
+      </button>
+      <button data-tab="more" onclick="goTab('more')" class="nav-item flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center md:justify-start gap-0.5 md:gap-3 md:px-4 md:py-3 active:scale-95">
+        <span class="relative z-10 text-lg md:text-base leading-none md:w-5 md:text-center"><i class="fa-solid fa-ellipsis"></i></span>
+        <span class="relative z-10 text-[11px] md:text-sm font-semibold">More</span>
+      </button>
+
+      <div class="hidden md:flex md:mt-auto items-center gap-2.5 rounded-xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/60 dark:bg-emerald-950/20 p-3 text-xs text-slate-600 dark:text-slate-300">
+        <i class="fa-brands fa-telegram text-emerald-600 text-lg"></i>
+        <span>Telegram API Storage<br><span class="font-mono text-emerald-600">Online</span></span>
+      </div>
+    </nav>
   </div>
 
   <!-- Guest Password Modal -->
@@ -216,78 +431,6 @@
   <footer class="text-center text-[11px] text-slate-400 py-6 mt-auto">
     ​© 2026 Algorus - 33 | Developed by Md. Imran Ali
   </footer>
-
-  <!-- Sidebar Drawer -->
-  <div id="sideDrawer" class="fixed inset-0 z-50 modal-hidden modal-backdrop">
-    <div onclick="toggleSidebar(false)" class="fixed inset-0 bg-black/40 backdrop-blur-xs"></div>
-    <div class="modal-box fixed top-0 left-0 bottom-0 w-72 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 p-5 flex flex-col justify-between gap-4 overflow-y-auto overscroll-contain shadow-2xl z-10">
-      <div class="space-y-5">
-        <div class="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
-          <div class="flex items-center space-x-2">
-            <i class="fa-solid fa-bars text-blue-600 text-base"></i>
-            <span class="font-bold text-sm">Navigation</span>
-          </div>
-          <button onclick="toggleSidebar(false)" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
-        </div>
-
-        <nav class="space-y-1 text-xs">
-          <a href="#" onclick="selectFolder('/'); toggleSidebar(false);" class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 font-semibold">
-            <i class="fa-solid fa-hard-drive"></i> Storage Drive
-          </a>
-
-          <button onclick="openRoutineModal(); toggleSidebar(false);" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300">
-            <span class="flex items-center gap-3"><i class="fa-solid fa-calendar-days text-blue-500"></i> Class Routine</span>
-          </button>
-          
-          <button onclick="openNoticeBoardModal(); toggleSidebar(false);" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300">
-            <span class="flex items-center gap-3"><i class="fa-solid fa-bullhorn text-amber-500"></i> Notice Board</span>
-            <span id="noticeBadgeCount" class="hidden px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500 text-white">NEW</span>
-          </button>
-
-          <button onclick="openOnlineUsersModal(); toggleSidebar(false);" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300">
-            <span class="flex items-center gap-3">
-              <i class="fa-solid fa-circle-dot text-emerald-500"></i> Who's Online
-            </span>
-            <span id="onlineCountBadge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500 text-white">0</span>
-          </button>
-          
-          <button onclick="openChatFullscreen(); toggleSidebar(false);" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300">
-            <span class="flex items-center gap-3"><i class="fa-solid fa-comments text-emerald-500"></i> Live Class Chat</span>
-            <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          </button>
-
-          <button onclick="openSettingsModal(); toggleSidebar(false);" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300">
-            <i class="fa-solid fa-gear text-slate-500"></i> Settings & Security
-          </button>
-
-          <!-- Storage Manager Button for Sidebar -->
-          <button onclick="openStorageManager()" class="flex items-center gap-3 px-3 py-2 w-full text-left rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition">
-            <i class="fa-solid fa-hard-drive text-indigo-500"></i>
-            <span class="font-medium text-sm">Local Storage Manager</span>
-          </button>
-
-          <div id="dynamicToolsContainer" class="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1">
-            <span class="text-[10px] font-bold text-indigo-500 uppercase tracking-wider block mb-1">Academic Tools</span>
-          </div>
-        </nav>
-
-        <div id="adminSidebarSection" class="hidden pt-4 border-t border-slate-200 dark:border-slate-800 space-y-1">
-          <span class="text-[10px] font-bold text-rose-500 uppercase tracking-wider block mb-2">Administration</span>
-          <button onclick="openUserManagementModal(); toggleSidebar(false);" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 font-medium">
-            <i class="fa-solid fa-users-gear"></i> User Management
-          </button>
-          <button onclick="openAdminTrashModal(); toggleSidebar(false);" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-600 dark:text-rose-400 font-medium">
-            <i class="fa-solid fa-trash-can-arrow-up"></i> Trash Bin (Admin)
-          </button>
-        </div>
-      </div>
-
-      <div class="border-t border-slate-200 dark:border-slate-800 pt-3 flex items-center justify-between text-[11px] text-slate-400">
-        <span>Telegram API Storage</span>
-        <span class="font-mono text-emerald-500">Online</span>
-      </div>
-    </div>
-  </div>
 
   <!-- Settings & Security Modal -->
   <div id="settingsModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs modal-hidden modal-backdrop z-50 flex items-center justify-center p-4">
@@ -362,38 +505,6 @@
         <button onclick="closeSharedLinksModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
       </div>
       <div id="sharedLinksListContainer" class="flex-1 overflow-y-auto p-4 text-xs divide-y divide-slate-100 dark:divide-slate-800"></div>
-    </div>
-  </div>
-  
-  <!-- Notice Board Modal Window -->
-  <div id="noticeBoardModal" class="fixed inset-0 bg-black/60 backdrop-blur-xs modal-hidden modal-backdrop z-50 flex items-center justify-center p-3 md:p-6">
-    <div class="modal-box bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-xl h-[580px] rounded-2xl shadow-2xl flex flex-col overflow-hidden relative">
-      <div class="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950">
-        <div class="flex items-center gap-2">
-          <i class="fa-solid fa-bullhorn text-amber-500"></i>
-          <span class="font-bold text-sm">Notice Board</span>
-        </div>
-        <div class="flex items-center gap-2">
-          <button id="adminClearNoticesBtn" onclick="confirmClearAllNotices()" class="hidden px-2.5 py-1 text-[11px] font-semibold bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400 rounded-lg border border-rose-200 dark:border-rose-900">
-            <i class="fa-solid fa-broom mr-1"></i> Clear All
-          </button>
-          <button onclick="closeNoticeBoardModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
-        </div>
-      </div>
-
-      <div id="adminNoticeComposer" class="hidden p-3 bg-amber-50/50 dark:bg-amber-950/20 border-b border-slate-200 dark:border-slate-800 flex flex-col gap-2">
-        <input id="customNoticeTitle" type="text" placeholder="Notice Title..." class="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-1.5 text-xs font-semibold">
-        <textarea id="customNoticeMsg" rows="2" placeholder="Write custom announcement message..." class="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-1.5 text-xs"></textarea>
-        <div class="flex justify-end">
-          <button onclick="postCustomNotice()" class="bg-amber-600 hover:bg-amber-500 text-white px-4 py-1 rounded-lg text-xs font-semibold flex items-center gap-1">
-            <i class="fa-solid fa-paper-plane"></i> Broadcast Notice
-          </button>
-        </div>
-      </div>
-
-      <div id="noticesListContainer" class="flex-1 p-4 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-        <p class="text-center py-10 text-slate-400">Loading notices...</p>
-      </div>
     </div>
   </div>
 
@@ -516,40 +627,6 @@
     
     <!-- Clean Preview Container (Starts Top-to-Bottom naturally) -->
     <div id="previewContainer" class="flex-1 w-full h-full relative bg-slate-950 overflow-y-auto p-4 flex flex-col items-center"></div>
-  </div>
-
-  <!-- Fullscreen Live Chat View -->
-  <div id="chatModal" class="fixed inset-0 bg-white dark:bg-slate-950 z-50 flex flex-col chat-closed">
-    <div class="px-4 py-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-900">
-      <div class="flex items-center gap-3">
-        <button onclick="closeChatFullscreen()" class="p-1.5 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg">
-          <i class="fa-solid fa-arrow-left text-base"></i>
-        </button>
-        <div>
-          <h2 class="font-bold text-sm text-slate-800 dark:text-white flex items-center gap-2">
-            Live Class Hub <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          </h2>
-          <span class="text-[10px] text-slate-400">Real-time conversation</span>
-        </div>
-      </div>
-      <div class="flex items-center gap-2">
-        <button id="clearChatBtn" onclick="confirmClearChat()" class="hidden px-2.5 py-1 text-xs font-semibold bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400 rounded-lg border border-rose-200 dark:border-rose-900">
-          <i class="fa-solid fa-broom mr-1"></i> Clear Chat
-        </button>
-        <button onclick="closeChatFullscreen()" class="text-slate-400 hover:text-slate-600 p-2">
-          <i class="fa-solid fa-xmark text-lg"></i>
-        </button>
-      </div>
-    </div>
-    <div id="chatMessages" class="flex-1 p-4 md:p-6 overflow-y-auto space-y-3 max-w-4xl w-full mx-auto text-xs"></div>
-    <form id="chatForm" onsubmit="sendLiveMessage(event)" class="p-3 md:p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900">
-      <div class="max-w-4xl w-full mx-auto flex gap-2">
-        <input id="chatInput" type="text" placeholder="Type a message..." class="flex-1 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-200">
-        <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white px-5 rounded-xl text-xs font-semibold flex items-center gap-1">
-          <span>Send</span> <i class="fa-solid fa-paper-plane text-[10px]"></i>
-        </button>
-      </div>
-    </form>
   </div>
 
   <!-- User Management Modal -->
@@ -988,6 +1065,7 @@
   </div>
 
   <script src="js/app.js"></script>
+  <script src="js/router.js"></script>
   <script>
     // Register Service Worker
     if ('serviceWorker' in navigator) {

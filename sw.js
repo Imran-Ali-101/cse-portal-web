@@ -10,6 +10,7 @@ const LOCAL_ASSETS = [
   '/manifest.json',
   '/icon_192.png',
   '/icon_512.png',
+  '/js/router.js',
 ];
 
 // pdfjs — offline PDF preview
