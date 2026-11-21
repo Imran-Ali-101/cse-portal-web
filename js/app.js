@@ -2221,7 +2221,7 @@ async function toggleUserStatus(student_id, new_status) {
 
 function openClassmatesListModal() {
   const formattedText = allDirectoryUsers.map((u, i) => {
-    return `${i + 1}. Name: ${u.name}\n   Student ID: ${u.student_id}\n   Registration No: ${u.reg_no || 'Not Set'}\n   Status: ${u.status.toUpperCase()}\n----------------------------------------`;
+    return `${i + 1}. Name: ${u.name}\n   Student ID: ${u.student_id}\n   Status: ${u.status.toUpperCase()}\n----------------------------------------`;
   }).join('\n\n');
 
   document.getElementById("classmatesTextarea").value = formattedText || "No users found.";

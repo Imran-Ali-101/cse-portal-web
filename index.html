@@ -102,6 +102,9 @@
     #dynamicToolsContainer > a { padding: .8rem 1rem; border-radius: 0; }
 
     /* ---------- page transitions (View Transitions API) ---------- */
+    /* white flash fix: snapshot গুলো আর transparent হয় না, নিচে page-এর নিজের রং থাকে */
+    ::view-transition { background: #f8fafc; }
+    html.dark::view-transition { background: #020617; }
     #appNav { view-transition-name: appnav; }
     #appHeader { view-transition-name: apphdr; }
     ::view-transition-old(root), ::view-transition-new(root) {
@@ -115,10 +118,10 @@
     html[data-dir="back"]::view-transition-new(root) { animation-name: vt-in-l; }
     html[data-dir="fade"]::view-transition-old(root) { animation-name: vt-fade-out; }
     html[data-dir="fade"]::view-transition-new(root) { animation-name: vt-fade-in; }
-    @keyframes vt-out-l { to { transform: translateX(-24%); opacity: 0; } }
-    @keyframes vt-in-r  { from { transform: translateX(32%); opacity: 0; } }
-    @keyframes vt-out-r { to { transform: translateX(24%); opacity: 0; } }
-    @keyframes vt-in-l  { from { transform: translateX(-32%); opacity: 0; } }
+    @keyframes vt-out-l { to { transform: translateX(-24%); } }
+    @keyframes vt-in-r  { from { transform: translateX(32%); } }
+    @keyframes vt-out-r { to { transform: translateX(24%); } }
+    @keyframes vt-in-l  { from { transform: translateX(-32%); } }
     @keyframes vt-fade-out { to { opacity: 0; } }
     @keyframes vt-fade-in  { from { opacity: 0; } }
     @media (prefers-reduced-motion: reduce) {
