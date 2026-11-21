@@ -21,6 +21,29 @@
     }
   </script>
   <link rel="stylesheet" href="css/style.css">
+  <script>
+    /* Dark / Light theme — saved choice, default light */
+    (function () {
+      function saved() { try { return localStorage.getItem('theme'); } catch (e) { return null; } }
+      window.applyTheme = function (t) {
+        document.documentElement.classList.toggle('dark', t === 'dark');
+        var m = document.querySelector('meta[name="theme-color"]');
+        if (m) m.setAttribute('content', t === 'dark' ? '#0f172a' : '#2563eb');
+        var i = document.getElementById('themeIcon');
+        if (i) i.className = 'fa-solid ' + (t === 'dark' ? 'fa-sun' : 'fa-moon');
+      };
+      window.toggleTheme = function () {
+        var t = document.documentElement.classList.contains('dark') ? 'light' : 'dark';
+        try { localStorage.setItem('theme', t); } catch (e) {}
+        if (document.startViewTransition && !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
+          document.documentElement.dataset.dir = 'fade';
+          document.startViewTransition(function () { applyTheme(t); });
+        } else applyTheme(t);
+      };
+      document.documentElement.classList.toggle('dark', saved() === 'dark');
+      document.addEventListener('DOMContentLoaded', function () { applyTheme(saved() === 'dark' ? 'dark' : 'light'); });
+    })();
+  </script>
   
   <!-- Core Utilities -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -152,6 +175,16 @@
     .layer-title::after{content:"";display:none;width:14px;height:14px;margin-left:10px;border:2px solid #cbd5e1;border-top-color:#3b82f6;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px}
     body.net-busy .layer-title::after{display:inline-block}
     
+    /* ===== cold-start loader: nav এর উপরে বসবে, ঢাকবে না ===== */
+    body.has-nav #coldStartLoader{bottom:calc(var(--nav-h) + env(safe-area-inset-bottom) + 12px)!important}
+    @media (min-width:768px){ body.has-nav #coldStartLoader{bottom:16px!important;left:15rem!important} }
+    /* ===== settings tab panel animation ===== */
+    @keyframes stab-r{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
+    @keyframes stab-l{from{opacity:0;transform:translateX(-24px)}to{opacity:1;transform:none}}
+    .stab-in-r{animation:stab-r .28s cubic-bezier(.32,.72,0,1)}
+    .stab-in-l{animation:stab-l .28s cubic-bezier(.32,.72,0,1)}
+    @media (prefers-reduced-motion: reduce){.stab-in-r,.stab-in-l{animation:none}}
+
     /* ===== preview ===== */
     body #previewModal.layer-page{overflow:hidden!important}
     #previewModal #previewContainer{flex:1 1 0!important;min-height:0;height:auto!important}
@@ -203,6 +236,11 @@
               class="hidden items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition">
         <i class="fa-solid fa-mobile-screen-button text-sm"></i>
         <span class="hidden sm:inline">Install App</span>
+      </button>
+      <!-- Dark / Light toggle -->
+      <button id="themeBtn" type="button" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Dark / Light"
+              class="h-9 w-9 rounded-full flex items-center justify-center text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-95 transition">
+        <i id="themeIcon" class="fa-solid fa-moon"></i>
       </button>
       <div id="navAuthSection" class="flex items-center gap-2"></div>
     </div>
@@ -500,9 +538,10 @@
         <i class="fa-solid fa-shield-halved text-blue-600"></i> Account Settings
       </h3>
 
-      <div class="flex gap-2 border-b border-slate-200 dark:border-slate-800 mb-4 pb-2 text-xs">
-        <button id="setTabPassBtn" onclick="switchSettingsTab('pass')" class="px-3 py-1 font-semibold text-blue-600 border-b-2 border-blue-600">Change Password</button>
+      <div class="relative flex gap-2 border-b border-slate-200 dark:border-slate-800 mb-4 pb-2 text-xs">
+        <button id="setTabPassBtn" onclick="switchSettingsTab('pass')" class="px-3 py-1 font-semibold text-blue-600">Change Password</button>
         <button id="setTabSecBtn" onclick="switchSettingsTab('sec')" class="px-3 py-1 text-slate-400 hover:text-slate-600">Security Question</button>
+        <span id="setTabInd" class="absolute left-0 -bottom-px h-0.5 w-0 bg-blue-600 rounded-full" style="transition:transform .3s cubic-bezier(.32,.72,0,1),width .3s cubic-bezier(.32,.72,0,1)"></span>
       </div>
 
       <div id="setTabPass" class="space-y-3 text-xs">

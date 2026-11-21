@@ -1,0 +1,165 @@
+--- a/index.html	2026-11-21 15:21:25.170849742 +0600
++++ b/index.html	2026-11-21 15:21:25.288233072 +0600
+@@ -21,6 +21,29 @@
+     }
+   </script>
+   <link rel="stylesheet" href="css/style.css">
++  <script>
++    /* Dark / Light theme — saved choice, default light */
++    (function () {
++      function saved() { try { return localStorage.getItem('theme'); } catch (e) { return null; } }
++      window.applyTheme = function (t) {
++        document.documentElement.classList.toggle('dark', t === 'dark');
++        var m = document.querySelector('meta[name="theme-color"]');
++        if (m) m.setAttribute('content', t === 'dark' ? '#0f172a' : '#2563eb');
++        var i = document.getElementById('themeIcon');
++        if (i) i.className = 'fa-solid ' + (t === 'dark' ? 'fa-sun' : 'fa-moon');
++      };
++      window.toggleTheme = function () {
++        var t = document.documentElement.classList.contains('dark') ? 'light' : 'dark';
++        try { localStorage.setItem('theme', t); } catch (e) {}
++        if (document.startViewTransition && !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
++          document.documentElement.dataset.dir = 'fade';
++          document.startViewTransition(function () { applyTheme(t); });
++        } else applyTheme(t);
++      };
++      document.documentElement.classList.toggle('dark', saved() === 'dark');
++      document.addEventListener('DOMContentLoaded', function () { applyTheme(saved() === 'dark' ? 'dark' : 'light'); });
++    })();
++  </script>
+   
+   <!-- Core Utilities -->
+   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+@@ -152,6 +175,16 @@
+     .layer-title::after{content:"";display:none;width:14px;height:14px;margin-left:10px;border:2px solid #cbd5e1;border-top-color:#3b82f6;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px}
+     body.net-busy .layer-title::after{display:inline-block}
+     
++    /* ===== cold-start loader: nav এর উপরে বসবে, ঢাকবে না ===== */
++    body.has-nav #coldStartLoader{bottom:calc(var(--nav-h) + env(safe-area-inset-bottom) + 12px)!important}
++    @media (min-width:768px){ body.has-nav #coldStartLoader{bottom:16px!important;left:15rem!important} }
++    /* ===== settings tab panel animation ===== */
++    @keyframes stab-r{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
++    @keyframes stab-l{from{opacity:0;transform:translateX(-24px)}to{opacity:1;transform:none}}
++    .stab-in-r{animation:stab-r .28s cubic-bezier(.32,.72,0,1)}
++    .stab-in-l{animation:stab-l .28s cubic-bezier(.32,.72,0,1)}
++    @media (prefers-reduced-motion: reduce){.stab-in-r,.stab-in-l{animation:none}}
++
+     /* ===== preview ===== */
+     body #previewModal.layer-page{overflow:hidden!important}
+     #previewModal #previewContainer{flex:1 1 0!important;min-height:0;height:auto!important}
+@@ -204,6 +237,11 @@
+         <i class="fa-solid fa-mobile-screen-button text-sm"></i>
+         <span class="hidden sm:inline">Install App</span>
+       </button>
++      <!-- Dark / Light toggle -->
++      <button id="themeBtn" type="button" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Dark / Light"
++              class="h-9 w-9 rounded-full flex items-center justify-center text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-95 transition">
++        <i id="themeIcon" class="fa-solid fa-moon"></i>
++      </button>
+       <div id="navAuthSection" class="flex items-center gap-2"></div>
+     </div>
+   </header>
+@@ -500,9 +538,10 @@
+         <i class="fa-solid fa-shield-halved text-blue-600"></i> Account Settings
+       </h3>
+ 
+-      <div class="flex gap-2 border-b border-slate-200 dark:border-slate-800 mb-4 pb-2 text-xs">
+-        <button id="setTabPassBtn" onclick="switchSettingsTab('pass')" class="px-3 py-1 font-semibold text-blue-600 border-b-2 border-blue-600">Change Password</button>
++      <div class="relative flex gap-2 border-b border-slate-200 dark:border-slate-800 mb-4 pb-2 text-xs">
++        <button id="setTabPassBtn" onclick="switchSettingsTab('pass')" class="px-3 py-1 font-semibold text-blue-600">Change Password</button>
+         <button id="setTabSecBtn" onclick="switchSettingsTab('sec')" class="px-3 py-1 text-slate-400 hover:text-slate-600">Security Question</button>
++        <span id="setTabInd" class="absolute left-0 -bottom-px h-0.5 w-0 bg-blue-600 rounded-full" style="transition:transform .3s cubic-bezier(.32,.72,0,1),width .3s cubic-bezier(.32,.72,0,1)"></span>
+       </div>
+ 
+       <div id="setTabPass" class="space-y-3 text-xs">
+--- a/js/app.js	2026-11-21 15:21:25.170956944 +0600
++++ b/js/app.js	2026-11-21 15:21:25.284788591 +0600
+@@ -188,7 +188,8 @@
+ 
+   el = document.createElement('div');
+   el.id = 'coldStartLoader';
+-  el.style.cssText = 'position:fixed;left:12px;right:12px;bottom:16px;z-index:99999;max-width:440px;margin:0 auto;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:16px;padding:14px 16px;box-shadow:0 10px 30px rgba(0,0,0,.45);display:none;';
++  el.className = 'cold-loader';
++  el.style.cssText = 'position:fixed;left:12px;right:12px;bottom:16px;z-index:99999;max-width:440px;margin:0 auto;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:16px;padding:14px 16px;box-shadow:0 10px 30px rgba(0,0,0,.45);display:none;pointer-events:none;';
+   el.innerHTML = `
+     <div style="display:flex;align-items:flex-start;gap:12px;">
+       <div style="width:22px;height:22px;border:3px solid #334155;border-top-color:#60a5fa;border-radius:50%;animation:coldspin .8s linear infinite;flex-shrink:0;margin-top:2px"></div>
+@@ -652,6 +653,7 @@
+   if (linksBtn) linksBtn.classList.toggle("hidden", !isAdmin());
+   
+   showAnimatedModal("settingsModal");
++  requestAnimationFrame(() => _moveSettingsInd(document.getElementById("setTabPassBtn")));
+ }
+ 
+ function closeSettingsModal() {
+@@ -664,24 +666,42 @@
+ }
+ 
+ 
++let _setTabCur = 'pass';
++function _moveSettingsInd(btn) {
++  const ind = document.getElementById("setTabInd");
++  if (!ind || !btn) return;
++  ind.style.width = btn.offsetWidth + "px";
++  ind.style.transform = "translateX(" + btn.offsetLeft + "px)";
++}
+ function switchSettingsTab(tab) {
+   const passTab = document.getElementById("setTabPass");
+   const secTab = document.getElementById("setTabSec");
+   const passBtn = document.getElementById("setTabPassBtn");
+   const secBtn = document.getElementById("setTabSecBtn");
++  const on = "px-3 py-1 font-semibold text-blue-600";
++  const off = "px-3 py-1 text-slate-400 hover:text-slate-600";
+ 
+-  if (tab === 'pass') {
+-    passTab.classList.remove("hidden");
+-    secTab.classList.add("hidden");
+-    passBtn.className = "px-3 py-1 font-semibold text-blue-600 border-b-2 border-blue-600";
+-    secBtn.className = "px-3 py-1 text-slate-400 hover:text-slate-600";
+-  } else {
+-    passTab.classList.add("hidden");
+-    secTab.classList.remove("hidden");
+-    secBtn.className = "px-3 py-1 font-semibold text-blue-600 border-b-2 border-blue-600";
+-    passBtn.className = "px-3 py-1 text-slate-400 hover:text-slate-600";
++  const goingSec = tab !== 'pass';
++  const changed = (goingSec ? 'sec' : 'pass') !== _setTabCur;
++  _setTabCur = goingSec ? 'sec' : 'pass';
++
++  passBtn.className = goingSec ? off : on;
++  secBtn.className = goingSec ? on : off;
++  _moveSettingsInd(goingSec ? secBtn : passBtn);
++
++  const show = goingSec ? secTab : passTab;
++  const hide = goingSec ? passTab : secTab;
++  hide.classList.add("hidden");
++  hide.classList.remove("stab-in-l", "stab-in-r");
++  show.classList.remove("hidden", "stab-in-l", "stab-in-r");
++  if (changed) {
++    void show.offsetWidth; // restart the animation
++    show.classList.add(goingSec ? "stab-in-r" : "stab-in-l");
+   }
+ }
++window.addEventListener("resize", () => {
++  _moveSettingsInd(document.getElementById(_setTabCur === 'sec' ? "setTabSecBtn" : "setTabPassBtn"));
++});
+ 
+ async function saveNewPassword() {
+   const current_password = document.getElementById("setCurPass").value.trim();
+@@ -4117,7 +4137,8 @@
+ 
+ async function openSharedLinksModal() {
+   if (!isAdmin()) return;
+-  closeSettingsModal();
++  // Settings is NOT closed here: closing it triggers history.back() which also
++  // popped the Shared Links page. It now opens on top; back returns to Settings.
+   showAnimatedModal("sharedLinksModal");
+   await loadSharedLinks();
+ }
+--- a/sw.js	2026-11-21 15:21:25.213801201 +0600
++++ b/sw.js	2026-11-21 15:21:35.229399798 +0600
+@@ -1,4 +1,4 @@
+-const CACHE_NAME = 'cse-portal-v27.2';
++const CACHE_NAME = 'cse-portal-v27.3';
+ 
+ // Critical local files to load in offline
+ const LOCAL_ASSETS = [

@@ -188,7 +188,8 @@ function _ensureColdLoader() {
 
   el = document.createElement('div');
   el.id = 'coldStartLoader';
-  el.style.cssText = 'position:fixed;left:12px;right:12px;bottom:16px;z-index:99999;max-width:440px;margin:0 auto;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:16px;padding:14px 16px;box-shadow:0 10px 30px rgba(0,0,0,.45);display:none;';
+  el.className = 'cold-loader';
+  el.style.cssText = 'position:fixed;left:12px;right:12px;bottom:16px;z-index:99999;max-width:440px;margin:0 auto;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:16px;padding:14px 16px;box-shadow:0 10px 30px rgba(0,0,0,.45);display:none;pointer-events:none;';
   el.innerHTML = `
     <div style="display:flex;align-items:flex-start;gap:12px;">
       <div style="width:22px;height:22px;border:3px solid #334155;border-top-color:#60a5fa;border-radius:50%;animation:coldspin .8s linear infinite;flex-shrink:0;margin-top:2px"></div>
@@ -652,6 +653,7 @@ function openSettingsModal() {
   if (linksBtn) linksBtn.classList.toggle("hidden", !isAdmin());
   
   showAnimatedModal("settingsModal");
+  requestAnimationFrame(() => _moveSettingsInd(document.getElementById("setTabPassBtn")));
 }
 
 function closeSettingsModal() {
@@ -664,24 +666,42 @@ function toggleGhostMode(el) {
 }
 
 
+let _setTabCur = 'pass';
+function _moveSettingsInd(btn) {
+  const ind = document.getElementById("setTabInd");
+  if (!ind || !btn) return;
+  ind.style.width = btn.offsetWidth + "px";
+  ind.style.transform = "translateX(" + btn.offsetLeft + "px)";
+}
 function switchSettingsTab(tab) {
   const passTab = document.getElementById("setTabPass");
   const secTab = document.getElementById("setTabSec");
   const passBtn = document.getElementById("setTabPassBtn");
   const secBtn = document.getElementById("setTabSecBtn");
+  const on = "px-3 py-1 font-semibold text-blue-600";
+  const off = "px-3 py-1 text-slate-400 hover:text-slate-600";
 
-  if (tab === 'pass') {
-    passTab.classList.remove("hidden");
-    secTab.classList.add("hidden");
-    passBtn.className = "px-3 py-1 font-semibold text-blue-600 border-b-2 border-blue-600";
-    secBtn.className = "px-3 py-1 text-slate-400 hover:text-slate-600";
-  } else {
-    passTab.classList.add("hidden");
-    secTab.classList.remove("hidden");
-    secBtn.className = "px-3 py-1 font-semibold text-blue-600 border-b-2 border-blue-600";
-    passBtn.className = "px-3 py-1 text-slate-400 hover:text-slate-600";
+  const goingSec = tab !== 'pass';
+  const changed = (goingSec ? 'sec' : 'pass') !== _setTabCur;
+  _setTabCur = goingSec ? 'sec' : 'pass';
+
+  passBtn.className = goingSec ? off : on;
+  secBtn.className = goingSec ? on : off;
+  _moveSettingsInd(goingSec ? secBtn : passBtn);
+
+  const show = goingSec ? secTab : passTab;
+  const hide = goingSec ? passTab : secTab;
+  hide.classList.add("hidden");
+  hide.classList.remove("stab-in-l", "stab-in-r");
+  show.classList.remove("hidden", "stab-in-l", "stab-in-r");
+  if (changed) {
+    void show.offsetWidth; // restart the animation
+    show.classList.add(goingSec ? "stab-in-r" : "stab-in-l");
   }
 }
+window.addEventListener("resize", () => {
+  _moveSettingsInd(document.getElementById(_setTabCur === 'sec' ? "setTabSecBtn" : "setTabPassBtn"));
+});
 
 async function saveNewPassword() {
   const current_password = document.getElementById("setCurPass").value.trim();
@@ -4117,7 +4137,8 @@ function buildShareUrl(shareId) {
 
 async function openSharedLinksModal() {
   if (!isAdmin()) return;
-  closeSettingsModal();
+  // Settings is NOT closed here: closing it triggers history.back() which also
+  // popped the Shared Links page. It now opens on top; back returns to Settings.
   showAnimatedModal("sharedLinksModal");
   await loadSharedLinks();
 }
