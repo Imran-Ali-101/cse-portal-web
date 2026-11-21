@@ -480,10 +480,10 @@
         <span class="font-bold text-lg tracking-tight">Private Cloud</span>
       </div>
 
-      <button data-tab="drive" onclick="goTab('drive')" class="nav-item is-active flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center md:justify-start gap-0.5 md:gap-3 md:px-4 md:py-3 active:scale-95">
+      <button data-tab="drive" onclick="driveTabClick()" class="nav-item is-active flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center md:justify-start gap-0.5 md:gap-3 md:px-4 md:py-3 active:scale-95">
         <span class="nav-pill"></span>
-        <span class="relative z-10 text-lg md:text-base leading-none md:w-5 md:text-center"><i class="fa-solid fa-hard-drive"></i></span>
-        <span class="relative z-10 text-[11px] md:text-sm font-semibold">Drive</span>
+        <span class="relative z-10 text-lg md:text-base leading-none md:w-5 md:text-center"><i id="navDriveIcon" class="fa-solid fa-hard-drive"></i></span>
+        <span id="navDriveLbl" class="relative z-10 text-[11px] md:text-sm font-semibold">Drive</span>
       </button>
       <button data-tab="notice" onclick="goTab('notice')" class="nav-item flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center md:justify-start gap-0.5 md:gap-3 md:px-4 md:py-3 active:scale-95">
         <span class="relative z-10 text-lg md:text-base leading-none md:w-5 md:text-center">
@@ -1243,7 +1243,7 @@
             window.scrollTo(0, scrollMemo[name] || 0);
           };
           if (instant || !canVT) update();
-          else { root.dataset.dir = dir; document.startViewTransition(update); }
+          else { root.dataset.dir = dir; const vt = document.startViewTransition(update); vt.ready.catch(() => {}); vt.finished.catch(() => {}); }
           if (onEnter[name]) onEnter[name]();
         }
       
@@ -1496,6 +1496,62 @@
             else if (it.dataset.pm === 'logout') handleLogout();
           });
       
+
+        /* ================= Drive ↔ Home tab label + swipe between tabs ================= */
+        function syncHomeTab() {
+          const sub = curFolder() !== '/';
+          const l = $('navDriveLbl'), i = $('navDriveIcon');
+          if (l && l.textContent !== (sub ? 'Home' : 'Drive')) l.textContent = sub ? 'Home' : 'Drive';
+          if (i) i.className = 'fa-solid ' + (sub ? 'fa-house' : 'fa-hard-drive');
+        }
+        const _rt = window.renderFilesTable;
+        if (typeof _rt === 'function') {
+          window.renderFilesTable = function () {
+            const r = _rt.apply(this, arguments);
+            syncHomeTab();
+            return r;
+          };
+        }
+        syncHomeTab();
+        // subfolder এ থাকলে "Home" চাপলে root এ যাবে (অন্য tab থেকেও Drive এ ফিরবে); root এ "Drive" আগের মতোই
+        window.driveTabClick = function () {
+          if (curFolder() !== '/') window.selectFolder('/');
+          else window.goTab('drive');
+        };
+
+        (function swipeTabs() {
+          let sx = 0, sy = 0, st = 0, ok = false;
+          const blocked = (el) => {
+            for (let n = el; n && n !== document.body; n = n.parentElement) {
+              const tag = n.tagName;
+              if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'IFRAME' || tag === 'VIDEO' || tag === 'CANVAS' || n.isContentEditable) return true;
+              if (n.hasAttribute && n.hasAttribute('data-no-swipe')) return true;
+              if (n.scrollWidth > n.clientWidth + 2) {
+                const ox = getComputedStyle(n).overflowX;
+                if (ox === 'auto' || ox === 'scroll') return true;   // horizontal scroller (table, code, carousel)
+              }
+            }
+            return false;
+          };
+          document.addEventListener('touchstart', (e) => {
+            ok = false;
+            if (e.touches.length !== 1 || stack.length || !document.body.classList.contains('has-nav') || document.body.classList.contains('kbd')) return;
+            const t = e.touches[0];
+            if (t.clientX < 24 || t.clientX > innerWidth - 24) return;   // Android back-gesture edge
+            if (blocked(e.target)) return;
+            sx = t.clientX; sy = t.clientY; st = Date.now(); ok = true;
+          }, { passive: true });
+          document.addEventListener('touchend', (e) => {
+            if (!ok) return; ok = false;
+            const t = e.changedTouches[0], dx = t.clientX - sx, dy = t.clientY - sy;
+            if (Date.now() - st > 700 || Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.8) return;
+            if (window.getSelection && String(window.getSelection())) return;
+            const i = ORDER.indexOf(active), n = i + (dx < 0 ? 1 : -1);
+            if (n < 0 || n >= ORDER.length) return;
+            window.goTab(ORDER[n]);
+          }, { passive: true });
+        })();
+
         /* ================= nav chrome + keyboard ================= */
         const authView = $('authenticatedView');
         function syncChrome() {
