@@ -1022,6 +1022,11 @@
             <span id="loginText">Login</span>
             <span id="loginSpin" class="spinner hidden"></span>
           </button>
+          <div class="google-auth-block">
+            <div class="flex items-center gap-3 text-[11px] text-slate-400"><span class="h-px flex-1 bg-slate-200 dark:bg-slate-800"></span>or<span class="h-px flex-1 bg-slate-200 dark:bg-slate-800"></span></div>
+            <div id="googleBtnLogin" class="flex min-h-[44px] w-full items-center justify-center mt-3"></div>
+            <p class="text-[10px] text-center text-slate-400 mt-1.5">University email only (<span class="font-mono">sSTUDENTID@ru.ac.bd</span>)</p>
+          </div>
           <p class="text-xs text-center text-slate-500">Don't have an account? <a href="#" onclick="toggleAuthForms('register')" class="text-blue-600 underline">Register</a></p>
         </div>
       </div>
@@ -1030,6 +1035,11 @@
       <div id="registerSection" class="hidden">
         <h3 class="text-base font-bold mb-1 text-blue-600">Create Account</h3>
         <p class="text-xs text-slate-400 mb-4">Registration No will be used as default password</p>
+        <div class="google-auth-block mb-4">
+          <div id="googleBtnRegister" class="flex min-h-[44px] w-full items-center justify-center"></div>
+          <p class="text-[10px] text-center text-slate-400 mt-1.5">New here? Sign up instantly with your university email (<span class="font-mono">sSTUDENTID@ru.ac.bd</span>)</p>
+          <div class="flex items-center gap-3 text-[11px] text-slate-400 mt-3"><span class="h-px flex-1 bg-slate-200 dark:bg-slate-800"></span>or register manually<span class="h-px flex-1 bg-slate-200 dark:bg-slate-800"></span></div>
+        </div>
         <div class="space-y-3 max-h-[65vh] overflow-y-auto pr-1">
           <input id="regName" type="text" placeholder="Full Name" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs">
           <input id="regId" type="text" placeholder="Student ID (e.g. 2510376101)" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs">
@@ -1046,6 +1056,15 @@
           </button>
           <p class="text-xs text-center text-slate-500"><a href="#" onclick="toggleAuthForms('login')" class="text-blue-600 underline">Back to Login</a></p>
         </div>
+      </div>
+
+      <!-- University e-mail error page -->
+      <div id="eduErrSection" class="hidden text-center py-2">
+        <div class="mx-auto mb-3 h-14 w-14 rounded-full bg-red-50 dark:bg-red-500/10 text-red-500 flex items-center justify-center text-2xl"><i class="fa-solid fa-envelope-circle-check"></i></div>
+        <h3 id="eduErrTitle" class="text-base font-bold mb-1 text-red-600">University email required</h3>
+        <p id="eduErrMsg" class="text-xs text-slate-500 dark:text-slate-400 mb-2"></p>
+        <p class="text-[11px] text-slate-400 mb-4">Example: <span class="font-mono text-slate-600 dark:text-slate-300">s2510376101@ru.ac.bd</span></p>
+        <button onclick="toggleAuthForms('login')" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2.5 rounded-xl text-xs font-semibold">Back to Login</button>
       </div>
 
       <!-- Forgot Password Section -->

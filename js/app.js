@@ -1,4 +1,6 @@
 const API_BASE = "https://cse-portal.blueglacier-a7e18882.centralindia.azurecontainerapps.io";
+// Google Cloud → APIs & Services → Credentials → OAuth 2.0 "Web client" ID. Empty = Google buttons stay hidden.
+const GOOGLE_CLIENT_ID = "647950067220-gueic7n0f878lm2984q572v5lokjtmbo.apps.googleusercontent.com";
 let ws = null;
 let currentUser = JSON.parse(localStorage.getItem("user") || "null");
 let currentSelectedFolder = "/";
@@ -577,6 +579,84 @@ function toggleAuthForms(mode) {
   document.getElementById("loginSection").classList.toggle("hidden", mode !== 'login');
   document.getElementById("registerSection").classList.toggle("hidden", mode !== 'register');
   document.getElementById("forgotSection").classList.toggle("hidden", mode !== 'forgot');
+  document.getElementById("eduErrSection").classList.toggle("hidden", mode !== 'edu');
+  if (mode === 'login' || mode === 'register') setTimeout(renderGoogleButtons, 80);
+}
+
+// ---------- Google Sign-In (university e-mail only; the server re-checks everything) ----------
+let _gisPromise = null, _gisReady = false;
+function _loadGis() {
+  if (window.google && google.accounts && google.accounts.id) return Promise.resolve();
+  if (!_gisPromise) {
+    _gisPromise = new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = "https://accounts.google.com/gsi/client";
+      s.async = true;
+      s.onload = resolve;
+      s.onerror = () => { _gisPromise = null; reject(new Error("Google script could not be loaded")); };
+      document.head.appendChild(s);
+    });
+  }
+  return _gisPromise;
+}
+
+async function renderGoogleButtons() {
+  const blocks = document.querySelectorAll(".google-auth-block");
+  if (!GOOGLE_CLIENT_ID) { blocks.forEach(b => b.classList.add("hidden")); return; }
+  try {
+    await _loadGis();
+    if (!_gisReady) {
+      google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID, ux_mode: "popup", auto_select: false, callback: handleGoogleCredential
+      });
+      _gisReady = true;
+    }
+  } catch (e) {
+    console.warn("Google sign-in unavailable:", e);
+    blocks.forEach(b => b.classList.add("hidden"));   // offline / blocked: password login still works
+    return;
+  }
+  blocks.forEach(b => b.classList.remove("hidden"));
+  const dark = document.documentElement.classList.contains("dark");
+  [["googleBtnLogin", "signin_with"], ["googleBtnRegister", "signup_with"]].forEach(([id, text]) => {
+    const el = document.getElementById(id);
+    if (!el || !el.offsetWidth) return;                // that section is not on screen right now
+    el.replaceChildren();
+    google.accounts.id.renderButton(el, {
+      type: "standard", theme: dark ? "filled_black" : "outline", size: "large",
+      shape: "rectangular", logo_alignment: "left", text, width: Math.min(400, Math.max(200, el.offsetWidth))
+    });
+  });
+}
+
+async function handleGoogleCredential(resp) {
+  try {
+    const res = await fetch(`${API_BASE}/auth/google`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ credential: resp.credential })
+    });
+    const data = await res.json();
+    if (res.status === 403) return showEduError(data.detail);
+    if (!res.ok) throw new Error(data.detail || "Google sign-in failed");
+
+    currentUser = data;
+    localStorage.setItem("user", JSON.stringify(data));
+    toggleAuthModal(false);
+    showToast(data.status === "pending"
+      ? `Welcome, ${data.name}! Your account is waiting for admin approval.`
+      : `Welcome back, ${data.name}!`, "success");
+    renderPortalView();
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
+
+function showEduError(msg) {
+  const eduOnly = /university email/i.test(msg || "");
+  document.getElementById("eduErrTitle").textContent = eduOnly ? "University email required" : "Sign-in not allowed";
+  document.getElementById("eduErrMsg").textContent = msg || "Please sign in with your university email.";
+  toggleAuthForms('edu');
 }
 
 function showForgotPasswordForm() {
