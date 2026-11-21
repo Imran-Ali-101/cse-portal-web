@@ -2475,13 +2475,14 @@ async function openPreview(name, id) {
   container.style.justifyContent = "center";
   if (topBar) topBar.classList.remove("hidden");
 
-  container.innerHTML = `
-    <div class="flex flex-col items-center gap-4 py-20">
-      <div class="w-64 bg-slate-800 rounded-full h-2 overflow-hidden">
-        <div id="previewLoadBar" class="bg-blue-500 h-full rounded-full progress-bar-striped" style="width: 100%"></div>
-      </div>
-      <span class="text-xs text-slate-400 font-mono" id="previewLoadText">Loading file...</span>
-    </div>`;
+    container.innerHTML = `
+      <div class="flex flex-col items-center gap-3 py-20">
+        <div class="w-64 bg-slate-800 rounded-full h-2 overflow-hidden">
+          <div id="previewLoadBar" class="bg-blue-500 h-full rounded-full progress-bar-striped" style="width: 100%"></div>
+        </div>
+        <span class="text-xs text-slate-300 font-mono" id="previewLoadText">Loading file...</span>
+        <span class="text-[11px] text-slate-500 font-mono" id="previewLoadSpeed">&nbsp;</span>
+      </div>`;
 
   // ============================================
   // CACHE-FIRST LOGIC — Server only when needed
@@ -2525,9 +2526,14 @@ async function openPreview(name, id) {
       
       if (!response.ok) throw new Error('Server error: ' + response.status);
 
-      const contentLength = response.headers.get('Content-Length');
-      const total = contentLength ? parseInt(contentLength) : 0;
-      let loaded = 0;
+      // Total Size: server's Content-Length, or file_size
+      const headerLen = parseInt(response.headers.get('Content-Length') || '0', 10);
+      const known = [...allFiles, ...sharedFiles].find(f => String(f.telegram_message_id) === String(id));
+      const total = headerLen > 0 ? headerLen : ((known && known.file_size) || 0);
+      const fmt = (b, ref) => ref >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
+      const fmtSpeed = (bps) => bps >= 1048576 ? (bps / 1048576).toFixed(2) + ' MB/s' : Math.round(bps / 1024) + ' KB/s';
+
+      let loaded = 0, lastT = performance.now(), lastLoaded = 0, speed = 0;
       const reader = response.body.getReader();
       const chunks = [];
 
@@ -2536,12 +2542,21 @@ async function openPreview(name, id) {
         if (done) break;
         chunks.push(value);
         loaded += value.length;
-        if (total > 0) {
-          const percent = Math.round((loaded / total) * 100);
+
+        const now = performance.now();
+        if (now - lastT >= 250) {                     // ২৫০ms পর পর UI আপডেট
+          const inst = ((loaded - lastLoaded) * 1000) / (now - lastT);
+          speed = speed ? speed * 0.6 + inst * 0.4 : inst;   // speed smooth করা
+          lastT = now; lastLoaded = loaded;
+
+          const shown = total > 0 ? Math.min(loaded, total) : loaded;
+          const ref = total || loaded;
           const loadBar = document.getElementById("previewLoadBar");
           const loadText = document.getElementById("previewLoadText");
-          if (loadBar) loadBar.style.width = `${percent}%`;
-          if (loadText) loadText.innerText = `${percent}% — ${(loaded / 1048576).toFixed(1)} MB`;
+          const loadSpeed = document.getElementById("previewLoadSpeed");
+          if (loadBar && total > 0) loadBar.style.width = `${Math.min(100, (shown / total) * 100).toFixed(1)}%`;
+          if (loadText) loadText.innerText = total > 0 ? `${fmt(shown, ref)} of ${fmt(total, ref)}` : fmt(shown, ref);
+          if (loadSpeed) loadSpeed.innerText = fmtSpeed(speed);
         }
       }
 

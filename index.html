@@ -37,7 +37,6 @@
       to { background-position: 0 0; }
     }
   </style>
-
   <style>
     :root { --hdr: 3.5rem; --nav-h: 4rem; }
 
@@ -104,6 +103,63 @@
       html:not(.vt) .page.is-active { animation: none; }
     }
   </style> 
+  <style id="pageui">
+    /* ===== modal → full page ===== */
+    .layer-page{position:fixed!important;inset:0!important;display:flex!important;flex-direction:column;align-items:stretch!important;justify-content:flex-start!important;padding:0!important;background:#f8fafc!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;overflow-y:auto;overscroll-behavior:contain;transition:opacity .25s ease,transform .3s cubic-bezier(.32,.72,0,1),visibility .3s}
+    .dark .layer-page{background:#020617!important}
+    .layer-page.modal-hidden{opacity:0;visibility:hidden;pointer-events:none;transform:translateY(24px)}
+    .layer-page.modal-hidden .layer-box{transform:none!important;opacity:1!important}
+    html.vt .layer-page,html.vt .layer-page .layer-box{transition:none!important}
+    @media (min-width:768px){
+      body.has-nav .layer-page{left:15rem!important;top:var(--hdr)!important}
+      body.has-nav #noticeForcePopup{left:15rem!important;top:var(--hdr)!important}
+    }
+    body #previewModal.layer-page{left:0!important;top:0!important;background:#020617!important}
+  
+    .layer-bar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:.5rem;flex-shrink:0;min-height:3.5rem;padding:env(safe-area-inset-top) .75rem 0;background:rgba(255,255,255,.92);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-bottom:1px solid #e2e8f0}
+    .dark .layer-bar{background:rgba(15,23,42,.92);border-color:#1e293b}
+    .layer-back{width:2.5rem;height:2.5rem;border-radius:9999px;display:grid;place-items:center;color:#475569;-webkit-tap-highlight-color:transparent}
+    .layer-back:active{background:#e2e8f0}
+    .dark .layer-back{color:#cbd5e1}.dark .layer-back:active{background:#1e293b}
+    .layer-title{font-weight:700;font-size:1rem}
+    .layer-lock .layer-back{display:none}
+  
+    .layer-page .layer-box{width:calc(100% - 2rem)!important;max-width:46rem!important;height:auto!important;max-height:none!important;margin:1rem auto 2rem!important;border-radius:1rem!important;box-shadow:0 1px 2px rgba(15,23,42,.06)!important;flex-shrink:0}
+    .layer-page .layer-box>h3{display:none}
+    .layer-page .layer-x{display:none!important}
+    .layer-page textarea[readonly]{min-height:50vh}
+  
+    /* জোর করে আসা notice popup ও guest password — এগুলোও এখন page */
+    #noticeForcePopup{background:#f8fafc!important;align-items:flex-start!important;overflow-y:auto;z-index:45!important;animation:pg-in .3s cubic-bezier(.32,.72,0,1) both}
+    .dark #noticeForcePopup{background:#020617!important}
+    #noticeForcePopup>div{max-width:640px!important;margin:1rem auto;background:#fff!important;color:#0f172a!important;border:1px solid #e2e8f0!important;border-radius:16px!important;box-shadow:none!important}
+    .dark #noticeForcePopup>div{background:#0f172a!important;color:#e2e8f0!important;border-color:#1e293b!important}
+    #guestPasswordModal{background:#f8fafc!important;animation:pg-in .3s both}
+    .dark #guestPasswordModal{background:#020617!important}
+    @keyframes pg-in{from{opacity:0;transform:translateY(16px)}}
+  
+    /* ===== morph ===== */
+    ::view-transition-group(morph){animation-duration:.45s;animation-timing-function:cubic-bezier(.2,.8,.2,1);overflow:clip;border-radius:14px}
+    html[data-dir="up"]::view-transition-new(root){animation-name:vt-up}
+    html[data-dir="down"]::view-transition-old(root){animation-name:vt-down}
+    @keyframes vt-up{from{transform:translateY(40px);opacity:0}}
+    @keyframes vt-down{to{transform:translateY(40px);opacity:0}}
+
+    /* ===== loading ===== */
+    .layer-bar::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:3px;opacity:0;transition:opacity .2s;background:linear-gradient(90deg,transparent,#3b82f6,transparent);background-size:40% 100%;background-repeat:no-repeat;animation:bar-run 1s linear infinite}
+    body.net-busy .layer-bar::after{opacity:1}
+    @keyframes bar-run{from{background-position:-40% 0}to{background-position:140% 0}}
+    .layer-title::after{content:"";display:none;width:14px;height:14px;margin-left:10px;border:2px solid #cbd5e1;border-top-color:#3b82f6;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px}
+    body.net-busy .layer-title::after{display:inline-block}
+    
+    /* ===== preview ===== */
+    body #previewModal.layer-page{overflow:hidden!important}
+    #previewModal #previewContainer{flex:1 1 0!important;min-height:0;height:auto!important}
+    html.vt #previewModal.layer-page{transition:opacity .25s ease,transform .3s cubic-bezier(.32,.72,0,1),visibility .3s!important}
+    #previewBusy{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:.75rem;color:#94a3b8;font:600 12px/1 ui-monospace,monospace;pointer-events:none;z-index:2}
+    #previewBusy.on{display:flex}
+    .pv-spin{width:34px;height:34px;border-radius:50%;border:3px solid rgba(148,163,184,.25);border-top-color:#3b82f6;animation:spin .7s linear infinite}
+  </style>
 </head>
 <body class="bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100 min-h-screen flex flex-col antialiased">
 
@@ -405,6 +461,10 @@
       <button data-tab="more" onclick="goTab('more')" class="nav-item flex-1 md:flex-none flex flex-col md:flex-row items-center justify-center md:justify-start gap-0.5 md:gap-3 md:px-4 md:py-3 active:scale-95">
         <span class="relative z-10 text-lg md:text-base leading-none md:w-5 md:text-center"><i class="fa-solid fa-ellipsis"></i></span>
         <span class="relative z-10 text-[11px] md:text-sm font-semibold">More</span>
+      </button>
+      <button onclick="openSettingsModal()" class="nav-item hidden md:flex md:flex-none flex-col md:flex-row items-center md:justify-start gap-3 md:px-4 md:py-3 active:scale-95">
+        <span class="relative z-10 md:w-5 md:text-center"><i class="fa-solid fa-gear"></i></span>
+        <span class="relative z-10 text-sm font-semibold">Settings</span>
       </button>
 
       <div class="hidden md:flex md:mt-auto items-center gap-2.5 rounded-xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/60 dark:bg-emerald-950/20 p-3 text-xs text-slate-600 dark:text-slate-300">
@@ -1065,7 +1125,356 @@
   </div>
 
   <script src="js/app.js"></script>
-  <script src="js/router.js"></script>
+  <script>
+      (function () {
+        'use strict';
+        const $ = (id) => document.getElementById(id);
+        const root = document.documentElement;
+        const reduced = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const canVT = typeof document.startViewTransition === 'function' && !reduced;
+        if (canVT) root.classList.add('vt');
+      
+        const curFolder = () => (typeof currentSelectedFolder !== 'undefined' ? currentSelectedFolder : '/');
+        const loggedIn = () => typeof currentUser !== 'undefined' && !!currentUser;
+        const inView = (el) => {
+          if (!el || !el.isConnected) return false;
+          const r = el.getBoundingClientRect();
+          return r.width > 4 && r.height > 4 && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth;
+        };
+      
+        /* ================= MORPH ENGINE ================= */
+        function morph(update, from, toGetter, dir) {
+          if (!canVT) { update(); return; }
+          const src = inView(from) ? from : null;
+          let dst = null;
+          root.dataset.dir = dir || 'fade';
+          if (src) src.style.viewTransitionName = 'morph';
+          const vt = document.startViewTransition(() => {
+            if (src) src.style.viewTransitionName = '';
+            update();
+            dst = toGetter ? toGetter() : null;
+            if (dst) dst.style.viewTransitionName = 'morph';
+          });
+          vt.finished.catch(() => {}).then(() => {
+            if (src) src.style.viewTransitionName = '';
+            if (dst) dst.style.viewTransitionName = '';
+          });
+        }
+      
+        /* ================= HISTORY QUEUE ================= */
+        let pending = false, queue = [], pTimer;
+        function flush() { pending = false; clearTimeout(pTimer); queue.splice(0).forEach((f) => f()); }
+        function histGo(n) { pending = true; clearTimeout(pTimer); pTimer = setTimeout(flush, 450); history.go(n); }
+        function afterHistory(fn) { pending ? queue.push(fn) : fn(); }
+      
+        /* ================= TABS ================= */
+        const ORDER = ['drive', 'notice', 'chat', 'more'];
+        const pages = {};
+        ORDER.forEach((n) => (pages[n] = $('page' + n[0].toUpperCase() + n.slice(1))));
+        const navItems = Array.from(document.querySelectorAll('#appNav .nav-item[data-tab]'));
+        const pill = document.querySelector('#appNav .nav-pill');
+        let active = 'drive';
+        const scrollMemo = {};
+        document.body.dataset.tab = 'drive';
+      
+        let origOpenNotice = null;
+        const onEnter = {
+          notice() { if (origOpenNotice) origOpenNotice(); },
+          chat() {
+            if (loggedIn() && typeof ws !== 'undefined' && !ws) initWebSocket();
+            const c = $('chatMessages'); if (c) c.scrollTop = c.scrollHeight;
+          },
+        };
+      
+        function showTab(name, dirOverride, instant) {
+          if (!pages[name] || name === active) return;
+          const from = active;
+          const dir = dirOverride || (ORDER.indexOf(name) > ORDER.indexOf(from) ? 'fwd' : 'back');
+          scrollMemo[from] = window.scrollY;
+          const update = () => {
+            ORDER.forEach((n) => pages[n] && pages[n].classList.toggle('is-active', n === name));
+            navItems.forEach((b) => {
+              const on = b.dataset.tab === name;
+              b.classList.toggle('is-active', on);
+              if (on) { b.setAttribute('aria-current', 'page'); if (pill) b.prepend(pill); }
+              else b.removeAttribute('aria-current');
+            });
+            active = name;
+            document.body.dataset.tab = name;
+            window.scrollTo(0, scrollMemo[name] || 0);
+          };
+          if (instant || !canVT) update();
+          else { root.dataset.dir = dir; document.startViewTransition(update); }
+          if (onEnter[name]) onEnter[name]();
+        }
+      
+        function navigate(name) {
+          if (name === active) return;
+          if (name === 'drive') {
+            if (history.state && history.state.tab) { histGo(-1); afterHistory(() => showTab('drive')); return; }
+            showTab('drive'); return;
+          }
+          const st = { folder: curFolder(), tab: name, depth: 0 };
+          if (active === 'drive') history.pushState(st, ''); else history.replaceState(st, '');
+          showTab(name);
+        }
+      
+        window.goTab = function (name) {
+          if (stack.length) { closeAll(); afterHistory(() => window.goTab(name)); return; }
+          if (name === active) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+          navigate(name);
+        };
+      
+        if (typeof openNoticeBoardModal === 'function') {
+          origOpenNotice = openNoticeBoardModal;
+          window.openNoticeBoardModal = function () { if (active !== 'notice') navigate('notice'); else origOpenNotice(); };
+        }
+        window.closeNoticeBoardModal = function () {};
+        window.openChatFullscreen = function () {
+          if (!loggedIn()) return showToast('Please login first', 'error');
+          navigate('chat');
+        };
+        window.closeChatFullscreen = function () { if (active === 'chat') navigate('drive'); };
+      
+        /* ================= LAYERS (modal → full page) ================= */
+        const TITLES = {
+          settingsModal: 'Settings', sharedLinksModal: 'Shared Links', noticeDetailsModal: 'Notice',
+          permissionsModal: 'Folder Access', classmatesListModal: 'Classmates', renameModal: 'Rename',
+          userManagementModal: 'User Management', routineModal: 'Class Routine', routineSettingsModal: 'Routine Settings',
+          editRoutineModal: 'Edit Routine', adminTrashModal: 'Trash Bin', uploadProgressModal: 'Uploading…',
+          moveModal: 'Move to…', folderModal: 'New Folder', authModal: 'Account', onlineUsersModal: "Who's Online",
+          createShareModal: 'Share Folder', storageManagerModal: 'Offline Storage', previewModal: 'Preview',
+        };
+        const NO_HIST = new Set(['previewModal', 'uploadProgressModal']); // preview এর history app.js নিজেই সামলায়
+        const stack = [];
+        const srcOf = {};
+        const boxOf = (el) => (el.id === 'previewModal' ? el : el.querySelector('.layer-box') || el);
+      
+        Object.keys(TITLES).forEach((id) => {
+          const el = $(id); if (!el) return;
+          el.classList.add('layer-page', 'modal-hidden');
+          if (id === 'previewModal') return;
+          const box = el.querySelector('.modal-box') || el.firstElementChild;
+          box.classList.add('modal-box', 'layer-box');
+          box.querySelectorAll('button').forEach((b) => { if (b.querySelector('.fa-xmark')) b.classList.add('layer-x'); });
+          const bar = document.createElement('div');
+          bar.className = 'layer-bar' + (id === 'uploadProgressModal' ? ' layer-lock' : '');
+          bar.innerHTML = '<button type="button" class="layer-back" aria-label="Back"><i class="fa-solid fa-arrow-left"></i></button><span class="layer-title"></span>';
+          bar.querySelector('.layer-back').onclick = () => window.hideAnimatedModal(id);
+          el.prepend(bar);
+        });
+      
+        let trig = null, trigAt = 0;
+        document.addEventListener('click', (e) => {
+          const t = e.target.closest && e.target.closest('[data-morph],[onclick],button,a');
+          if (t) { trig = t; trigAt = Date.now(); }
+        }, true);
+        const trigger = () => (trig && Date.now() - trigAt < 1500 ? trig.closest('[data-morph]') || trig : null);
+      
+        function setTitle(id) {
+          const t = $(id).querySelector('.layer-title'); if (!t) return;
+          let s = TITLES[id];
+          if (id === 'noticeDetailsModal') { const h = $('ndModalHeading'); if (h && h.textContent.trim()) s = h.textContent.trim(); }
+          t.textContent = s;
+        }
+      
+          const NO_MORPH = new Set(['previewModal']);
+          function openVisual(id) {
+            const el = $(id), src = trigger();
+            srcOf[id] = src;
+            setTitle(id);
+            el.style.zIndex = String(60 + stack.length);   // নতুন page সবসময় আগেরটার উপরে
+            if (NO_MORPH.has(id)) { el.classList.remove('modal-hidden'); el.scrollTop = 0; return; }
+            morph(() => { el.classList.remove('modal-hidden'); el.scrollTop = 0; }, src, () => boxOf(el), inView(src) ? 'fade' : 'up');
+          }
+          function hideVisual(id, instant) {
+            const el = $(id), src = srcOf[id];
+            if (instant || NO_MORPH.has(id)) { el.classList.add('modal-hidden'); return; }
+            const ok = inView(src);
+            morph(() => el.classList.add('modal-hidden'), boxOf(el), ok ? () => src : null, ok ? 'fade' : 'down');
+          }
+      
+        window.showAnimatedModal = function (id) {
+          const el = $(id); if (!el) return;
+          if (!el.classList.contains('modal-hidden')) return;
+          if (!el.classList.contains('layer-page')) { el.classList.remove('modal-hidden'); return; }
+          openVisual(id);
+          if (NO_HIST.has(id)) return;
+          stack.push(id);
+          afterHistory(() => {
+            if (stack.indexOf(id) < 0) return;
+            history.pushState({ folder: curFolder(), tab: active, depth: stack.indexOf(id) + 1, layer: id }, '');
+          });
+        };
+      
+        window.hideAnimatedModal = function (id) {
+          const el = $(id); if (!el || el.classList.contains('modal-hidden')) return;
+          if (!el.classList.contains('layer-page')) { el.classList.add('modal-hidden'); return; }
+          hideVisual(id);
+          const i = stack.lastIndexOf(id);
+          if (i < 0) return;
+          stack.splice(i, 1);
+          if (history.state && history.state.layer === id) histGo(-1);
+        };
+      
+        function closeAll() {
+          if (!stack.length) return false;
+          const d = (history.state && history.state.depth) || 0;
+          stack.splice(0).forEach((id) => hideVisual(id, true));
+          if (d) histGo(-d);
+          return true;
+        }
+      
+        window.addEventListener('popstate', (e) => {
+          const st = e.state || {}, depth = st.depth || 0;
+          while (stack.length > depth) hideVisual(stack.pop());
+          if (loggedIn() && !stack.length) {
+            const tab = st.tab || 'drive';
+            if (tab !== active) showTab(tab, ORDER.indexOf(tab) < ORDER.indexOf(active) ? 'back' : 'fwd');
+          }
+          if (pending) flush();
+        });
+      
+        /* ================= FOLDER MORPH ================= */
+        const fileCard = () => { const c = $('fileTableContent'); return c && c.closest('.rounded-xl'); };
+        function rowFor(path) {
+          const c = $('fileTableContent'); if (!c) return null;
+          const want = "selectFolder('" + path + "')";
+          for (const n of c.querySelectorAll('[onclick^="selectFolder("]'))
+            if (n.getAttribute('onclick') === want) return n.closest('.grid') || n;
+          return null;
+        }
+        const origRender = window.renderFilesTable;
+        let lastFolder = null;
+        if (typeof origRender === 'function') {
+          window.renderFilesTable = function () {
+            const folder = curFolder(), prev = lastFolder;
+            lastFolder = folder;
+            const card = fileCard();
+            if (!canVT || prev === null || prev === folder || active !== 'drive' || !card) return origRender.apply(this, arguments);
+            const pre = (p) => (p === '/' ? '/' : p + '/');
+            let from = card, getTo = () => card;
+            if (folder.startsWith(pre(prev))) from = rowFor(folder) || card;              // ভেতরে ঢুকলে: row → পুরো list
+            else if (prev.startsWith(pre(folder))) getTo = () => rowFor(prev) || card;    // বেরোলে: list → আগের folder row
+            morph(() => origRender(), from, getTo, 'fade');
+          };
+        }
+      
+        if (typeof selectFolder === 'function') {
+          const origSelect = selectFolder;
+          window.selectFolder = function (path) {
+            afterHistory(() => {
+              if (stack.length) closeAll();
+              afterHistory(() => {
+                if (active !== 'drive') {
+                  history.replaceState({ folder: curFolder(), depth: 0 }, '');
+                  showTab('drive', 'fade', true);
+                }
+                origSelect(path);
+              });
+            });
+          };
+        }
+      
+        if (typeof handleLogout === 'function') {
+          const origLogout = handleLogout;
+          window.handleLogout = function () {
+            if (stack.length) stack.splice(0).forEach((id) => hideVisual(id, true));
+            origLogout();
+            history.replaceState({ folder: curFolder(), depth: 0 }, '');
+            showTab('drive', 'fade', true);
+          };
+        }
+
+          /* ================= LOADING ================= */
+          let inflight = 0;
+          const baseFetch = window.fetch;
+          window.fetch = function () {
+            inflight++; document.body.classList.add('net-busy');
+            const done = () => { if (--inflight <= 0) { inflight = 0; document.body.classList.remove('net-busy'); } };
+            const p = baseFetch.apply(this, arguments);
+            p.then(done, done);
+            return p;
+          };
+        
+          // PDF viewer (iframe) লোড হওয়ার সময় spinner
+          const pm = $('previewModal'), pc = $('previewContainer');
+          if (pm && pc) {
+            const busy = document.createElement('div');
+            busy.id = 'previewBusy';
+            busy.innerHTML = '<div class="pv-spin"></div><span>Opening file…</span>';
+            pm.appendChild(busy);
+            new MutationObserver(() => {
+              const ifr = $('pdfIframe');
+              if (ifr && !ifr.dataset.seen) {
+                ifr.dataset.seen = '1'; busy.classList.add('on');
+                const off = () => busy.classList.remove('on');
+                ifr.addEventListener('load', off, { once: true });
+                setTimeout(off, 15000);
+              } else if (!pc.firstElementChild) busy.classList.remove('on');
+            }).observe(pc, { childList: true });
+          }
+        
+          /* ================= PROFILE ICON (Logout এর জায়গায়) ================= */
+          const navAuth = $('navAuthSection');
+          const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+          function buildProfile() {
+            if (!navAuth || !loggedIn()) return;
+            if (!navAuth.querySelector('button[onclick*="handleLogout"]')) return;   // login বাটন বা আগেই বানানো
+            const name = String(currentUser.name || 'User').trim();
+            const ini = name.split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+            const role = typeof isAdmin === 'function' && isAdmin() ? 'Admin' : 'Student';
+            const photo = currentUser.photo || currentUser.picture || currentUser.avatar_url || '';  // Google login এর ছবি এখানেই আসবে
+            const item = 'w-full flex items-center gap-3 px-4 py-2.5 text-sm text-left hover:bg-slate-50 dark:hover:bg-slate-800';
+            navAuth.innerHTML =
+              '<div class="relative">' +
+                '<button id="profileBtn" type="button" aria-label="Profile" class="h-9 w-9 rounded-full overflow-hidden bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-xs font-bold flex items-center justify-center ring-2 ring-white dark:ring-slate-900 shadow active:scale-95 transition">' +
+                  (photo ? '<img src="' + esc(photo) + '" class="h-full w-full object-cover" referrerpolicy="no-referrer" alt="">' : esc(ini)) +
+                '</button>' +
+                '<div id="profileMenu" class="hidden absolute right-0 top-11 w-60 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl py-1.5 z-[60]">' +
+                  '<div class="px-4 py-3 border-b border-slate-100 dark:border-slate-800">' +
+                    '<div class="font-semibold text-sm truncate">' + esc(name) + '</div>' +
+                    '<div class="text-[11px] text-slate-400 font-mono truncate">' + esc(currentUser.student_id || '') + ' · ' + role + '</div>' +
+                  '</div>' +
+                  '<button type="button" data-pm="settings" class="' + item + '"><i class="fa-solid fa-gear w-4 text-slate-400"></i>Settings</button>' +
+                  '<button type="button" data-pm="storage" class="' + item + '"><i class="fa-solid fa-hard-drive w-4 text-slate-400"></i>Offline Storage</button>' +
+                  '<button type="button" data-pm="logout" class="' + item + ' text-rose-600 border-t border-slate-100 dark:border-slate-800"><i class="fa-solid fa-arrow-right-from-bracket w-4"></i>Logout</button>' +
+                '</div>' +
+              '</div>';
+          }
+          if (navAuth) new MutationObserver(buildProfile).observe(navAuth, { childList: true });
+          buildProfile();
+        
+          document.addEventListener('click', (e) => {
+            const menu = $('profileMenu');
+            if (e.target.closest('#profileBtn')) { if (menu) menu.classList.toggle('hidden'); return; }
+            if (menu && !menu.classList.contains('hidden')) menu.classList.add('hidden');
+            const it = e.target.closest('[data-pm]');
+            if (!it) return;
+            trig = $('profileBtn'); trigAt = Date.now();    // page টা avatar থেকে morph হয়ে খুলবে
+            if (it.dataset.pm === 'settings') openSettingsModal();
+            else if (it.dataset.pm === 'storage') openStorageManager();
+            else if (it.dataset.pm === 'logout') handleLogout();
+          });
+      
+        /* ================= nav chrome + keyboard ================= */
+        const authView = $('authenticatedView');
+        function syncChrome() {
+          const guest = typeof isGuestMode !== 'undefined' && isGuestMode;
+          const visible = authView && !authView.classList.contains('hidden');
+          document.body.classList.toggle('guest-mode', guest);
+          document.body.classList.toggle('has-nav', !!(loggedIn() && !guest && visible));
+        }
+        if (authView) new MutationObserver(syncChrome).observe(authView, { attributes: true, attributeFilter: ['class'] });
+        syncChrome();
+      
+        let kbdTimer;
+        const isText = (el) => el && (el.tagName === 'TEXTAREA' ||
+          (el.tagName === 'INPUT' && /^(text|search|password|email|number|tel|url)$/i.test(el.type || 'text')));
+        document.addEventListener('focusin', (e) => { if (isText(e.target)) { clearTimeout(kbdTimer); document.body.classList.add('kbd'); } });
+        document.addEventListener('focusout', () => { kbdTimer = setTimeout(() => document.body.classList.remove('kbd'), 80); });
+      })();
+      </script>
   <script>
     // Register Service Worker
     if ('serviceWorker' in navigator) {
