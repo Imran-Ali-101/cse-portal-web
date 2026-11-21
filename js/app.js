@@ -2051,42 +2051,56 @@ async function openNoticeBoardModal() {
 }
 function closeNoticeBoardModal() { hideAnimatedModal("noticeBoardModal"); }
 
+function _renderNoticesList(container, list) {
+  if (list.length === 0) {
+    container.innerHTML = `<p class="text-center py-10 text-slate-400">No notices published yet.</p>`;
+    return;
+  }
+  container.innerHTML = list.map(n => {
+    const timeFormatted = new Date(n.created_at).toLocaleString('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric', hour12: true
+    });
+
+    return `
+      <div onclick="openNoticeDetails('${n.id}')" class="py-3 px-2 hover:bg-slate-50 dark:hover:bg-slate-800/60 rounded-xl cursor-pointer transition flex items-center justify-between">
+        <div class="flex items-center gap-3 overflow-hidden">
+          <div class="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-950 text-amber-500 flex items-center justify-center shrink-0">
+            <i class="fa-solid fa-bullhorn text-xs"></i>
+          </div>
+          <div class="truncate">
+            <span class="font-bold text-slate-800 dark:text-slate-100 block truncate">${n.title}</span>
+            <span class="text-[11px] text-slate-500 font-mono truncate">${(n.file_name || n.message || '').replace(/\n/g, ', ')}</span>
+          </div>
+        </div>
+        <span class="text-[10px] text-slate-400 font-mono whitespace-nowrap ml-2">${timeFormatted}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+const _noticeVisible = n => !n.folder_path || n.folder_path === '/' || hasFolderPermission(n.folder_path);
+
 async function loadNoticesList() {
   const container = document.getElementById("noticesListContainer");
+
+  // Tab খুললেই আগে cache থেকে দেখাও; cache না থাকলে skeleton। server আসা পর্যন্ত খালি সাদা card থাকবে না।
+  if (container.dataset.ready !== "1") {
+    const cached = getFromLocalStorage("cached_notices").filter(_noticeVisible);
+    if (cached.length) { _renderNoticesList(container, cached); container.dataset.ready = "1"; }
+    else container.innerHTML = [0, 1, 2].map(() => `
+      <div class="py-3 px-2 flex items-center gap-3 animate-pulse">
+        <div class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 shrink-0"></div>
+        <div class="flex-1 space-y-2"><div class="h-3 w-2/3 rounded bg-slate-100 dark:bg-slate-800"></div><div class="h-2.5 w-1/2 rounded bg-slate-100 dark:bg-slate-800"></div></div>
+      </div>`).join('');
+  }
+
   try {
     const res = await fetch(`${API_BASE}/notices/list?t=${Date.now()}`);
     const rawNotices = await res.json();
 
-    allNotices = rawNotices.filter(n => {
-      if (!n.folder_path || n.folder_path === '/') return true;
-      return hasFolderPermission(n.folder_path);
-    });
-
-    if (allNotices.length === 0) {
-      container.innerHTML = `<p class="text-center py-10 text-slate-400">No notices published yet.</p>`;
-      return;
-    }
-
-    container.innerHTML = allNotices.map(n => {
-      const timeFormatted = new Date(n.created_at).toLocaleString('en-US', {
-        month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric', hour12: true
-      });
-
-      return `
-        <div onclick="openNoticeDetails('${n.id}')" class="py-3 px-2 hover:bg-slate-50 dark:hover:bg-slate-800/60 rounded-xl cursor-pointer transition flex items-center justify-between">
-          <div class="flex items-center gap-3 overflow-hidden">
-            <div class="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-950 text-amber-500 flex items-center justify-center shrink-0">
-              <i class="fa-solid fa-bullhorn text-xs"></i>
-            </div>
-            <div class="truncate">
-              <span class="font-bold text-slate-800 dark:text-slate-100 block truncate">${n.title}</span>
-              <span class="text-[11px] text-slate-500 font-mono truncate">${(n.file_name || n.message || '').replace(/\n/g, ', ')}</span>
-            </div>
-          </div>
-          <span class="text-[10px] text-slate-400 font-mono whitespace-nowrap ml-2">${timeFormatted}</span>
-        </div>
-      `;
-    }).join('');
+    allNotices = rawNotices.filter(_noticeVisible);
+    _renderNoticesList(container, allNotices);
+    container.dataset.ready = "1";
   } catch(e) { console.error(e); }
 }
 
