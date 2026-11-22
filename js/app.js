@@ -3023,9 +3023,9 @@ async function openPptxOffice(name, id) {
         <span>Opening presentation…</span>
       </div>
       <button id="pptxCloseBtn" title="Close"
-        style="position:absolute;left:0;bottom:0;z-index:5;width:56px;height:26px;display:flex;align-items:center;justify-content:center;border:0;background:#404040;color:#d1d5db;cursor:pointer"
-        onmouseover="this.style.background='#e11d48';this.style.color='#fff'" onmouseout="this.style.background='#404040';this.style.color='#d1d5db'">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        style="position:absolute;left:0;bottom:0;z-index:5;height:26px;padding:0 14px;display:flex;align-items:center;justify-content:center;gap:6px;border:0;background:#e11d48;color:#fff;cursor:pointer;font:700 12px/1 system-ui,sans-serif"
+        onmouseover="this.style.background='#be123c'" onmouseout="this.style.background='#e11d48'">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>Close
       </button>`;
     document.getElementById("pptxFrame").onload = () => { const l = document.getElementById("pptxLoading"); if (l) l.remove(); };
     document.getElementById("pptxCloseBtn").onclick = () => closePreview();
