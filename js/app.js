@@ -2670,6 +2670,9 @@ async function openPreview(name, id) {
         <span class="text-[11px] text-slate-500 font-mono" id="previewLoadSpeed">&nbsp;</span>
       </div>`;
 
+  // PPTX: Microsoft Office Viewer (animation সহ) — signed public link লাগে, তাই আগে পুরো ফাইল নামানোর দরকার নেই
+  if (/\.pptx?$/i.test(name)) return openPptxOffice(name, id);
+
   // ============================================
   // CACHE-FIRST LOGIC — Server only when needed
   // ============================================
@@ -2916,6 +2919,20 @@ async function openPreview(name, id) {
       } catch(e) {}
     };
   }
+  else if (lower.endsWith('.docx')) {
+    // PDF-এর মতোই desktop-width layout + একই ধরনের dark header
+    const viewportMeta = document.querySelector('meta[name="viewport"]');
+    if (viewportMeta) {
+      originalViewportContent = viewportMeta.getAttribute("content");
+      viewportMeta.setAttribute("content", "width=1024, user-scalable=yes");
+    }
+    if (topBar) topBar.classList.add("hidden");
+    container.style.padding = "0";
+    container.style.justifyContent = "center";
+    container.innerHTML = `
+      <iframe id="docxIframe" src="/docxviewer/viewer.html?file=${encodeURIComponent(finalUrlToRender)}&name=${encodeURIComponent(name)}"
+              class="w-full h-full border-0 shadow-xl" allowfullscreen></iframe>`;
+  }
   else if (isTextFile) {
     container.style.justifyContent = "flex-start";
     container.innerHTML = `
@@ -2953,6 +2970,69 @@ async function openPreview(name, id) {
   }
 }
  
+async function openPptxOffice(name, id) {
+  const container = document.getElementById("previewContainer");
+  const card = (icon, title, text) => {
+    container.style.justifyContent = "center";
+    container.innerHTML = `
+      <div class="text-center p-8 bg-slate-900 border border-slate-800 rounded-2xl max-w-sm">
+        <i class="fa-solid ${icon} text-4xl mb-3 block"></i>
+        <h4 class="text-sm font-semibold text-slate-200 mb-1">${title}</h4>
+        <p class="text-xs text-slate-400 mb-4">${text}</p>
+        <button onclick="downloadActivePreviewFile()" class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl text-xs font-semibold">
+          <i class="fa-solid fa-download"></i> Download File
+        </button>
+      </div>`;
+  };
+  if (!navigator.onLine) return card("fa-wifi text-rose-500", "Internet needed", "PowerPoint preview needs an internet connection.");
+
+  try {
+    const token = isGuestMode ? guestToken : (currentUser ? currentUser.token : '');
+    const r = await fetch(`${API_BASE}/slides/office-link/${id}?filename=${encodeURIComponent(name)}&token=${token}`);
+    if (!r.ok) throw new Error('Server error: ' + r.status);
+    const { path } = await r.json();
+    if (!activePreviewItem || activePreviewItem.id !== id) return; // user already closed it
+
+    const src = 'https://view.officeapps.live.com/op/embed.aspx?src=' + encodeURIComponent(API_BASE + path) + '&wdAr=1.7777777777777777';
+    const isTouch = window.matchMedia('(pointer: coarse)').matches;
+    container.style.padding = "0";
+    container.style.position = "relative";
+    container.style.overflow = "hidden";
+    container.style.background = "#000";
+    container.style.justifyContent = "flex-start";
+    // 1280x760 এ রেন্ডার করিয়ে CSS scale — তাহলে স্লাইড ঘোলা হয় না
+    container.innerHTML = `
+      <iframe id="pptxFrame" src="${src}" allowfullscreen
+        style="position:absolute;left:0;top:0;width:1280px;height:760px;border:0;transform-origin:0 0;background:#000"></iframe>
+      ${isTouch ? `<button id="pptxRotateBtn" style="position:absolute;top:8px;right:8px;z-index:5;background:rgba(15,23,42,.85);color:#fff;border:1px solid #475569;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600">⟳ Rotate</button>` : ''}`;
+
+    let rot = false;
+    const frame = document.getElementById("pptxFrame");
+    const fit = () => {
+      const w = container.clientWidth, h = container.clientHeight;
+      if (!w || !h) return;
+      if (w > h) rot = false;            // ফোন নিজেই landscape হলে আর rotate লাগে না
+      let t;
+      if (!rot) {
+        const s = Math.min(w / 1280, h / 760);
+        t = `translate(${(w - 1280 * s) / 2}px,${(h - 760 * s) / 2}px) scale(${s})`;
+      } else {
+        const s = Math.min(h / 1280, w / 760);
+        t = `translate(${(w - 760 * s) / 2 + 760 * s}px,${(h - 1280 * s) / 2}px) rotate(90deg) scale(${s})`;
+      }
+      frame.style.transform = t;
+    };
+    const btn = document.getElementById("pptxRotateBtn");
+    if (btn) btn.onclick = () => { rot = !rot; fit(); };
+    if (window.__pptxRO) window.__pptxRO.disconnect();
+    window.__pptxRO = new ResizeObserver(fit);
+    window.__pptxRO.observe(container);
+    fit();
+  } catch (err) {
+    card("fa-triangle-exclamation text-rose-500", "Failed to open presentation", err.message);
+  }
+}
+
 function closePreview(isFromBackButton = false) {
   // Clear zoom event
   const container = document.getElementById("previewContainer");
@@ -2967,6 +3047,9 @@ function closePreview(isFromBackButton = false) {
     container.onpointercancel = null;
     container.style.touchAction = "";
     container.style.overflow = "";
+    container.style.position = "";
+    container.style.background = "";
+    if (window.__pptxRO) { window.__pptxRO.disconnect(); window.__pptxRO = null; }
     window.rotatePreviewImage = null;
     const rotateBtnClose = document.getElementById("imageRotateBtn");
     if (rotateBtnClose) rotateBtnClose.classList.add("hidden");

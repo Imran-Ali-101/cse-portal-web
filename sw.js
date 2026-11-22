@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cse-portal-v29.2';
+const CACHE_NAME = 'cse-portal-v29.3';
 
 // Critical local files to load in offline
 const LOCAL_ASSETS = [
@@ -21,6 +21,13 @@ const PDFJS_ASSETS = [
   '/pdfjs/build/pdf.mjs',
   '/pdfjs/build/pdf.worker.mjs',
   '/pdfjs/build/pdf.sandbox.mjs',
+];
+
+// docx viewer — offline DOCX preview
+const DOCX_ASSETS = [
+  '/docxviewer/viewer.html',
+  '/docxviewer/jszip.min.js',
+  '/docxviewer/docx-preview.min.js',
 ];
 
 // CDN assets — font icon
@@ -55,6 +62,7 @@ self.addEventListener('install', (e) => {
 
       // Step 2: pdfjs — fail
       await cacheIndividually(cache, PDFJS_ASSETS);
+      await cacheIndividually(cache, DOCX_ASSETS);
       console.log('[SW] pdfjs assets cached.');
 
       // Step 3: CDN assets

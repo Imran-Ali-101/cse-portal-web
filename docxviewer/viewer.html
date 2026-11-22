@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DOCX Viewer</title>
+<style>
+  :root{--bar:#38383d;--bg:#2a2a2e;--fg:#d1d5db;--btn:#4a4a50}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:system-ui,Segoe UI,Arial,sans-serif;overflow:hidden}
+  #bar{height:32px;background:var(--bar);display:flex;align-items:center;gap:6px;padding:0 8px;box-shadow:0 1px 0 #1c1c1f,0 2px 6px rgba(0,0,0,.4);position:relative;z-index:5;font-size:13px}
+  #bar .title{font-weight:600;max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-right:8px}
+  #bar .sp{flex:1}
+  #bar button,#bar select{background:transparent;color:var(--fg);border:0;height:26px;min-width:28px;border-radius:4px;cursor:pointer;font-size:14px}
+  #bar select{background:var(--btn);padding:0 6px;font-size:12px}
+  #bar button:hover{background:var(--btn)}
+  #bar .close{background:#e11d48;color:#fff;font-weight:700;font-size:12px;padding:0 12px}
+  #bar .close:hover{background:#be123c}
+  #pg{font-size:12px;min-width:64px;text-align:center}
+  #host{position:absolute;top:32px;left:0;right:0;bottom:0;overflow:auto;-webkit-overflow-scrolling:touch}
+  #host .docx-wrapper{background:var(--bg)!important;padding:14px 0!important}
+  #host .docx-wrapper>section.docx{box-shadow:0 2px 10px rgba(0,0,0,.6)!important;margin-bottom:14px!important;background:#fff}
+  #msg{position:absolute;top:32px;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;font-size:13px}
+  .spin{width:34px;height:34px;border:3px solid #555;border-top-color:#60a5fa;border-radius:50%;animation:r 1s linear infinite}
+  @keyframes r{to{transform:rotate(360deg)}}
+  @media print{#bar,#msg{display:none!important}#host{position:static;overflow:visible}#host .docx-wrapper{zoom:1!important;padding:0!important;background:#fff!important}#host .docx-wrapper>section.docx{box-shadow:none!important;margin:0!important}}
+</style>
+</head>
+<body>
+<div id="bar">
+  <span class="title" id="title">Document</span>
+  <button id="zo" title="Zoom out">−</button>
+  <button id="zi" title="Zoom in">+</button>
+  <select id="zs">
+    <option value="fit">Page Width</option><option value="0.5">50%</option><option value="0.75">75%</option>
+    <option value="1">100%</option><option value="1.25">125%</option><option value="1.5">150%</option>
+    <option value="2">200%</option><option value="3">300%</option>
+  </select>
+  <span id="pg"></span>
+  <span class="sp"></span>
+  <button id="dl" title="Download">⬇</button>
+  <button id="pr" title="Print">🖨</button>
+  <button class="close" id="cl">✕ Close</button>
+</div>
+<div id="msg"><div class="spin"></div><span>Loading document…</span></div>
+<div id="host" style="visibility:hidden"></div>
+
+<script src="jszip.min.js"></script>
+<script src="docx-preview.min.js"></script>
+<script>
+(function(){
+  const q=new URLSearchParams(location.search), file=q.get('file'), name=q.get('name')||'document.docx';
+  const $=id=>document.getElementById(id), host=$('host');
+  $('title').textContent=name; $('title').title=name;
+  let zoom='fit', pageW=816;
+
+  function wrapper(){return host.querySelector('.docx-wrapper')}
+  function pages(){return [...host.querySelectorAll('section.docx')]}
+  function apply(){
+    const w=wrapper(); if(!w) return;
+    let z;
+    if(zoom==='fit'){ z=Math.min(Math.max((host.clientWidth-24)/pageW,.3),2); }
+    else z=zoom;
+    w.style.zoom=z;
+    $('zs').value=(zoom==='fit')?'fit':String(zoom);
+    if(zoom!=='fit' && ![...$('zs').options].some(o=>o.value===String(zoom))) $('zs').selectedIndex=-1;
+    page();
+  }
+  function cur(){ const w=wrapper(); return w?parseFloat(w.style.zoom)||1:1 }
+  function step(f){ zoom=Math.min(4,Math.max(.25,+(cur()*f).toFixed(3))); apply(); }
+  function page(){
+    const w=wrapper(), p0=pages()[0]; if(!w||!p0) return;
+    const z=cur(), pageH=(parseFloat(p0.style.minHeight)||p0.getBoundingClientRect().height/z||1056)+14;
+    const r=w.getBoundingClientRect(), top=host.getBoundingClientRect().top;
+    const total=Math.max(1,Math.round((r.height/z-28)/pageH));
+    const y=(top+host.clientHeight/3-r.top)/z-14;
+    $('pg').textContent=Math.min(total,Math.max(1,Math.floor(y/pageH)+1))+' of '+total;
+  }
+
+  $('zi').onclick=()=>step(1.15); $('zo').onclick=()=>step(1/1.15);
+  $('zs').onchange=e=>{zoom=e.target.value==='fit'?'fit':parseFloat(e.target.value);apply()};
+  $('cl').onclick=()=>{ try{ parent.closePreview() }catch(e){ history.back() } };
+  $('pr').onclick=()=>window.print();
+  $('dl').onclick=()=>{const a=document.createElement('a');a.href=file;a.download=name;document.body.appendChild(a);a.click();a.remove()};
+  host.addEventListener('scroll',page,{passive:true});
+  addEventListener('resize',()=>{ if(zoom==='fit') apply() });
+  addEventListener('keydown',e=>{
+    if((e.ctrlKey||e.metaKey)&&(e.key==='+'||e.key==='=')){e.preventDefault();step(1.15)}
+    else if((e.ctrlKey||e.metaKey)&&e.key==='-'){e.preventDefault();step(1/1.15)}
+  });
+  // Ctrl + wheel zoom (desktop)
+  host.addEventListener('wheel',e=>{ if(e.ctrlKey){e.preventDefault();step(e.deltaY<0?1.1:1/1.1)} },{passive:false});
+
+  (async()=>{
+    try{
+      if(!file) throw new Error('No file');
+      const buf=await (await fetch(file)).arrayBuffer();
+      await docx.renderAsync(buf,host,null,{className:'docx',inWrapper:true,ignoreWidth:false,breakPages:true,useBase64URL:true,renderHeaders:true,renderFooters:true,renderFootnotes:true});
+      const p=pages()[0]; if(p) pageW=p.offsetWidth||816;
+      $('msg').remove(); host.style.visibility='visible'; apply();
+    }catch(err){
+      $('msg').innerHTML='<span style="color:#f87171">Failed to open document: '+(err&&err.message||err)+'</span>';
+    }
+  })();
+})();
+</script>
+</body>
+</html>
