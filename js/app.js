@@ -3001,17 +3001,22 @@ async function openPptxOffice(name, id) {
     container.style.background = "#000";
     container.style.justifyContent = "flex-start";
     // 1280x760 এ রেন্ডার করিয়ে CSS scale — তাহলে স্লাইড ঘোলা হয় না
+    // touch-action:none → rotate অবস্থায়ও swipe (স্লাইড বদল) iframe-এর ভেতরে পৌঁছায়, browser নিজে scroll করে না
     container.innerHTML = `
       <iframe id="pptxFrame" src="${src}" allowfullscreen
-        style="position:absolute;left:0;top:0;width:1280px;height:760px;border:0;transform-origin:0 0;background:#000"></iframe>
-      ${isTouch ? `<button id="pptxRotateBtn" style="position:absolute;top:8px;right:8px;z-index:5;background:rgba(15,23,42,.85);color:#fff;border:1px solid #475569;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600">⟳ Rotate</button>` : ''}`;
+        style="position:absolute;left:0;top:0;width:1280px;height:760px;border:0;transform-origin:0 0;background:#000;touch-action:none"></iframe>
+      <div id="pptxLoading" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#94a3b8;font-size:12px;pointer-events:none">
+        <div class="w-48 bg-slate-800 rounded-full h-2 overflow-hidden"><div class="bg-blue-500 h-full rounded-full progress-bar-striped" style="width:100%"></div></div>
+        <span>Opening presentation…</span>
+      </div>`;
 
-    let rot = false;
+    let rotPref = isTouch;               // মোবাইলে ডিফল্টভাবে rotate (portrait হলে)
     const frame = document.getElementById("pptxFrame");
+    frame.onload = () => { const l = document.getElementById("pptxLoading"); if (l) l.remove(); };
     const fit = () => {
       const w = container.clientWidth, h = container.clientHeight;
       if (!w || !h) return;
-      if (w > h) rot = false;            // ফোন নিজেই landscape হলে আর rotate লাগে না
+      const rot = rotPref && h > w;      // ফোন নিজেই landscape হলে আর rotate লাগে না
       let t;
       if (!rot) {
         const s = Math.min(w / 1280, h / 760);
@@ -3022,8 +3027,12 @@ async function openPptxOffice(name, id) {
       }
       frame.style.transform = t;
     };
-    const btn = document.getElementById("pptxRotateBtn");
-    if (btn) btn.onclick = () => { rot = !rot; fit(); };
+    // Rotate বাটন: image view-এর মতো উপরের bar-এ
+    const rotBtn = document.getElementById("imageRotateBtn");
+    if (isTouch && rotBtn) {
+      rotBtn.classList.remove("hidden");
+      window.rotatePreviewImage = () => { rotPref = !rotPref; fit(); };
+    }
     if (window.__pptxRO) window.__pptxRO.disconnect();
     window.__pptxRO = new ResizeObserver(fit);
     window.__pptxRO.observe(container);
