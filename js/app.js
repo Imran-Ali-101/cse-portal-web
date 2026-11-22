@@ -3022,8 +3022,10 @@ async function openPptxOffice(name, id) {
         <div class="bg-slate-800 rounded-full overflow-hidden" style="width:${192*k}px;height:${8*k}px"><div class="bg-blue-500 h-full rounded-full progress-bar-striped" style="width:100%"></div></div>
         <span>Opening presentation…</span>
       </div>
-      <button id="pptxCloseBtn" title="Close" style="position:absolute;top:${8*k}px;right:${8*k}px;z-index:5;width:${34*k}px;height:${34*k}px;display:flex;align-items:center;justify-content:center;border:0;border-radius:${8*k}px;background:rgba(225,29,72,.9);color:#fff;cursor:pointer">
-        <svg width="${16*k}" height="${16*k}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      <button id="pptxCloseBtn" title="Close"
+        style="position:absolute;left:0;bottom:0;z-index:5;width:56px;height:26px;display:flex;align-items:center;justify-content:center;border:0;background:#404040;color:#d1d5db;cursor:pointer"
+        onmouseover="this.style.background='#e11d48';this.style.color='#fff'" onmouseout="this.style.background='#404040';this.style.color='#d1d5db'">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
       </button>`;
     document.getElementById("pptxFrame").onload = () => { const l = document.getElementById("pptxLoading"); if (l) l.remove(); };
     document.getElementById("pptxCloseBtn").onclick = () => closePreview();
