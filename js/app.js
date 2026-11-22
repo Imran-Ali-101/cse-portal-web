@@ -2972,7 +2972,23 @@ async function openPreview(name, id) {
  
 async function openPptxOffice(name, id) {
   const container = document.getElementById("previewContainer");
+  const topBar = document.getElementById("previewTopBar");
+  const viewportMeta = document.querySelector('meta[name="viewport"]');
+  const isTouch = window.matchMedia('(pointer: coarse)').matches;
+  const k = isTouch ? 2.4 : 1;            // desktop-mode viewport (1024px) এ মোবাইলে UI ছোট দেখায়, তাই বড় করা
+
+  // PDF-এর মতো: header নেই, পুরো স্ক্রিন, desktop-width layout
+  if (viewportMeta && !originalViewportContent) {
+    originalViewportContent = viewportMeta.getAttribute("content");
+    viewportMeta.setAttribute("content", "width=1024, user-scalable=yes");
+  }
+  if (topBar) topBar.classList.add("hidden");
+
   const card = (icon, title, text) => {
+    // error হলে আবার স্বাভাবিক header + viewport
+    if (topBar) topBar.classList.remove("hidden");
+    if (viewportMeta && originalViewportContent) { viewportMeta.setAttribute("content", originalViewportContent); originalViewportContent = ""; }
+    container.style.padding = "16px";
     container.style.justifyContent = "center";
     container.innerHTML = `
       <div class="text-center p-8 bg-slate-900 border border-slate-800 rounded-2xl max-w-sm">
@@ -2993,50 +3009,24 @@ async function openPptxOffice(name, id) {
     const { path } = await r.json();
     if (!activePreviewItem || activePreviewItem.id !== id) return; // user already closed it
 
-    const src = 'https://view.officeapps.live.com/op/embed.aspx?src=' + encodeURIComponent(API_BASE + path) + '&wdAr=1.7777777777777777';
-    const isTouch = window.matchMedia('(pointer: coarse)').matches;
+    const src = 'https://view.officeapps.live.com/op/embed.aspx?src=' + encodeURIComponent(API_BASE + path);
     container.style.padding = "0";
     container.style.position = "relative";
     container.style.overflow = "hidden";
     container.style.background = "#000";
-    container.style.justifyContent = "flex-start";
-    // 1280x760 এ রেন্ডার করিয়ে CSS scale — তাহলে স্লাইড ঘোলা হয় না
-    // touch-action:none → rotate অবস্থায়ও swipe (স্লাইড বদল) iframe-এর ভেতরে পৌঁছায়, browser নিজে scroll করে না
+    container.style.justifyContent = "center";
+    // ফোন portrait/landscape যেটাই হোক iframe নিজে পুরো জায়গা নেয় — CSS rotate নেই, তাই touch swipe স্বাভাবিক কাজ করে
     container.innerHTML = `
-      <iframe id="pptxFrame" src="${src}" allowfullscreen
-        style="position:absolute;left:0;top:0;width:1280px;height:760px;border:0;transform-origin:0 0;background:#000;touch-action:none"></iframe>
-      <div id="pptxLoading" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#94a3b8;font-size:12px;pointer-events:none">
-        <div class="w-48 bg-slate-800 rounded-full h-2 overflow-hidden"><div class="bg-blue-500 h-full rounded-full progress-bar-striped" style="width:100%"></div></div>
+      <iframe id="pptxFrame" src="${src}" allowfullscreen class="w-full h-full border-0" style="background:#000"></iframe>
+      <div id="pptxLoading" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:${10*k}px;color:#94a3b8;font-size:${12*k}px;pointer-events:none">
+        <div class="bg-slate-800 rounded-full overflow-hidden" style="width:${192*k}px;height:${8*k}px"><div class="bg-blue-500 h-full rounded-full progress-bar-striped" style="width:100%"></div></div>
         <span>Opening presentation…</span>
-      </div>`;
-
-    let rotPref = isTouch;               // মোবাইলে ডিফল্টভাবে rotate (portrait হলে)
-    const frame = document.getElementById("pptxFrame");
-    frame.onload = () => { const l = document.getElementById("pptxLoading"); if (l) l.remove(); };
-    const fit = () => {
-      const w = container.clientWidth, h = container.clientHeight;
-      if (!w || !h) return;
-      const rot = rotPref && h > w;      // ফোন নিজেই landscape হলে আর rotate লাগে না
-      let t;
-      if (!rot) {
-        const s = Math.min(w / 1280, h / 760);
-        t = `translate(${(w - 1280 * s) / 2}px,${(h - 760 * s) / 2}px) scale(${s})`;
-      } else {
-        const s = Math.min(h / 1280, w / 760);
-        t = `translate(${(w - 760 * s) / 2 + 760 * s}px,${(h - 1280 * s) / 2}px) rotate(90deg) scale(${s})`;
-      }
-      frame.style.transform = t;
-    };
-    // Rotate বাটন: image view-এর মতো উপরের bar-এ
-    const rotBtn = document.getElementById("imageRotateBtn");
-    if (isTouch && rotBtn) {
-      rotBtn.classList.remove("hidden");
-      window.rotatePreviewImage = () => { rotPref = !rotPref; fit(); };
-    }
-    if (window.__pptxRO) window.__pptxRO.disconnect();
-    window.__pptxRO = new ResizeObserver(fit);
-    window.__pptxRO.observe(container);
-    fit();
+      </div>
+      <button id="pptxCloseBtn" title="Close" style="position:absolute;top:${8*k}px;right:${8*k}px;z-index:5;width:${34*k}px;height:${34*k}px;display:flex;align-items:center;justify-content:center;border:0;border-radius:${8*k}px;background:rgba(225,29,72,.9);color:#fff;cursor:pointer">
+        <svg width="${16*k}" height="${16*k}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>`;
+    document.getElementById("pptxFrame").onload = () => { const l = document.getElementById("pptxLoading"); if (l) l.remove(); };
+    document.getElementById("pptxCloseBtn").onclick = () => closePreview();
   } catch (err) {
     card("fa-triangle-exclamation text-rose-500", "Failed to open presentation", err.message);
   }
