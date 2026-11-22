@@ -2977,6 +2977,12 @@ async function openPptxOffice(name, id) {
   const isTouch = window.matchMedia('(pointer: coarse)').matches;
   const k = isTouch ? 2.4 : 1;            // desktop-mode viewport (1024px) এ মোবাইলে UI ছোট দেখায়, তাই বড় করা
 
+  // Auto fullscreen — user-এর click-এর ঠিক পরেই (await-এর আগে) চাইতে হয়, নইলে browser আটকে দেয়
+  try {
+    const fsEl = document.getElementById("previewModal");
+    if (fsEl && fsEl.requestFullscreen && !document.fullscreenElement) fsEl.requestFullscreen({ navigationUI: "hide" }).catch(() => {});
+  } catch (e) {}
+
   // PDF-এর মতো: header নেই, পুরো স্ক্রিন, desktop-width layout
   if (viewportMeta && !originalViewportContent) {
     originalViewportContent = viewportMeta.getAttribute("content");
@@ -3027,7 +3033,10 @@ async function openPptxOffice(name, id) {
         onmouseover="this.style.background='#be123c'" onmouseout="this.style.background='#e11d48'">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>Close
       </button>`;
-    document.getElementById("pptxFrame").onload = () => { const l = document.getElementById("pptxLoading"); if (l) l.remove(); };
+    const pFrame = document.getElementById("pptxFrame");
+    // iframe-এ focus থাকলে keyboard-এর ← → ↑ ↓ Space দিয়ে স্লাইড বদলায় (Microsoft viewer নিজেই সামলায়)
+    pFrame.onload = () => { const l = document.getElementById("pptxLoading"); if (l) l.remove(); pFrame.focus(); };
+    container.onmouseenter = () => pFrame.focus();
     document.getElementById("pptxCloseBtn").onclick = () => closePreview();
   } catch (err) {
     card("fa-triangle-exclamation text-rose-500", "Failed to open presentation", err.message);
@@ -3040,6 +3049,8 @@ function closePreview(isFromBackButton = false) {
   if (container) {
     container.onwheel = null;
     container.onmousemove = null;
+    container.onmouseenter = null;
+    if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
     container.onmouseup = null;
     container.onmouseleave = null;
     container.onpointerdown = null;
