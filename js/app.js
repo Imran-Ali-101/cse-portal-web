@@ -479,6 +479,46 @@ function startPresenceHeartbeat() {
   setInterval(ping, 60 * 1000);
 }
 
+// ---------- keep this device in sync with the server (approval, role change, deleted account) ----------
+let _acctSyncBusy = false, _acctSyncTimer = null;
+async function syncMyAccount() {
+  if (!currentUser || !currentUser.token || isGuestMode || _acctSyncBusy) return;
+  _acctSyncBusy = true;
+  try {
+    const res = await fetch(`${API_BASE}/auth/check-role/${encodeURIComponent(currentUser.student_id)}`);
+    if (res.status === 401 || res.status === 404) {          // account deleted (or token no longer valid)
+      handleLogout();
+      showToast("Your account is no longer available. Please contact an admin.", "error");
+      return;
+    }
+    if (!res.ok || !currentUser) return;
+    const d = await res.json();
+    const wasApproved = isApproved();
+    const changed = d.role !== currentUser.role || d.status !== currentUser.status;
+    Object.assign(currentUser, {
+      role: d.role, status: d.status,
+      chat_banned_until: d.chat_banned_until, file_banned_until: d.file_banned_until
+    });
+    localStorage.setItem("user", JSON.stringify(currentUser));
+    if (changed) {
+      if (!wasApproved && isApproved()) showToast("Your account has been approved!", "success");
+      forceSync = true;
+      await renderPortalView();      // reloads folders/files with the new access
+    }
+  } catch (e) { /* offline / server asleep: try again next time */ }
+  finally { _acctSyncBusy = false; }
+}
+function startAccountSync() {
+  if (_acctSyncTimer) return;
+  // Don't wake a sleeping server just for this (same rule as the presence heartbeat)
+  _acctSyncTimer = setInterval(() => {
+    if (!document.hidden && Date.now() - lastApiOk < 5 * 60 * 1000) syncMyAccount();
+  }, 30 * 1000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) syncMyAccount(); });
+  window.addEventListener("focus", syncMyAccount);
+  syncMyAccount();
+}
+
 async function renderPortalView() {
   // --- Auto Open Preview from URL (For New Tab feature) ---
   const urlParams = new URLSearchParams(window.location.search);
@@ -548,6 +588,7 @@ async function renderPortalView() {
     sortFiles(currentSortMode);
     
     startPresenceHeartbeat();
+    startAccountSync();
     checkUnseenNotices();
     checkAndShowNoticePopups();
     loadDynamicTools();
@@ -668,6 +709,7 @@ function showForgotPasswordForm() {
 async function fetchRecoveryQuestion() {
   const sid = document.getElementById("fpStudentId").value.trim();
   if (!sid) return showToast("Enter Student ID", "error");
+  if (!validateField("fpStudentId")) return showToast(VALID.fpStudentId(sid), "error");
 
   try {
     const res = await fetch(`${API_BASE}/auth/forgot-password/get-question`, {
@@ -692,6 +734,7 @@ async function executePasswordReset() {
   const new_password = document.getElementById("fpNewPass").value.trim();
 
   if (!answer || !new_password) return showToast("Fill all fields", "error");
+  if (!validateField("fpStudentId")) return showToast(VALID.fpStudentId(student_id), "error");
 
   try {
     const res = await fetch(`${API_BASE}/auth/forgot-password/reset`, {
@@ -837,10 +880,37 @@ async function saveNewSecurityQuestion() {
   }
 }
 
+// ---------- form validation: errors are shown, nothing is silently accepted ----------
+const _ID_LOGIN = v => /^[A-Za-z0-9_-]{3,32}$/.test(v) ? "" : "Student ID can contain only letters and digits (no spaces or symbols like ').";
+const VALID = {
+  loginId: _ID_LOGIN,
+  fpStudentId: _ID_LOGIN,
+  regId: v => /^\d{6,15}$/.test(v) ? "" : "Student ID must be digits only (6-15 digits). Remove spaces and symbols like '.",
+  regNo: v => /^[A-Za-z0-9]{4,20}$/.test(v) ? "" : "Registration No must be 4-20 letters or digits, without spaces or symbols.",
+  regName: v => (v.length >= 2 && v.length <= 60 && !/[<>"'&`\\]/.test(v)) ? "" : "Name must be 2-60 characters and cannot contain < > \" ' & ` or \\."
+};
+function showFieldError(id, msg) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  let p = el.nextElementSibling && el.nextElementSibling.classList.contains("field-err") ? el.nextElementSibling : null;
+  if (!msg) { if (p) p.remove(); el.style.borderColor = ""; return; }
+  if (!p) { p = document.createElement("p"); p.className = "field-err text-[11px] text-red-500 mt-1"; el.after(p); }
+  p.textContent = msg;
+  el.style.borderColor = "#f87171";
+}
+function validateField(id) {
+  const el = document.getElementById(id);
+  const msg = el && el.value.trim() ? VALID[id](el.value.trim()) : "";   // empty fields are handled by "Fill all fields"
+  showFieldError(id, msg);
+  return !msg;
+}
+document.addEventListener("input", e => { if (e.target && VALID[e.target.id]) validateField(e.target.id); });
+
 async function handleLogin() {
   const student_id = document.getElementById("loginId").value.trim();
   const password = document.getElementById("loginPass").value.trim();
   if (!student_id || !password) return showToast("Enter credentials", "error");
+  if (!validateField("loginId")) return showToast(VALID.loginId(student_id), "error");
 
   const btn = document.getElementById("loginSubmitBtn");
   const text = document.getElementById("loginText");
@@ -876,6 +946,8 @@ async function handleRegister() {
   const a1 = document.getElementById("secA1").value.trim();
 
   if (!name || !student_id || !reg_no || !q1 || !a1) return showToast("Fill all fields", "error");
+  const _bad = [["regName", name], ["regId", student_id], ["regNo", reg_no]].filter(([id]) => !validateField(id))[0];
+  if (_bad) return showToast(VALID[_bad[0]](_bad[1]), "error");
 
   const btn = document.getElementById("regSubmitBtn");
   const text = document.getElementById("regText");
@@ -912,7 +984,7 @@ async function handleRegister() {
 function handleLogout() {
   currentUser = null;
   localStorage.removeItem("user");
-  ["cached_files","cached_folders","cached_notices"].forEach(k => localStorage.removeItem(k));
+  ["cached_files","cached_folders","cached_notices","cached_chat"].forEach(k => localStorage.removeItem(k));
   renderPortalView();
   showToast("Logged out successfully", "info");
 }
@@ -2068,8 +2140,8 @@ function _renderNoticesList(container, list) {
             <i class="fa-solid fa-bullhorn text-xs"></i>
           </div>
           <div class="truncate">
-            <span class="font-bold text-slate-800 dark:text-slate-100 block truncate">${n.title}</span>
-            <span class="text-[11px] text-slate-500 font-mono truncate">${(n.file_name || n.message || '').replace(/\n/g, ', ')}</span>
+            <span class="font-bold text-slate-800 dark:text-slate-100 block truncate">${_escHtml(n.title)}</span>
+            <span class="text-[11px] text-slate-500 font-mono truncate">${_escHtml((n.file_name || n.message || '').replace(/\n/g, ', '))}</span>
           </div>
         </div>
         <span class="text-[10px] text-slate-400 font-mono whitespace-nowrap ml-2">${timeFormatted}</span>
@@ -2958,6 +3030,18 @@ function initWebSocket() {
   // Only load chat history if user is logged in
   if (!currentUser || !currentUser.token) return;
 
+  // Chat খুললেই আগের messages cache থেকে দেখাও (না থাকলে skeleton) — server জাগার অপেক্ষায় খালি জায়গা থাকবে না
+  const box0 = document.getElementById("chatMessages");
+  if (!box0.children.length) {
+    const cached = getFromLocalStorage("cached_chat");
+    if (cached.length) cached.forEach(appendMessage);
+    else box0.innerHTML = [0, 1, 2, 3].map(i => `
+      <div class="flex flex-col ${i % 2 ? 'items-end' : 'items-start'} animate-pulse">
+        <div class="h-2 w-20 rounded bg-slate-100 dark:bg-slate-800 mb-1"></div>
+        <div class="h-8 ${i % 2 ? 'w-40' : 'w-56'} rounded-2xl bg-slate-100 dark:bg-slate-800"></div>
+      </div>`).join("");
+  }
+
   fetch(`${API_BASE}/chat/history`)
     .then(res => res.json())
     .then(msgs => {
@@ -2965,8 +3049,13 @@ function initWebSocket() {
       box.innerHTML = "";
       if (Array.isArray(msgs)) {
         msgs.forEach(appendMessage);
+        saveToLocalStorage("cached_chat", msgs.slice(-60));
       }
-    }).catch(err => console.error("Chat history load failed", err));
+    }).catch(err => {
+      console.error("Chat history load failed", err);
+      const box = document.getElementById("chatMessages");
+      if (box.querySelector(".animate-pulse")) box.innerHTML = "";
+    });
 
   if (!ws) {
     // Append the JWT token to the websocket URL for authentication
@@ -2993,11 +3082,13 @@ function initWebSocket() {
         }
       } else if (data.type === "chat_event" && data.cleared) {
         document.getElementById("chatMessages").innerHTML = "";
+        localStorage.removeItem("cached_chat");
         showToast(data.message, "info");
       } else if (data.system) {
         showToast(data.message, "error");
       } else {
         appendMessage(data);
+        saveToLocalStorage("cached_chat", getFromLocalStorage("cached_chat").concat(data).slice(-60));
       }
     };
     
@@ -3029,9 +3120,9 @@ function appendMessage(msg) {
   const el = document.createElement("div");
   el.className = `flex flex-col ${isMe ? 'items-end' : 'items-start'}`;
   el.innerHTML = `
-    <span class="text-[9px] text-slate-400 mb-0.5">${msg.sender_name} (${msg.student_id})</span>
+    <span class="text-[9px] text-slate-400 mb-0.5">${_escHtml(msg.sender_name)} (${_escHtml(msg.student_id)})</span>
     <div class="px-3.5 py-2 rounded-2xl max-w-[80%] text-xs shadow-xs ${isMe ? 'bg-blue-600 text-white rounded-br-none' : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-none'}">
-      ${msg.message}
+      ${_escHtml(msg.message)}
     </div>
   `;
   box.appendChild(el);

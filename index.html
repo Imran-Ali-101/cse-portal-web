@@ -1011,7 +1011,7 @@
         <h3 class="text-base font-bold mb-1 text-blue-600">Account Login</h3>
         <p class="text-xs text-slate-400 mb-4">Password is your <b>Registration Number</b></p>
         <div class="space-y-3">
-          <input id="loginId" type="text" placeholder="Student ID (e.g. 2510376101)" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs">
+          <input id="loginId" type="text" maxlength="32" autocapitalize="off" autocomplete="username" placeholder="Student ID (e.g. 2510376101)" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs">
           <input id="loginPass" type="password" placeholder="Password (Registration No)" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs">
           
           <div class="flex justify-end">
@@ -1041,9 +1041,9 @@
           <div class="flex items-center gap-3 text-[11px] text-slate-400 mt-3"><span class="h-px flex-1 bg-slate-200 dark:bg-slate-800"></span>or register manually<span class="h-px flex-1 bg-slate-200 dark:bg-slate-800"></span></div>
         </div>
         <div class="space-y-3 max-h-[65vh] overflow-y-auto pr-1">
-          <input id="regName" type="text" placeholder="Full Name" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs">
-          <input id="regId" type="text" placeholder="Student ID (e.g. 2510376101)" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs">
-          <input id="regNo" type="text" placeholder="Registration No (e.g. 1918842234)" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs">
+          <input id="regName" type="text" maxlength="60" placeholder="Full Name" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs">
+          <input id="regId" type="text" inputmode="numeric" maxlength="15" autocomplete="off" placeholder="Student ID (e.g. 2510376101)" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs">
+          <input id="regNo" type="text" maxlength="20" autocomplete="off" placeholder="Registration No (e.g. 1918842234)" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs">
           
           <div class="border-t border-slate-200 dark:border-slate-800 pt-2">
             <span class="text-[11px] text-slate-400 font-semibold">Security Recovery Question:</span>
@@ -1073,7 +1073,7 @@
         <p class="text-xs text-slate-400 mb-4">Answer security question to reset</p>
         <div class="space-y-3">
           <div id="fpStep1">
-            <input id="fpStudentId" type="text" placeholder="Enter Student ID" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs mb-2">
+            <input id="fpStudentId" type="text" maxlength="32" autocapitalize="off" placeholder="Enter Student ID" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs mb-2">
             <button onclick="fetchRecoveryQuestion()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-xl text-xs font-semibold">Next</button>
           </div>
           <div id="fpStep2" class="hidden space-y-3">
