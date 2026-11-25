@@ -15,6 +15,7 @@ let activeNoticeTarget = null;
 const pdfCache = {};
 let isGuestMode = false;
 let currentShareId = null;
+let guestShareFullId = null; // server-এর আসল share id (URL-এ থাকে ছোট slug)
 let guestToken = null;
 let guestFolderPath = "";
 let sharedFiles = [];
@@ -3286,7 +3287,7 @@ async function openCreateShareModal() {
     
     if (data.is_shared) {
       document.getElementById("shareModalSubtext").innerText = "This folder is currently shared publicly.";
-      const shareUrl = `${window.location.origin}${window.location.pathname}?share=${data.share_id}`;
+      const shareUrl = `${window.location.origin}${window.location.pathname}?share=${data.slug || data.share_id}`;
       document.getElementById("generatedShareLink").value = shareUrl;
       document.getElementById("shareManageSection").classList.remove("hidden");
     } else {
@@ -3393,6 +3394,7 @@ async function verifyAndLoadSharedFolder() {
     // Authentication Success
     document.getElementById("guestPasswordModal").classList.add("hidden");
     guestToken = data.token;
+    guestShareFullId = data.share_id || currentShareId;
     guestFolderPath = data.folder_path;
     guestCurrentPath = data.folder_path; 
     
@@ -3423,7 +3425,7 @@ async function verifyAndLoadSharedFolder() {
 
 async function loadSharedFiles() {
   try {
-    const res = await fetch(`${API_BASE}/share/files/${currentShareId}?token=${guestToken}`);
+    const res = await fetch(`${API_BASE}/share/files/${guestShareFullId || currentShareId}?token=${guestToken}`);
     const data = await res.json();
     if (!res.ok) throw new Error("Could not load shared files");
     sharedFiles = data;
@@ -4412,7 +4414,7 @@ function handleMiddleClick(e, messageId, name) {
 let adminShareLinks = [];
 
 function buildShareUrl(shareId) {
-  return `${window.location.origin}${window.location.pathname}?share=${shareId}`;
+  return `${window.location.origin}${window.location.pathname}?share=${shareId}`; // shareId = slug বা পুরনো uuid
 }
 
 async function openSharedLinksModal() {
@@ -4480,7 +4482,7 @@ function renderSharedLinks() {
 function copySharedLink(index) {
   const link = adminShareLinks[index];
   if (!link) return;
-  navigator.clipboard.writeText(buildShareUrl(link.id));
+  navigator.clipboard.writeText(buildShareUrl(link.slug || link.id));
   showToast("Link copied to clipboard!", "success");
 }
 
